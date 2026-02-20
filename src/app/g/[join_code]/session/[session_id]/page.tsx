@@ -161,6 +161,16 @@ export default async function SessionPage({ params }: PageProps) {
             Game recording coming in Milestone 4.
           </p>
         )}
+
+        {/* Session history link */}
+        <div className="pt-2 border-t border-gray-200">
+          <Link
+            href={`/g/${group.join_code}/sessions`}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            View all sessions →
+          </Link>
+        </div>
       </div>
     </main>
   );

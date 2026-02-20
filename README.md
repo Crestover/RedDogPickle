@@ -61,32 +61,36 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 /
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx           # Root layout
-│   │   ├── page.tsx             # / → Enter Group Code
+│   │   ├── layout.tsx                           # Root layout
+│   │   ├── page.tsx                             # / → Enter Group Code
+│   │   ├── actions/
+│   │   │   ├── sessions.ts                      # createSessionAction, endSessionAction
+│   │   │   └── players.ts                       # addPlayerAction, suggestCode
 │   │   └── g/[join_code]/
-│   │       └── page.tsx         # /g/{code} → Group dashboard
+│   │       ├── page.tsx                         # Dashboard (state-aware)
+│   │       ├── start/
+│   │       │   ├── page.tsx                     # Start Session (server)
+│   │       │   └── StartSessionForm.tsx         # Attendee selector (client)
+│   │       ├── players/new/
+│   │       │   ├── page.tsx                     # Add Player (server)
+│   │       │   └── AddPlayerForm.tsx            # Name + code form (client)
+│   │       ├── sessions/
+│   │       │   └── page.tsx                     # Session History list
+│   │       └── session/[session_id]/
+│   │           ├── page.tsx                     # Active Session view
+│   │           └── EndSessionButton.tsx         # Two-tap end button (client)
 │   └── lib/
 │       └── supabase/
-│           └── client.ts                    # Supabase anon client
-│   ├── app/
-│   │   ├── actions/
-│   │   │   └── sessions.ts                  # Server Actions: createSession, endSession
-│   │   └── g/[join_code]/
-│   │       ├── start/
-│   │       │   ├── page.tsx                 # Start Session (server)
-│   │       │   └── StartSessionForm.tsx     # Attendee selector (client)
-│   │       └── session/[session_id]/
-│   │           ├── page.tsx                 # Active Session view (server)
-│   │           └── EndSessionButton.tsx     # Two-tap end button (client)
+│           └── client.ts                        # Supabase anon client
 ├── supabase/
-│   ├── schema.sql                           # Full DB schema (source of truth)
+│   ├── schema.sql                               # Full DB schema (source of truth)
 │   └── migrations/
-│       └── m2_rpc_sessions.sql              # M2 delta: constraint + 2 RPCs
-├── docs/                                    # Developer documentation
-├── .env.example                             # Env var template (no secrets)
-├── SPEC.md                                  # Product specification
-├── BUILD_PLAN.md                            # Milestone roadmap
-└── CHANGELOG.md                             # Change history
+│       └── m2_rpc_sessions.sql                  # M2 delta: constraint + 2 RPCs
+├── docs/                                        # Developer documentation
+├── .env.example                                 # Env var template (no secrets)
+├── SPEC.md                                      # Product specification
+├── BUILD_PLAN.md                                # Milestone roadmap
+└── CHANGELOG.md                                 # Change history
 ```
 
 ---
@@ -98,7 +102,7 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 | 0 | Project Setup | ✅ Complete |
 | 1 | Group Access & Dashboard Shell | ✅ Complete |
 | 2 | Sessions (RPC-based create + end) | ✅ Complete |
-| 3 | Add Player UI | 🔜 Pending |
+| 3 | Add Player & Session History | ✅ Complete |
 | 4 | Record Game | 🔜 Pending |
 | 5 | Leaderboards & Stats | 🔜 Pending |
 | 6 | Polish & Acceptance Criteria | 🔜 Pending |

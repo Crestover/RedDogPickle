@@ -56,11 +56,19 @@ export default async function StartSessionPage({ params }: PageProps) {
           </p>
         </div>
 
+        {/* Add Player link — always visible */}
+        <Link
+          href={`/g/${group.join_code}/players/new?from=start`}
+          className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors min-h-[48px]"
+        >
+          + Add New Player
+        </Link>
+
         {players.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
             <p className="text-gray-500 text-sm">No players yet.</p>
             <p className="text-gray-400 text-xs mt-1">
-              Players will be added in a future update.
+              Add players above, then come back to start a session.
             </p>
           </div>
         ) : (

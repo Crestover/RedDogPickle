@@ -288,6 +288,77 @@ Using Chrome DevTools → Toggle Device Toolbar → iPhone SE or similar:
 
 ---
 
+## Milestone 3 — Add Player & Session History
+
+> **Scope:** Add Player form with code suggestion + collision handling; Session History list; no DB schema changes.
+
+---
+
+### Prerequisites
+
+Same as Milestone 2. No new migration to apply.
+
+---
+
+### Test M — Add Player (`/g/{join_code}/players/new`)
+
+| # | Step | Expected |
+|---|---|---|
+| M-1 | From the Start Session page, tap **"+ Add New Player"** | Navigates to `/g/test-picklers/players/new?from=start` |
+| M-2 | Page loads | Shows "Add Player" heading, Full Name input, Player Code input with "(auto-suggested)" label, and "Add Player" button |
+| M-3 | Type `"Eve Turner"` in Full Name | Player Code field auto-fills with `"ETU"` |
+| M-4 | Clear Full Name, type `"Alice"` (single word) | Player Code auto-fills with `"ALI"` |
+| M-5 | Type `"Bob van der Berg"` | Player Code auto-fills with `"BVD"` (first letter of first 3 words) |
+| M-6 | Manually change code to `"BOB2"` | Code field updates to `"BOB2"` (auto-suggest stops updating since code was touched) |
+| M-7 | Submit with empty Full Name | Error: "Name is required." below Full Name input |
+| M-8 | Fill Full Name, clear code, submit | Error: "Code is required." below Code input |
+| M-9 | Enter code `"abc"` (lowercase) | Field forces uppercase — shows `"ABC"` |
+| M-10 | Enter code with a space or special char `"J D"` | Special chars stripped — shows `"JD"` |
+| M-11 | Fill valid name + unique code, tap **"Add Player"** | Button shows "Adding player…", then redirects to `/g/test-picklers/start` (because `?from=start`) |
+| M-12 | On Start Session page after redirect | New player appears in the player list |
+| M-13 | In Supabase Table Editor → players | New row exists with correct `group_id`, `display_name`, `code`, `is_active = true` |
+| M-14 | Try to add a player with a code already taken (e.g. `"ALS"`) | Error: `Code "ALS" is already taken in this group. Try a different code.` |
+| M-15 | Change the code to something unique and re-submit | Succeeds, redirects |
+| M-16 | Visit `/g/test-picklers/players/new` without `?from=` | Page loads; after adding a player, redirects to `/g/test-picklers` (dashboard) |
+| M-17 | Preview card | While typing, a preview card shows the code badge + name |
+
+---
+
+### Test N — Session History (`/g/{join_code}/sessions`)
+
+| # | Step | Expected |
+|---|---|---|
+| N-1 | From the group dashboard, tap **"Session history →"** link | Navigates to `/g/test-picklers/sessions` |
+| N-2 | Page loads with no sessions in DB | Shows "No sessions recorded yet." and a "Start First Session" button |
+| N-3 | After creating at least one session (via M2 tests), reload | Sessions appear as a list ordered newest first |
+| N-4 | Active session (if any) | Shows a green dot and "Active" label |
+| N-5 | Ended session | Shows a grey dot, date, session name, "Ended · manual" |
+| N-6 | Each session row is tappable | Tapping navigates to `/g/test-picklers/session/{session_id}` |
+| N-7 | Session name format | Shown in monospace: `YYYY-MM-DD CODE CODE CODE` |
+| N-8 | Session date | Shows human-readable format: "Wed, Feb 19, 2026" |
+| N-9 | Back link | "← test-picklers" navigates back to dashboard |
+| N-10 | From session page | "View all sessions →" link navigates to session history |
+| N-11 | Counter in heading | Shows correct count: "3 sessions total" |
+
+---
+
+### Test O — Navigation Flows
+
+| # | Step | Expected |
+|---|---|---|
+| O-1 | Full happy path: Dashboard → Start Session → Add Player → (redirects back) → select 4 players → Start Session → session page | All steps navigate correctly, new player is selectable |
+| O-2 | Dashboard → Session History → tap a session → "← group name" link | Returns to dashboard |
+| O-3 | Start Session with 0 players | Shows "No players yet." empty state with prompt to add player above |
+
+---
+
+### Items NOT tested in Milestone 3 (deferred)
+
+- Game recording — Milestone 4
+- Leaderboard — Milestone 5
+
+---
+
 ## Milestone 4 — Record Game
 
 ### Player Selection

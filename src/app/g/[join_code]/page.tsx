@@ -150,13 +150,19 @@ export default async function GroupPage({ params }: PageProps) {
           )}
         </div>
 
-        {/* Back link */}
-        <div className="pt-4 border-t border-gray-200">
+        {/* Secondary nav */}
+        <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
           <Link
             href="/"
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
             ← Change group
+          </Link>
+          <Link
+            href={`/g/${group.join_code}/sessions`}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Session history →
           </Link>
         </div>
       </div>

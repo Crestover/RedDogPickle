@@ -4,6 +4,11 @@ This file records every assumption made where the SPEC was ambiguous or silent. 
 
 ---
 
+## A-014: Player Code Max Length Not Specified in SPEC
+**Assumption:** Player codes have no explicit maximum length in the SPEC. The `AddPlayerForm` enforces a `maxLength={6}` input limit as a practical UX constraint (codes longer than 6 chars would be unwieldy in session labels).
+**Why:** SPEC says codes are URL-safe identifiers used in session labels. 3 chars is the suggestion (initials), but no hard max is stated. 6 is a reasonable ceiling.
+**Impact:** The DB column has no length constraint (TEXT). The 6-char limit is UI-only.
+
 ## A-001: Minimum Attendees to Start a Session
 **Assumption:** There is no hard minimum number of attendees required to start a session. A session can be created with any number of players (including fewer than 4).
 **Why:** The SPEC does not specify a minimum. Pickleball requires 4 players per game, but attendees who arrive late or leave early are still legitimate attendees. The game recording screen enforces "exactly 4 players," not the session start screen.

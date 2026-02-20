@@ -109,6 +109,41 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 
 ---
 
+## [Milestone 3] — Add Player & Session History (2026-02-20)
+
+### Added
+- `src/app/actions/players.ts` — `addPlayerAction` Server Action: validates display_name + code format, inserts into `players`, handles `23505` unique-constraint collision with user-friendly message; `suggestCode()` pure utility (initials algorithm)
+- `src/app/g/[join_code]/players/new/page.tsx` — Server Component: loads group, resolves `?from=start` redirect target
+- `src/app/g/[join_code]/players/new/AddPlayerForm.tsx` — Client Component: name input, auto-suggested code (overrideable), live preview card, real-time uppercase/char enforcement, collision error display
+- `src/app/g/[join_code]/sessions/page.tsx` — Session History Server Component: all sessions ordered newest-first, active/ended badges, tappable rows → session detail page
+
+### Changed
+- `src/app/g/[join_code]/start/page.tsx` — Added **"+ Add New Player"** link (`?from=start`); updated empty-state message
+- `src/app/g/[join_code]/page.tsx` — Added **"Session history →"** link in footer nav
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — Added **"View all sessions →"** link
+
+### No schema changes
+- No migration file for M3. All operations use existing `players` INSERT RLS policy and `sessions` SELECT RLS policy.
+
+### Decisions
+- See `docs/decisions.md`: D-023, D-024, D-025, D-026, D-027
+
+### Assumptions
+- See `docs/assumptions.md`: A-014
+
+### Docs updated
+- `docs/decisions.md` — D-023 through D-027
+- `docs/testing.md` — M3 test matrix (Tests M, N, O): Add Player, Session History, Navigation Flows
+- `docs/assumptions.md` — A-014
+- `CHANGELOG.md` — this entry
+- `README.md` — milestone status + project structure updated
+
+### Known limitations / deferred
+- Game recording — Milestone 4
+- Leaderboard — Milestone 5
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

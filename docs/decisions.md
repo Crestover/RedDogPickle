@@ -125,3 +125,27 @@ This file records every significant decision made during the build, along with t
 ### D-022: join_code Lowercase Enforced at Both App and DB Layer
 **Decision:** In addition to the existing regex constraint (`^[a-z0-9\-]+$`), a new CHECK constraint (`join_code = lower(join_code)`) is added to `public.groups`. Existing rows are normalized before the constraint is applied.
 **Why:** Belt-and-suspenders: the regex already implied lowercase, but an explicit equality check makes the DB reject mixed-case inserts even if the regex were accidentally changed. The migration normalizes any pre-existing rows so the constraint addition does not fail.
+
+---
+
+## Milestone 3 — Add Player & Session History
+
+### D-023: Add Player — Code Suggestion from Initials
+**Decision:** Player codes are auto-suggested in `AddPlayerForm` using the `suggestCode()` utility: first letter of each word (up to 3 words), uppercased. Single-word names use the first 3 characters. The user can override before submitting.
+**Why:** Minimises typing courtside. Most players will have 2–3 word names giving natural 2–3 char codes (e.g. "John Doe" → "JDO"). The suggestion is a convenience, not a constraint — any uppercase alphanumeric string is valid.
+
+### D-024: Code Collision Handled at Insert, Not Pre-Check
+**Decision:** Code uniqueness is validated by catching the `23505` Postgres unique-constraint error on insert, not by doing a pre-check SELECT.
+**Why:** A pre-check SELECT followed by an INSERT has a TOCTOU race condition — two devices could simultaneously add the same code. The DB unique constraint (`players_group_code_unique`) is the authoritative enforcement point. The error message shown to the user includes the conflicting code and prompts them to try a different one.
+
+### D-025: Add Player Redirects to Caller via `?from=` Query Param
+**Decision:** The Add Player page accepts a `?from=start` query param. When present, the success redirect goes back to `/g/{code}/start`. Otherwise it goes to `/g/{code}`. No `?from=session` variant needed in M3.
+**Why:** The most common flow is: Start Session → Add Player (player is new) → back to Start Session to select them. The `?from` mechanism avoids hard-coding the back-destination in the server action and keeps the action reusable from any caller.
+
+### D-026: Session History — No Pagination in M3
+**Decision:** The Session History page fetches all sessions for the group ordered by `started_at DESC` with no pagination or limit.
+**Why:** MVP usage expects small groups with infrequent sessions. A typical group might have 10–50 sessions per year. Full list is acceptable. Pagination or infinite scroll is a post-MVP enhancement.
+
+### D-027: No Schema Changes in Milestone 3
+**Decision:** Milestone 3 adds no new tables, columns, or RPC functions. All functionality is built on the existing schema.
+**Why:** Add Player uses the existing `players` table (INSERT via anon RLS policy). Session History reads the existing `sessions` table (SELECT via anon RLS policy). No migration file is needed.

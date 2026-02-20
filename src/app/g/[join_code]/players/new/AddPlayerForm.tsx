@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { addPlayerAction, suggestCode } from "@/app/actions/players";
+import { addPlayerAction } from "@/app/actions/players";
+import { suggestCode } from "@/lib/suggestCode";
 
 interface Props {
   groupId: string;

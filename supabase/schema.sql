@@ -82,7 +82,10 @@ create table public.games (
   created_by_player_id uuid references public.players(id),
   created_at           timestamptz not null default now(),
 
-  constraint games_dedupe_key_unique     unique (session_id, dedupe_key),
+  -- games_dedupe_key_unique intentionally removed in M4.1:
+  -- fingerprint has no time bucket so the same scoreline played a second
+  -- time would be permanently blocked. The RPC's 15-min recency check is
+  -- the duplicate gate; dedupe_key is retained for auditability only.
   constraint games_scores_nonnegative    check (team_a_score >= 0 and team_b_score >= 0),
   constraint games_scores_not_equal      check (team_a_score != team_b_score),
   constraint games_sequence_num_positive check (sequence_num > 0)
@@ -274,47 +277,52 @@ grant execute on function public.end_session(uuid) to anon;
 --   p_team_b_ids   — exactly 2 player UUIDs on Team B
 --   p_team_a_score — Team A's score
 --   p_team_b_score — Team B's score
+--   p_force        — if true, skip the 15-min recent-duplicate check
 --
--- Returns: UUID of the newly inserted game row.
+-- Returns jsonb:
+--   { "status": "inserted",           "game_id": "<uuid>" }
+--   { "status": "possible_duplicate", "existing_game_id": "<uuid>",
+--                                     "existing_created_at": "<iso>" }
 --
--- dedupe_key canonicalization:
+-- fingerprint (dedupe_key) canonicalization — NO time bucket:
 --   1. Sort UUIDs within each team
 --   2. Sort the two team strings lexicographically (team order-insensitive)
 --   3. Score part: min(scores):max(scores)
---   4. 10-min bucket: floor(epoch / 600)
---   5. SHA-256 of joined string
+--   4. SHA-256 of lo|hi|score_part
+--   (stored in dedupe_key column for auditability; no longer UNIQUE)
 -- ────────────────────────────────────────────────────────────
 create or replace function public.record_game(
   p_session_id   uuid,
   p_team_a_ids   uuid[],
   p_team_b_ids   uuid[],
   p_team_a_score integer,
-  p_team_b_score integer
+  p_team_b_score integer,
+  p_force        boolean default false
 )
-returns uuid
+returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_session         record;
-  v_attendee_ids    uuid[];
-  v_all_player_ids  uuid[];
-  v_pid             uuid;
-  v_game_id         uuid;
-  v_sequence_num    integer;
-  v_team_a_sorted   uuid[];
-  v_team_b_sorted   uuid[];
-  v_team_a_str      text;
-  v_team_b_str      text;
-  v_lo              text;
-  v_hi              text;
-  v_score_part      text;
-  v_bucket          text;
-  v_raw             text;
-  v_dedupe_key      text;
-  v_winner          integer;
-  v_loser           integer;
+  v_session          record;
+  v_attendee_ids     uuid[];
+  v_all_player_ids   uuid[];
+  v_pid              uuid;
+  v_game_id          uuid;
+  v_sequence_num     integer;
+  v_team_a_sorted    uuid[];
+  v_team_b_sorted    uuid[];
+  v_team_a_str       text;
+  v_team_b_str       text;
+  v_lo               text;
+  v_hi               text;
+  v_score_part       text;
+  v_fingerprint      text;
+  v_winner           integer;
+  v_loser            integer;
+  v_existing_id      uuid;
+  v_existing_at      timestamptz;
 begin
   select id, ended_at, started_at
     into v_session
@@ -380,6 +388,7 @@ begin
       using errcode = 'P0001';
   end if;
 
+  -- Compute fingerprint (no time bucket)
   select array_agg(u order by u) into v_team_a_sorted from unnest(p_team_a_ids) as u;
   select array_agg(u order by u) into v_team_b_sorted from unnest(p_team_b_ids) as u;
 
@@ -392,10 +401,28 @@ begin
     v_lo := v_team_b_str; v_hi := v_team_a_str;
   end if;
 
-  v_score_part := least(p_team_a_score, p_team_b_score)::text || ':' || greatest(p_team_a_score, p_team_b_score)::text;
-  v_bucket     := floor(extract(epoch from now()) / 600)::bigint::text;
-  v_raw        := v_lo || '|' || v_hi || '|' || v_score_part || '|' || v_bucket;
-  v_dedupe_key := encode(digest(v_raw, 'sha256'), 'hex');
+  v_score_part  := least(p_team_a_score, p_team_b_score)::text || ':' || greatest(p_team_a_score, p_team_b_score)::text;
+  v_fingerprint := encode(digest(v_lo || '|' || v_hi || '|' || v_score_part, 'sha256'), 'hex');
+
+  -- Recent-duplicate check (skipped when p_force = true)
+  if not p_force then
+    select id, created_at
+      into v_existing_id, v_existing_at
+      from public.games
+     where session_id  = p_session_id
+       and dedupe_key  = v_fingerprint
+       and created_at >= now() - interval '15 minutes'
+     order by created_at desc
+     limit 1;
+
+    if v_existing_id is not null then
+      return jsonb_build_object(
+        'status',              'possible_duplicate',
+        'existing_game_id',    v_existing_id,
+        'existing_created_at', v_existing_at
+      );
+    end if;
+  end if;
 
   select coalesce(max(sequence_num), 0) + 1
     into v_sequence_num
@@ -403,7 +430,7 @@ begin
    where session_id = p_session_id;
 
   insert into public.games (session_id, sequence_num, team_a_score, team_b_score, dedupe_key)
-  values (p_session_id, v_sequence_num, p_team_a_score, p_team_b_score, v_dedupe_key)
+  values (p_session_id, v_sequence_num, p_team_a_score, p_team_b_score, v_fingerprint)
   returning id into v_game_id;
 
   foreach v_pid in array p_team_a_ids loop
@@ -414,11 +441,11 @@ begin
     insert into public.game_players (game_id, player_id, team) values (v_game_id, v_pid, 'B');
   end loop;
 
-  return v_game_id;
+  return jsonb_build_object('status', 'inserted', 'game_id', v_game_id);
 end;
 $$;
 
-grant execute on function public.record_game(uuid, uuid[], uuid[], integer, integer) to anon;
+grant execute on function public.record_game(uuid, uuid[], uuid[], integer, integer, boolean) to anon;
 
 
 -- ============================================================
@@ -428,15 +455,15 @@ grant execute on function public.record_game(uuid, uuid[], uuid[], integer, inte
 --      - winner score >= 11, winner - loser >= 2
 --      - scores not equal (also DB constraint)
 --
--- 2. dedupe_key canonicalization (order-insensitive within teams
---    AND across teams):
+-- 2. fingerprint (dedupe_key) canonicalization — NO time bucket:
 --      sort UUIDs within each team → join with ','
 --      sort the two team strings lexicographically → lo, hi
 --      score_part = min(scores):max(scores)
---      bucket = floor(epoch / 600) [10-min window]
---      raw = lo|hi|score_part|bucket
---      dedupe_key = sha256(raw) as hex
---    unique(session_id, dedupe_key) enforces cross-device dedup.
+--      fingerprint = sha256(lo|hi|score_part) as hex
+--    Stored in dedupe_key for auditability. NOT unique-constrained
+--    (constraint removed in M4.1 so the same scoreline can be played
+--    again legitimately). Duplicate prevention is the RPC's 15-min
+--    recency check + UI warn-and-confirm flow.
 --
 -- 3. end_session is SECURITY DEFINER so it can UPDATE sessions
 --    without any anon UPDATE RLS policy. search_path is pinned

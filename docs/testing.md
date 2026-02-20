@@ -448,15 +448,22 @@ Same as Milestone 2. No new migration to apply.
 
 ---
 
-### Test U — Duplicate Detection
+### Test U — Duplicate Warn-and-Confirm *(updated M4.1)*
+
+> **Prerequisite:** Apply `supabase/migrations/m4.1_duplicate_warn.sql` in Supabase SQL Editor before running these tests.
 
 | # | Step | Expected |
 |---|---|---|
 | U-1 | Open the same active session in **two browser tabs** | Both show same session |
-| U-2 | Tab 1: record a game (e.g. 11-7, teams JDO+ALS vs BOJ+CAW) | Saved; redirected with Game #1 |
-| U-3 | Tab 2: submit identical game (same players, same scores) within 10 min | Error: "This game looks like a duplicate…" |
-| U-4 | UI state on duplicate | Stays on confirm step (does not reset to select) |
-| U-5 | Tab 2: submit different scores (e.g. 11-8) same players | Succeeds; Game #2 appears |
+| U-2 | Tab 1: record a game (e.g. Team A: JDO+ALS, Team B: BOJ+CAW, 11–7) | Game saved; redirected; Game #1 in list |
+| U-3 | Tab 2: submit the **identical** game (same 4 players, same scores) within 15 min | Confirm step stays open; **amber warning banner** appears: "⚠️ This game may have already been recorded X minutes ago." |
+| U-4 | Warning banner contents | Shows "Cancel" and "Record anyway" buttons; no red error text |
+| U-5 | Click **Cancel** | Form resets to select step; only 1 row in games table |
+| U-6 | Repeat Tab 2 submission → click **Record anyway** | Button shows "Saving…"; game inserts; 2 rows in games table |
+| U-7 | Submit a different scoreline (e.g. 11–8, same players) within 15 min | No warning; inserts normally (different fingerprint) |
+| U-8 | Submit same game after >15 min (simulate: `UPDATE public.games SET created_at = now() - interval '16 minutes' WHERE id = '<game1_id>';`) then retry | No warning; inserts normally (recency window expired) |
+| U-9 | Verify via SQL: `SELECT COUNT(*), dedupe_key FROM public.games WHERE session_id = '<sid>' GROUP BY dedupe_key;` | After U-6: one dedupe_key has count = 2 |
+| U-10 | Verify constraint removed: `SELECT conname FROM pg_constraint WHERE conname = 'games_dedupe_key_unique';` | Returns 0 rows |
 
 ---
 

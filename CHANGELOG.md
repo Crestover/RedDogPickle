@@ -186,6 +186,53 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 
 ---
 
+## [Milestone 4.1] — Duplicate Warn-and-Confirm (2026-02-20)
+
+### Changed
+- `supabase/migrations/m4.1_duplicate_warn.sql` — delta migration:
+  - Drops `games_dedupe_key_unique` constraint; the same scoreline played legitimately
+    a second time would be permanently blocked without a time bucket in the fingerprint
+  - Replaces `record_game` RPC with updated signature: adds `p_force boolean DEFAULT false`,
+    returns `jsonb` instead of `uuid`
+  - New fingerprint: SHA-256 of `lo|hi|score_part` with **no time bucket** — purely
+    teams + scores, order-insensitive within and across teams
+  - Recency check (only when `p_force = false`): if a game with the same fingerprint
+    exists in the same session within the last 15 minutes, returns
+    `{ status: "possible_duplicate", existing_game_id, existing_created_at }` (no insert)
+  - When `p_force = true` (or no recent match): inserts `games` + `game_players`
+    atomically, returns `{ status: "inserted", game_id }`
+  - All other validations (session active, team sizes, no overlap, attendees, scores)
+    still enforced regardless of `p_force`
+- `src/app/actions/games.ts`:
+  - `RecordGameResult` union type gains `{ possibleDuplicate: true; existingGameId; existingCreatedAt }`
+  - `recordGameAction` gains optional `force` parameter (7th arg, default `false`)
+  - Parses jsonb response; routes `possible_duplicate` to structured return, `inserted` to redirect
+  - No longer catches `23505` (unique constraint removed)
+- `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx`:
+  - `possibleDup` state (`PossibleDuplicate | null`) tracks duplicate signal
+  - `relativeTime(isoString)` pure helper converts ISO timestamp to "X seconds/minutes ago"
+  - `submit(force: boolean)` replaces `handleSubmit`; passes force to Server Action
+  - Confirm step: amber warning banner appears when `possibleDup !== null`, showing
+    relative timestamp, Cancel and "Record anyway" buttons
+  - Primary "✅ Save Game" button hidden while warning is active
+  - `handleBack` and `handleReset` both clear `possibleDup`
+- `supabase/schema.sql` — canonical schema updated: constraint removed (with explanatory
+  comment), `record_game` replaced with new signature, NOTES section updated
+
+### No new tables or RLS policy changes
+- `games` and `game_players` remain SELECT + INSERT only for anon
+- No anon UPDATE or DELETE policies added
+
+### Decisions
+- See `docs/decisions.md`: D-032 (rewritten), D-035, D-036, D-037
+
+### Docs updated
+- `docs/decisions.md` — D-032 rewritten; D-035, D-036, D-037 added
+- `docs/testing.md` — Test U replaced with 10-step warn-and-confirm test matrix
+- `CHANGELOG.md` — this entry
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

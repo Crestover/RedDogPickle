@@ -176,9 +176,11 @@ This file records every significant decision made during the build, along with t
 **Decision:** `sequence_num` is computed inside `record_game` as `SELECT coalesce(max(sequence_num), 0) + 1 FROM public.games WHERE session_id = p_session_id`.
 **Why:** Deriving `sequence_num` inside the RPC is race-free — the SELECT and INSERT run in the same implicit PL/pgSQL transaction. A client-side counter would race under concurrent submissions from multiple devices on the same court.
 
-### D-032: Duplicate Game — Friendly Error, Stay on Confirm Step
-**Decision:** When `record_game` raises `23505` (unique constraint on `(session_id, dedupe_key)`), the Server Action returns `{ error: string, duplicate: true }`. The UI stays on the confirm step rather than resetting to player selection.
-**Why:** Resetting to player selection on duplicate forces unnecessary re-entry. Staying on confirm with a clear message lets the user verify and move on. The `duplicate: true` flag distinguishes this case from other errors that should reset the form.
+### D-032: Duplicate Game — Warn and Confirm (replaces hard-block) *(updated M4.1)*
+**Decision (M4):** Originally, `record_game` raised a `23505` unique constraint error on `(session_id, dedupe_key)`, and the UI showed a static error message.
+**Decision (M4.1):** The `UNIQUE (session_id, dedupe_key)` constraint is dropped. The RPC instead performs a *15-minute recency check*: if a game with the same fingerprint was recorded in the same session within the last 15 minutes, it returns `{ status: 'possible_duplicate', existing_game_id, existing_created_at }` (no insert). The Server Action surfaces this as `{ possibleDuplicate: true, ... }`. The UI shows an amber warning banner on the confirm step ("recorded 2 minutes ago") with two buttons: **Cancel** (reset form) and **Record anyway** (calls with `force=true`, which skips the recency check and inserts unconditionally).
+**Why removing the unique constraint:** Without a time bucket in the fingerprint, the same scoreline played again legitimately (e.g. two courts, same teams, same 11-7) would be permanently blocked forever. The 15-minute window catches accidental double-submissions across devices while allowing legitimate repeats after the window expires.
+**Why warn-and-confirm over hard-block:** Courtside users need to trust the system. A hard error with no escape path is frustrating when it's wrong. A warn-and-confirm respects the user's intent while surfacing potential mistakes.
 
 ### D-033: RecordGameForm Uses 3-Step State Machine (select → scores → confirm)
 **Decision:** `RecordGameForm` cycles through three steps: `"select"` (pick players + assign teams), `"scores"` (enter scores), `"confirm"` (review + submit). State lives in the Client Component; no URL changes between steps.
@@ -187,3 +189,19 @@ This file records every significant decision made during the build, along with t
 ### D-034: Game List on Session Page, Newest First
 **Decision:** The session page now fetches and displays all games for the session, ordered by `sequence_num DESC`.
 **Why:** After recording a game, the redirect returns to the session page. Showing the game list inline provides instant confirmation of a successful save and a running log of all games. No separate game-detail route is needed in M4.
+
+---
+
+## Milestone 4.1 — Duplicate Warn-and-Confirm
+
+### D-035: Fingerprint Has No Time Bucket (M4.1 change from M4)
+**Decision:** The `dedupe_key` fingerprint is `sha256(lo|hi|score_part)` — no time bucket. It was `sha256(lo|hi|score_part|10min_bucket)` in M4.
+**Why:** With a time bucket, two separate identical games played >10 minutes apart would produce different fingerprints and both insert silently — correct. But with a time bucket the unique constraint also does nothing beyond the bucket window. Removing the bucket makes the fingerprint a *semantic identity* for a game (same teams, same score = same fingerprint), which enables the 15-minute recency check to be meaningful. After 15 minutes, the same fingerprint can insert again freely.
+
+### D-036: `p_force` Parameter on `record_game` RPC
+**Decision:** `record_game` gains a `p_force boolean DEFAULT false` parameter. When `true`, the 15-minute recency check is skipped entirely and the insert proceeds unconditionally (subject to all other validations).
+**Why:** The force path is the only way for the user to intentionally record a game that looks like a duplicate. It must go through the same RPC (atomicity, validation) — only the recency check is bypassed. The Server Action passes `force=true` only when the user explicitly clicks "Record anyway" in the UI.
+
+### D-037: Duplicate Warning Uses Relative Time from `existing_created_at`
+**Decision:** The amber warning banner displays how long ago the potential duplicate was recorded using `existing_created_at` from the RPC response, computed client-side as a relative string ("2 minutes ago").
+**Why:** An absolute timestamp ("16:42:03") is less immediately meaningful courtside. "2 minutes ago" tells the user at a glance whether this is likely an accident. The RPC returns the ISO timestamp; the `relativeTime()` helper in `RecordGameForm` converts it.

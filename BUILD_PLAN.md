@@ -1,5 +1,26 @@
 # Build Plan — RedDog Pickle MVP
 
+## Documentation Rule (applies to every milestone)
+
+Every milestone completion requires updating `/docs`:
+
+| File | What to update |
+|---|---|
+| `docs/decisions.md` | New decisions made + rationale |
+| `docs/how-to-run.md` | Any new env vars, commands, or dev steps |
+| `docs/how-to-deploy.md` | Any deploy-time changes |
+| `docs/how-to-update-schema.md` | Any schema changes, new tables, RLS changes |
+| `docs/testing.md` | Manual test steps for every new screen/feature |
+| `docs/assumptions.md` | Any new assumption where SPEC was ambiguous |
+| `CHANGELOG.md` | Milestone summary entry |
+| `README.md` | Update milestone status table |
+
+Every new feature must include:
+- Acceptance criteria traced to `SPEC.md`
+- Manual test steps added to `docs/testing.md`
+
+---
+
 ## Milestone 0: Project Setup
 - [ ] Initialize git repo and push to GitHub
 - [ ] Create Next.js app (App Router, TypeScript, Tailwind)
@@ -8,6 +29,7 @@
 - [ ] Apply schema.sql to Supabase
 - [ ] Configure environment variables in Vercel + local `.env.local`
 - [ ] Verify Supabase connection from Next.js
+- [ ] **Docs:** All `/docs` files created; `CHANGELOG.md` and `README.md` initialized
 
 ---
 
@@ -20,6 +42,7 @@ Goal: A user can visit `/g/{join_code}`, be identified by device, and land on a 
 - [ ] localStorage persistence: `my_player_id`, `my_player_code`, `my_display_name`
 - [ ] "Switch Player" affordance in settings/menu
 - [ ] Dashboard shell (state-aware): shows "Start Session" or "Continue Session" depending on active session
+- [ ] **Docs:** Update `testing.md` (M1 checklist), `decisions.md`, `assumptions.md`, `CHANGELOG.md`, `README.md`
 
 ---
 
@@ -29,6 +52,7 @@ Goal: Players can be added to a group and browsed.
 - [ ] Add Player form: display_name + auto-suggested code with override
 - [ ] Code uniqueness validation (within group), collision error + alternative suggestion
 - [ ] Player list displayed as large tappable buttons with search
+- [ ] **Docs:** Update `testing.md` (M2 checklist), `assumptions.md`, `CHANGELOG.md`, `README.md`
 
 ---
 
@@ -41,6 +65,7 @@ Goal: A session can be started, attended, and ended.
 - [ ] Manual End Session: set `ended_at`, `closed_reason = 'manual'`
 - [ ] Auto-close handling: treat session as closed if > 4 hours old; prompt "Start new session?"
 - [ ] Session History screen: list of past sessions
+- [ ] **Docs:** Update `testing.md` (M3 checklist), `decisions.md`, `assumptions.md`, `CHANGELOG.md`, `README.md`
 
 ---
 
@@ -55,6 +80,7 @@ Goal: A game can be recorded in < 12 seconds on mobile.
 - [ ] Insert game + game_players rows atomically
 - [ ] Duplicate detection: reject insert on unique constraint violation, show message + link to existing game
 - [ ] Post-save: confirmation flash, clear selection
+- [ ] **Docs:** Update `testing.md` (M4 checklist), `decisions.md`, `assumptions.md`, `CHANGELOG.md`, `README.md`
 
 ---
 
@@ -66,6 +92,7 @@ Goal: Stats are visible and accurate.
 - [ ] 30-day toggle: filter by `played_at >= now() - 30 days`
 - [ ] Sort: win_pct desc → games_won desc → point_diff desc
 - [ ] Stats computed from raw game + game_players rows (no denormalized columns)
+- [ ] **Docs:** Update `testing.md` (M5 checklist), `decisions.md`, `CHANGELOG.md`, `README.md`
 
 ---
 
@@ -75,6 +102,7 @@ Goal: Stats are visible and accurate.
 - [ ] All acceptance criteria from SPEC.md §12 verified manually
 - [ ] Error states: invalid group code, duplicate game, closed session, code collision
 - [ ] No editing paths exist in MVP (games are immutable)
+- [ ] **Docs:** Final pass on all `/docs` files; `CHANGELOG.md` complete; `README.md` milestone table all green
 
 ---
 

@@ -65,7 +65,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   │   ├── page.tsx                             # / → Enter Group Code
 │   │   ├── actions/
 │   │   │   ├── sessions.ts                      # createSessionAction, endSessionAction
-│   │   │   └── players.ts                       # addPlayerAction, suggestCode
+│   │   │   ├── players.ts                       # addPlayerAction
+│   │   │   └── games.ts                         # recordGameAction
 │   │   └── g/[join_code]/
 │   │       ├── page.tsx                         # Dashboard (state-aware)
 │   │       ├── start/
@@ -77,15 +78,18 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   │       ├── sessions/
 │   │       │   └── page.tsx                     # Session History list
 │   │       └── session/[session_id]/
-│   │           ├── page.tsx                     # Active Session view
-│   │           └── EndSessionButton.tsx         # Two-tap end button (client)
+│   │           ├── page.tsx                     # Session view + game list
+│   │           ├── EndSessionButton.tsx         # Two-tap end button (client)
+│   │           └── RecordGameForm.tsx           # 3-step game entry (client)
 │   └── lib/
+│       ├── suggestCode.ts                       # Pure util: initials → player code
 │       └── supabase/
 │           └── client.ts                        # Supabase anon client
 ├── supabase/
 │   ├── schema.sql                               # Full DB schema (source of truth)
 │   └── migrations/
-│       └── m2_rpc_sessions.sql                  # M2 delta: constraint + 2 RPCs
+│       ├── m2_rpc_sessions.sql                  # M2 delta: constraint + 2 RPCs
+│       └── m4_record_game.sql                   # M4 delta: record_game RPC
 ├── docs/                                        # Developer documentation
 ├── .env.example                                 # Env var template (no secrets)
 ├── SPEC.md                                      # Product specification
@@ -103,7 +107,7 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 | 1 | Group Access & Dashboard Shell | ✅ Complete |
 | 2 | Sessions (RPC-based create + end) | ✅ Complete |
 | 3 | Add Player & Session History | ✅ Complete |
-| 4 | Record Game | 🔜 Pending |
+| 4 | Record Game | ✅ Complete |
 | 5 | Leaderboards & Stats | 🔜 Pending |
 | 6 | Polish & Acceptance Criteria | 🔜 Pending |
 

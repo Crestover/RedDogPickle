@@ -144,6 +144,48 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 
 ---
 
+## [Milestone 4] — Record Game (2026-02-20)
+
+### Added
+- `supabase/migrations/m4_record_game.sql` — `record_game` SECURITY DEFINER RPC:
+  - Validates session exists and is active (ended_at IS NULL, started_at within 4 hours)
+  - Validates team sizes (exactly 2 per team), no player overlap, all players are session attendees
+  - Validates scores (winner ≥ 11, winner − loser ≥ 2)
+  - Computes deterministic dedupe_key: sort UUIDs within each team → sort teams lexicographically → min:max scores → 10-min epoch bucket → SHA-256 hex
+  - Derives `sequence_num` atomically
+  - Inserts `games` + 4 `game_players` rows in one implicit transaction
+  - Returns new game UUID; raises 23505 on duplicate (caught by Server Action)
+- `src/app/actions/games.ts` — `recordGameAction` Server Action: pre-flight validation, calls `record_game` RPC, handles 23505 with `{ error, duplicate: true }`, redirects on success
+- `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx` — Client Component, 3-step state machine:
+  - Step 1 "select": attendee list with A/B assignment buttons (blue=A, orange=B), max 2 per team
+  - Step 2 "scores": large numeric inputs, live winner preview, score validation
+  - Step 3 "confirm": summary card with winner highlighted, "✅ Save Game" + "Start Over"
+
+### Changed
+- `supabase/schema.sql` — canonical schema updated with `record_game` RPC and revised NOTES
+- `src/app/g/[join_code]/session/[session_id]/page.tsx`:
+  - Disabled "🏓 Record Game" button replaced with live `RecordGameForm`
+  - Now fetches and renders game list for the session (newest first)
+  - Attendees sorted by code before being passed as props
+
+### No new tables or RLS policy changes
+- Existing `games_select` + `games_insert` anon policies unchanged
+- No anon UPDATE or DELETE policies added
+
+### Decisions
+- See `docs/decisions.md`: D-028 through D-034
+
+### Docs updated
+- `docs/decisions.md` — D-028 through D-034
+- `docs/testing.md` — M4 test matrix (Tests P–V)
+- `CHANGELOG.md` — this entry
+- `README.md` — milestone status + project structure updated
+
+### Known limitations / deferred
+- Leaderboard / stats — Milestone 5
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

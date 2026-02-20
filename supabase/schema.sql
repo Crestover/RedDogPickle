@@ -261,14 +261,181 @@ $$;
 grant execute on function public.end_session(uuid) to anon;
 
 
+-- ── record_game ────────────────────────────────────────────
+-- Atomically records a single game (games + game_players rows).
+--
+-- SECURITY DEFINER: runs as function owner to validate session
+-- liveness, derive sequence_num, and insert both rows atomically.
+-- search_path pinned to 'public' (Supabase security best practice).
+--
+-- Parameters:
+--   p_session_id   — UUID of the active session
+--   p_team_a_ids   — exactly 2 player UUIDs on Team A
+--   p_team_b_ids   — exactly 2 player UUIDs on Team B
+--   p_team_a_score — Team A's score
+--   p_team_b_score — Team B's score
+--
+-- Returns: UUID of the newly inserted game row.
+--
+-- dedupe_key canonicalization:
+--   1. Sort UUIDs within each team
+--   2. Sort the two team strings lexicographically (team order-insensitive)
+--   3. Score part: min(scores):max(scores)
+--   4. 10-min bucket: floor(epoch / 600)
+--   5. SHA-256 of joined string
+-- ────────────────────────────────────────────────────────────
+create or replace function public.record_game(
+  p_session_id   uuid,
+  p_team_a_ids   uuid[],
+  p_team_b_ids   uuid[],
+  p_team_a_score integer,
+  p_team_b_score integer
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_session         record;
+  v_attendee_ids    uuid[];
+  v_all_player_ids  uuid[];
+  v_pid             uuid;
+  v_game_id         uuid;
+  v_sequence_num    integer;
+  v_team_a_sorted   uuid[];
+  v_team_b_sorted   uuid[];
+  v_team_a_str      text;
+  v_team_b_str      text;
+  v_lo              text;
+  v_hi              text;
+  v_score_part      text;
+  v_bucket          text;
+  v_raw             text;
+  v_dedupe_key      text;
+  v_winner          integer;
+  v_loser           integer;
+begin
+  select id, ended_at, started_at
+    into v_session
+    from public.sessions
+   where id = p_session_id;
+
+  if v_session.id is null then
+    raise exception 'Session not found: %', p_session_id
+      using errcode = 'P0002';
+  end if;
+
+  if v_session.ended_at is not null then
+    raise exception 'Session has already ended'
+      using errcode = 'P0001';
+  end if;
+
+  if v_session.started_at < now() - interval '4 hours' then
+    raise exception 'Session has expired (older than 4 hours)'
+      using errcode = 'P0001';
+  end if;
+
+  if array_length(p_team_a_ids, 1) is null or array_length(p_team_a_ids, 1) != 2 then
+    raise exception 'Team A must have exactly 2 players'
+      using errcode = 'P0001';
+  end if;
+
+  if array_length(p_team_b_ids, 1) is null or array_length(p_team_b_ids, 1) != 2 then
+    raise exception 'Team B must have exactly 2 players'
+      using errcode = 'P0001';
+  end if;
+
+  foreach v_pid in array p_team_a_ids loop
+    if v_pid = any(p_team_b_ids) then
+      raise exception 'Player % appears on both teams', v_pid
+        using errcode = 'P0001';
+    end if;
+  end loop;
+
+  select array_agg(player_id)
+    into v_attendee_ids
+    from public.session_players
+   where session_id = p_session_id;
+
+  v_all_player_ids := p_team_a_ids || p_team_b_ids;
+
+  foreach v_pid in array v_all_player_ids loop
+    if not (v_pid = any(v_attendee_ids)) then
+      raise exception 'Player % is not a session attendee', v_pid
+        using errcode = 'P0001';
+    end if;
+  end loop;
+
+  v_winner := greatest(p_team_a_score, p_team_b_score);
+  v_loser  := least(p_team_a_score, p_team_b_score);
+
+  if v_winner < 11 then
+    raise exception 'Winning score must be at least 11 (got %)', v_winner
+      using errcode = 'P0001';
+  end if;
+
+  if (v_winner - v_loser) < 2 then
+    raise exception 'Winning margin must be at least 2 (got %)', (v_winner - v_loser)
+      using errcode = 'P0001';
+  end if;
+
+  select array_agg(u order by u) into v_team_a_sorted from unnest(p_team_a_ids) as u;
+  select array_agg(u order by u) into v_team_b_sorted from unnest(p_team_b_ids) as u;
+
+  v_team_a_str := array_to_string(v_team_a_sorted, ',');
+  v_team_b_str := array_to_string(v_team_b_sorted, ',');
+
+  if v_team_a_str <= v_team_b_str then
+    v_lo := v_team_a_str; v_hi := v_team_b_str;
+  else
+    v_lo := v_team_b_str; v_hi := v_team_a_str;
+  end if;
+
+  v_score_part := least(p_team_a_score, p_team_b_score)::text || ':' || greatest(p_team_a_score, p_team_b_score)::text;
+  v_bucket     := floor(extract(epoch from now()) / 600)::bigint::text;
+  v_raw        := v_lo || '|' || v_hi || '|' || v_score_part || '|' || v_bucket;
+  v_dedupe_key := encode(digest(v_raw, 'sha256'), 'hex');
+
+  select coalesce(max(sequence_num), 0) + 1
+    into v_sequence_num
+    from public.games
+   where session_id = p_session_id;
+
+  insert into public.games (session_id, sequence_num, team_a_score, team_b_score, dedupe_key)
+  values (p_session_id, v_sequence_num, p_team_a_score, p_team_b_score, v_dedupe_key)
+  returning id into v_game_id;
+
+  foreach v_pid in array p_team_a_ids loop
+    insert into public.game_players (game_id, player_id, team) values (v_game_id, v_pid, 'A');
+  end loop;
+
+  foreach v_pid in array p_team_b_ids loop
+    insert into public.game_players (game_id, player_id, team) values (v_game_id, v_pid, 'B');
+  end loop;
+
+  return v_game_id;
+end;
+$$;
+
+grant execute on function public.record_game(uuid, uuid[], uuid[], integer, integer) to anon;
+
+
 -- ============================================================
 -- NOTES
 -- ============================================================
--- 1. Application-level validations (not in DB):
+-- 1. Score rules enforced in record_game RPC AND client:
 --      - winner score >= 11, winner - loser >= 2
+--      - scores not equal (also DB constraint)
 --
--- 2. dedupe_key = SHA-256( session_id || sorted_team_a_ids ||
---      sorted_team_b_ids || scores || 10min_bucket )
+-- 2. dedupe_key canonicalization (order-insensitive within teams
+--    AND across teams):
+--      sort UUIDs within each team → join with ','
+--      sort the two team strings lexicographically → lo, hi
+--      score_part = min(scores):max(scores)
+--      bucket = floor(epoch / 600) [10-min window]
+--      raw = lo|hi|score_part|bucket
+--      dedupe_key = sha256(raw) as hex
 --    unique(session_id, dedupe_key) enforces cross-device dedup.
 --
 -- 3. end_session is SECURITY DEFINER so it can UPDATE sessions
@@ -278,11 +445,15 @@ grant execute on function public.end_session(uuid) to anon;
 -- 4. create_session is SECURITY INVOKER — runs as anon, relies
 --    on existing INSERT RLS policies. No privilege elevation needed.
 --
--- 5. join_code stored + enforced as lowercase at DB level via
+-- 5. record_game is SECURITY DEFINER — needs to validate session
+--    liveness and derive sequence_num atomically.
+--    No anon UPDATE policy required.
+--
+-- 6. join_code stored + enforced as lowercase at DB level via
 --    both regex CHECK and equality CHECK constraints.
 --
--- 6. Exactly-4-players-per-game / 2-per-team enforced in
---    application layer (Milestone 4 Server Action).
+-- 7. 2-per-team enforced in record_game RPC. No UPDATE/DELETE
+--    policies on games or game_players — games are immutable.
 --
--- 7. All timestamps stored in UTC (timestamptz).
+-- 8. All timestamps stored in UTC (timestamptz).
 -- ============================================================

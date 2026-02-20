@@ -149,3 +149,41 @@ This file records every significant decision made during the build, along with t
 ### D-027: No Schema Changes in Milestone 3
 **Decision:** Milestone 3 adds no new tables, columns, or RPC functions. All functionality is built on the existing schema.
 **Why:** Add Player uses the existing `players` table (INSERT via anon RLS policy). Session History reads the existing `sessions` table (SELECT via anon RLS policy). No migration file is needed.
+
+---
+
+## Milestone 4 — Record Game
+
+### D-028: Game Insert via SECURITY DEFINER RPC (`record_game`)
+**Decision:** Game recording uses a Postgres RPC function (`record_game`) with `SECURITY DEFINER` and `search_path = public`. The function atomically inserts one `games` row and four `game_players` rows in a single PL/pgSQL call. Callable via the anon key.
+**Why:** Atomicity requires both inserts to succeed or both fail — a two-step client insert could leave orphaned rows on network failure. `SECURITY DEFINER` is used (over `SECURITY INVOKER`) so session-liveness validation and `sequence_num` derivation are race-free and do not expose an anon UPDATE policy. Mirrors `end_session` design.
+
+### D-029: dedupe_key is Order-Insensitive Within Teams AND Across Teams
+**Decision:** Canonical dedupe_key construction:
+1. Sort player UUIDs within each team → comma-joined: `team_a_str`, `team_b_str`
+2. Sort the two team strings lexicographically → `lo`, `hi`
+3. Score part: `min(score):max(score)`
+4. 10-minute bucket: `floor(epoch / 600)` as integer string
+5. Raw: `lo|hi|score_part|bucket` → SHA-256 hex
+
+**Why:** The same game (same 4 players, same scores) must produce the same key regardless of which team was labelled A or B in the UI, and regardless of player order within each team. Lexicographic sort of team strings makes the key team-order-invariant. The 10-minute bucket allows the same real game to be entered from two devices without a false duplicate, while preventing genuine re-submissions.
+
+### D-030: Score Validation at Three Layers
+**Decision:** Score rules (winner ≥ 11, winner − loser ≥ 2, scores not equal) are enforced in: (1) `RecordGameForm` client component (instant feedback), (2) `recordGameAction` Server Action (pre-flight before RPC call), (3) `record_game` RPC (authoritative, cannot be bypassed).
+**Why:** Client validation eliminates round trips for obvious errors. Server Action validation is a clean gate. RPC validation is the authoritative enforcement point. The DB `games_scores_not_equal` CHECK is a fourth backstop. Redundancy is intentional and cheap.
+
+### D-031: `sequence_num` Derived Atomically Inside RPC
+**Decision:** `sequence_num` is computed inside `record_game` as `SELECT coalesce(max(sequence_num), 0) + 1 FROM public.games WHERE session_id = p_session_id`.
+**Why:** Deriving `sequence_num` inside the RPC is race-free — the SELECT and INSERT run in the same implicit PL/pgSQL transaction. A client-side counter would race under concurrent submissions from multiple devices on the same court.
+
+### D-032: Duplicate Game — Friendly Error, Stay on Confirm Step
+**Decision:** When `record_game` raises `23505` (unique constraint on `(session_id, dedupe_key)`), the Server Action returns `{ error: string, duplicate: true }`. The UI stays on the confirm step rather than resetting to player selection.
+**Why:** Resetting to player selection on duplicate forces unnecessary re-entry. Staying on confirm with a clear message lets the user verify and move on. The `duplicate: true` flag distinguishes this case from other errors that should reset the form.
+
+### D-033: RecordGameForm Uses 3-Step State Machine (select → scores → confirm)
+**Decision:** `RecordGameForm` cycles through three steps: `"select"` (pick players + assign teams), `"scores"` (enter scores), `"confirm"` (review + submit). State lives in the Client Component; no URL changes between steps.
+**Why:** Fitting player selection, team assignment, score entry, and confirmation on one mobile screen simultaneously would require excessive scrolling. Three focused steps keeps each screen readable. Staying on one URL means browser Back/Forward doesn't disrupt the flow and the session page URL stays stable.
+
+### D-034: Game List on Session Page, Newest First
+**Decision:** The session page now fetches and displays all games for the session, ordered by `sequence_num DESC`.
+**Why:** After recording a game, the redirect returns to the session page. Showing the game list inline provides instant confirmation of a successful save and a running log of all games. No separate game-detail route is needed in M4.

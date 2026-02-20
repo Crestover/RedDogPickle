@@ -361,37 +361,121 @@ Same as Milestone 2. No new migration to apply.
 
 ## Milestone 4 — Record Game
 
-### Player Selection
-- [ ] Only session attendees are shown (not all group players)
-- [ ] Players displayed as large tappable buttons (≥44px)
-- [ ] Exactly 4 players must be selected before proceeding
-- [ ] Selected state is visually clear
+> **Scope:** `record_game` RPC (atomic insert, dedupe_key, session-liveness validation), `RecordGameForm` (3-step UI: select → scores → confirm), game list on session page.
 
-### Team Assignment
-- [ ] Two columns: Team A and Team B
-- [ ] Players can be tapped to move between teams
-- [ ] "Swap" button swaps Team A and Team B rosters
-- [ ] Each team shows exactly 2 players when valid
+---
 
-### Score Entry
-- [ ] Two score input fields (one per team)
-- [ ] Numeric keyboard appears on mobile
-- [ ] Scores are validated:
-  - [ ] Winner score must be ≥ 11
-  - [ ] Winner − loser must be ≥ 2
-  - [ ] Scores cannot be equal
-  - [ ] Scores cannot be negative
-- [ ] Invalid scores show a clear error message before submission
+### Prerequisites
 
-### Save & Deduplication
-- [ ] Valid game is saved successfully
-- [ ] Confirmation message is shown after save
-- [ ] Player selection is cleared after save (ready for next game)
-- [ ] `sequence_num` increments correctly within session
-- [ ] **Duplicate detection (cross-device test):**
-  - [ ] Record the same game from two different browser tabs/devices within 10 minutes
-  - [ ] The second submit shows "Looks like this game was already recorded."
-  - [ ] A link to the existing game is provided
+1. Apply the M4 migration to your Supabase project:
+   ```
+   BROWSER → Supabase dashboard → SQL Editor → New query
+   Paste: supabase/migrations/m4_record_game.sql
+   Click "Run"
+   ```
+2. Start an active session with at least 4 players (use M2/M3 tests to create one).
+3. Run `npm run dev`.
+
+---
+
+### Test P — RPC Applied
+
+| # | Step | Expected |
+|---|---|---|
+| P-1 | In Supabase SQL Editor: `SELECT proname FROM pg_proc WHERE proname = 'record_game';` | Returns 1 row |
+| P-2 | Check grant: `SELECT grantee, privilege_type FROM information_schema.routine_privileges WHERE routine_name = 'record_game';` | Row with `grantee = 'anon'`, `privilege_type = 'EXECUTE'` |
+| P-3 | Verify no anon UPDATE/DELETE on games: `SELECT policyname, cmd FROM pg_policies WHERE tablename IN ('games','game_players') AND cmd IN ('UPDATE','DELETE');` | Returns 0 rows |
+
+---
+
+### Test Q — RecordGameForm UI (Step 1: Select Players)
+
+| # | Step | Expected |
+|---|---|---|
+| Q-1 | Navigate to an active session page | "Record Game — Pick Teams" section visible inside a grey card |
+| Q-2 | Player rows | All session attendees listed, each with A and B buttons; colour legend shows blue=A, orange=B |
+| Q-3 | Tap "A" next to a player | Row turns blue; Team A summary shows "(1/2)"; "A" button turns solid blue |
+| Q-4 | Tap "A" again for same player | Player deselected; counter returns to "(0/2)" |
+| Q-5 | Assign 2 players to Team A | "A" buttons for remaining players greyed/disabled |
+| Q-6 | Assign 2 different players to Team B | "B" buttons greyed for remaining |
+| Q-7 | Tap Team A player's "B" button | Player moves from Team A to Team B |
+| Q-8 | Click "Next: Enter Scores →" with <2 on either team | Error: "Team A needs exactly 2 players." or "Team B needs exactly 2 players." |
+| Q-9 | With 2+2 assigned, click "Next: Enter Scores →" | Advances to scores step |
+
+---
+
+### Test R — RecordGameForm UI (Step 2: Scores)
+
+| # | Step | Expected |
+|---|---|---|
+| R-1 | Scores step loads | Team A/B panels with player names; two large score inputs |
+| R-2 | Tap score field on mobile | Numeric keyboard appears |
+| R-3 | Enter 11 for Team A, 7 for Team B | Live preview: "🏆 Team A wins 11–7" |
+| R-4 | Enter equal scores (11 and 11), click "Review →" | Error: "Scores cannot be equal." |
+| R-5 | Enter winning score 10, click "Review →" | Error: "Winning score must be at least 11 (got 10)." |
+| R-6 | Enter 11 and 10 (margin 1), click "Review →" | Error: "Winning margin must be at least 2 (got 1)." |
+| R-7 | Enter valid scores (11-7), click "Review →" | Advances to confirm step |
+| R-8 | Click "← Back" | Returns to select step; assignments preserved |
+
+---
+
+### Test S — RecordGameForm UI (Step 3: Confirm + Submit)
+
+| # | Step | Expected |
+|---|---|---|
+| S-1 | Confirm step loads | Summary card: Team A (blue), Team B (orange), large scores; winner side has 🏆 + green tint |
+| S-2 | Click "← Edit Scores" | Returns to scores step |
+| S-3 | Click "Start Over" | Resets all state; returns to select step |
+| S-4 | Click "✅ Save Game" | Button shows "Saving…"; then redirects to session page |
+| S-5 | After redirect — game list | New game in "Games (N)": correct sequence #, scores, player codes, time |
+| S-6 | Supabase → games table | New row: correct `session_id`, `sequence_num`, scores, non-null `dedupe_key` |
+| S-7 | Supabase → game_players table | 4 rows: 2 `team='A'`, 2 `team='B'` |
+
+---
+
+### Test T — RPC Score + Attendee Validation
+
+| # | Step | Expected |
+|---|---|---|
+| T-1 | Equal scores via SQL: `SELECT public.record_game('<sid>', ARRAY['<p1>','<p2>']::uuid[], ARRAY['<p3>','<p4>']::uuid[], 11, 11);` | Error: violates `games_scores_not_equal` constraint |
+| T-2 | Winning score < 11 (10-5) | Error: "Winning score must be at least 11 (got 10)" |
+| T-3 | Margin < 2 (11-10) | Error: "Winning margin must be at least 2 (got 1)" |
+| T-4 | Player on both teams | Error: "Player … appears on both teams" |
+| T-5 | Non-attendee player | Error: "Player … is not a session attendee" |
+| T-6 | Ended session | Error: "Session has already ended" |
+| T-7 | Session started 5+ hours ago | Error: "Session has expired (older than 4 hours)" |
+| T-8 | Nonexistent session_id | Error: "Session not found" |
+
+---
+
+### Test U — Duplicate Detection
+
+| # | Step | Expected |
+|---|---|---|
+| U-1 | Open the same active session in **two browser tabs** | Both show same session |
+| U-2 | Tab 1: record a game (e.g. 11-7, teams JDO+ALS vs BOJ+CAW) | Saved; redirected with Game #1 |
+| U-3 | Tab 2: submit identical game (same players, same scores) within 10 min | Error: "This game looks like a duplicate…" |
+| U-4 | UI state on duplicate | Stays on confirm step (does not reset to select) |
+| U-5 | Tab 2: submit different scores (e.g. 11-8) same players | Succeeds; Game #2 appears |
+
+---
+
+### Test V — sequence_num and Game List
+
+| # | Step | Expected |
+|---|---|---|
+| V-1 | Record 3 games | Session page shows Games #1, #2, #3 |
+| V-2 | Game list order | Most recent (highest sequence_num) first |
+| V-3 | Each game card | Sequence #, time, Team A codes, Team B codes, scores, 🏆 on winner side |
+| V-4 | Ended session | Game list still shows; no RecordGameForm (session ended state) |
+
+---
+
+### Items NOT tested in Milestone 4 (deferred)
+
+- Leaderboard — Milestone 5
+- Session summary leaderboard — Milestone 5
+- 30-day stats toggle — Milestone 5
 
 ---
 

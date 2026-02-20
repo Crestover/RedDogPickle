@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
+import RecordGameForm from "./RecordGameForm";
 
 interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
@@ -32,13 +33,22 @@ async function getSessionData(joinCode: string, sessionId: string) {
 
   if (!session) return null;
 
-  // Fetch attendees
+  // Fetch attendees (with player details)
   const { data: attendees } = await supabase
     .from("session_players")
     .select("player_id, players(id, display_name, code)")
     .eq("session_id", sessionId);
 
-  return { group, session, attendees: attendees ?? [] };
+  // Fetch games for this session, newest first
+  const { data: games } = await supabase
+    .from("games")
+    .select(
+      "id, sequence_num, team_a_score, team_b_score, played_at, game_players(player_id, team, players(id, display_name, code))"
+    )
+    .eq("session_id", sessionId)
+    .order("sequence_num", { ascending: false });
+
+  return { group, session, attendees: attendees ?? [], games: games ?? [] };
 }
 
 function isActiveSession(session: {
@@ -57,7 +67,7 @@ export default async function SessionPage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const { group, session, attendees } = data;
+  const { group, session, attendees, games } = data;
   const active = isActiveSession(session);
 
   // Format started_at for display
@@ -66,6 +76,20 @@ export default async function SessionPage({ params }: PageProps) {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  // Flatten attendees into Player[] for RecordGameForm, sorted by code
+  const players = attendees
+    .map((row) => {
+      const player = Array.isArray(row.players) ? row.players[0] : row.players;
+      if (!player) return null;
+      return {
+        id: (player as { id: string }).id,
+        display_name: (player as { display_name: string }).display_name,
+        code: (player as { code: string }).code,
+      };
+    })
+    .filter((p): p is { id: string; display_name: string; code: string } => p !== null)
+    .sort((a, b) => a.code.localeCompare(b.code));
 
   return (
     <main className="flex min-h-screen flex-col px-4 py-8">
@@ -105,7 +129,6 @@ export default async function SessionPage({ params }: PageProps) {
           </h2>
           <div className="space-y-2">
             {attendees.map((row) => {
-              // Supabase join returns players as an object
               const player = Array.isArray(row.players)
                 ? row.players[0]
                 : row.players;
@@ -129,15 +152,15 @@ export default async function SessionPage({ params }: PageProps) {
 
         {/* Actions */}
         {active ? (
-          <div className="space-y-3 pt-2">
-            {/* Record Game — deferred to Milestone 4 */}
-            <button
-              disabled
-              className="flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-5 text-lg font-semibold text-white shadow-sm opacity-50 cursor-not-allowed min-h-[64px]"
-              title="Coming in Milestone 4"
-            >
-              🏓 Record Game
-            </button>
+          <div className="space-y-4">
+            {/* Record Game */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
+              <RecordGameForm
+                sessionId={session.id}
+                joinCode={group.join_code}
+                attendees={players}
+              />
+            </div>
 
             {/* End Session */}
             <EndSessionButton sessionId={session.id} joinCode={group.join_code} />
@@ -155,11 +178,95 @@ export default async function SessionPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* Coming soon */}
-        {active && (
-          <p className="text-center text-xs text-gray-400">
-            Game recording coming in Milestone 4.
-          </p>
+        {/* Games recorded in this session */}
+        {games.length > 0 && (
+          <div>
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
+              Games ({games.length})
+            </h2>
+            <div className="space-y-2">
+              {games.map((game) => {
+                const gamePlayers = Array.isArray(game.game_players)
+                  ? game.game_players
+                  : [];
+
+                const teamAPlayers = gamePlayers
+                  .filter((gp) => (gp as { team: string }).team === "A")
+                  .map((gp) => {
+                    const p = Array.isArray((gp as { players: unknown }).players)
+                      ? ((gp as { players: unknown[] }).players as { code: string }[])[0]
+                      : (gp as { players: { code: string } }).players;
+                    return p?.code ?? "?";
+                  })
+                  .sort();
+
+                const teamBPlayers = gamePlayers
+                  .filter((gp) => (gp as { team: string }).team === "B")
+                  .map((gp) => {
+                    const p = Array.isArray((gp as { players: unknown }).players)
+                      ? ((gp as { players: unknown[] }).players as { code: string }[])[0]
+                      : (gp as { players: { code: string } }).players;
+                    return p?.code ?? "?";
+                  })
+                  .sort();
+
+                const winnerTeam =
+                  game.team_a_score > game.team_b_score ? "A" : "B";
+
+                return (
+                  <div
+                    key={game.id}
+                    className="rounded-xl bg-white border border-gray-200 px-4 py-3"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-gray-400">
+                        Game #{game.sequence_num}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(game.played_at).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 items-center text-center">
+                      <div>
+                        <p className="text-xs text-blue-600 font-semibold mb-0.5">
+                          Team A {winnerTeam === "A" && "🏆"}
+                        </p>
+                        <p className="text-xs text-gray-500 font-mono">
+                          {teamAPlayers.join(" ")}
+                        </p>
+                        <p
+                          className={`text-2xl font-bold ${
+                            winnerTeam === "A" ? "text-green-700" : "text-gray-500"
+                          }`}
+                        >
+                          {game.team_a_score}
+                        </p>
+                      </div>
+                      <div className="text-gray-300 text-lg font-bold">vs</div>
+                      <div>
+                        <p className="text-xs text-orange-600 font-semibold mb-0.5">
+                          Team B {winnerTeam === "B" && "🏆"}
+                        </p>
+                        <p className="text-xs text-gray-500 font-mono">
+                          {teamBPlayers.join(" ")}
+                        </p>
+                        <p
+                          className={`text-2xl font-bold ${
+                            winnerTeam === "B" ? "text-green-700" : "text-gray-500"
+                          }`}
+                        >
+                          {game.team_b_score}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Session history link */}

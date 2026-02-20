@@ -53,7 +53,7 @@ The current RLS posture is **SELECT + INSERT only** for the anon key.
 |---|---|---|---|---|
 | groups | ✅ anon | ✅ anon | ❌ | ❌ |
 | players | ✅ anon | ✅ anon | ❌ | ❌ |
-| sessions | ✅ anon | ✅ anon | ✅ service role only | ❌ |
+| sessions | ✅ anon | ✅ anon | ✅ via `end_session` RPC (SECURITY DEFINER) | ❌ |
 | session_players | ✅ anon | ✅ anon | ❌ | ❌ |
 | games | ✅ anon | ✅ anon | ❌ | ❌ |
 | game_players | ✅ anon | ✅ anon | ❌ | ❌ |
@@ -112,6 +112,49 @@ reset role;
 6. Apply the new table definition in the Supabase SQL Editor
 7. Update this doc's RLS table above
 8. Record the decision in `docs/decisions.md`
+
+---
+
+## RPC Functions
+
+Two RPC functions were added in Milestone 2 and are part of the canonical schema:
+
+| Function | Security | Callable by | Purpose |
+|---|---|---|---|
+| `create_session(group_join_code, player_ids)` | INVOKER | anon | Atomically create session + attendees |
+| `end_session(p_session_id)` | DEFINER | anon | Set `ended_at = now()`, no UPDATE RLS needed |
+
+### Why SECURITY DEFINER for `end_session`?
+
+The anon key has no UPDATE RLS policy on `sessions` (intentional — immutability). `SECURITY DEFINER` runs the function as the function owner (postgres role), which bypasses RLS, so it can perform the UPDATE without opening a public UPDATE policy.
+
+`search_path = public` is always pinned on SECURITY DEFINER functions as a Supabase security requirement to prevent search-path injection attacks.
+
+### Modifying or Adding an RPC
+
+1. Write the `CREATE OR REPLACE FUNCTION` statement
+2. Include `set search_path = public` on any SECURITY DEFINER function
+3. Add `grant execute on function ... to anon;` if the anon role should call it
+4. Apply in the Supabase SQL Editor
+5. Update `supabase/schema.sql` to include the new function
+6. Record the decision in `docs/decisions.md`
+
+### Verifying RPC Grants
+
+```sql
+select grantee, routine_name, privilege_type
+from information_schema.routine_privileges
+where routine_name in ('create_session', 'end_session')
+order by routine_name, grantee;
+```
+
+Expected output:
+```
+ grantee | routine_name    | privilege_type
+---------+-----------------+----------------
+ anon    | create_session  | EXECUTE
+ anon    | end_session     | EXECUTE
+```
 
 ---
 

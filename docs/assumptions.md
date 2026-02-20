@@ -72,6 +72,16 @@ This file records every assumption made where the SPEC was ambiguous or silent. 
 **Why:** SPEC has no accessibility requirement beyond 44px tap targets. Implementing aria-disabled with focus management adds complexity that is not in scope.
 **Impact:** Screen readers will announce these buttons as "dimmed" or skip them entirely, which is fine for MVP.
 
+## A-012: Active Session Detection Uses Application-Layer Clock for the 4-Hour Window
+**Assumption:** The 4-hour window for active session detection is computed in the Next.js Server Action as `new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString()`, then passed to Supabase as a `.gte("started_at", ...)` filter. The DB is not asked to compute `now() - interval '4 hours'`.
+**Why:** Supabase JS client does not support server-side `now()` expressions in `.gte()` filters directly. Using `Date.now()` on the Next.js server is equivalent — the server's clock is accurate and the 4-hour window does not require sub-second precision.
+**Impact:** If the Next.js server clock drifts significantly from the Postgres clock, the active session window could be slightly off. This is not a concern at MVP scale.
+
+## A-013: Attendees Are Fetched from `players` Table (All Active Players in Group)
+**Assumption:** The "Start Session" attendee selector shows all players in the group where `is_active = true`, ordered by `display_name`. It does not filter by attendance history or recent activity.
+**Why:** SPEC §7.1 says "Display player buttons" without filtering criteria. Showing all active players is the simplest correct interpretation.
+**Impact:** Groups with many players will show a long scrollable list. Search is provided to mitigate this.
+
 ## A-010: Supabase Anon Key Used for All Client Reads
 **Assumption:** All client-side reads (group load, player list, leaderboard, game history) use the `NEXT_PUBLIC_SUPABASE_ANON_KEY` via the browser Supabase client. RLS SELECT policies allow this.
 **Why:** There is no authentication, so there is no user token. The anon key is the correct key for unauthenticated access.

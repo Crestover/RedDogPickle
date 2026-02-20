@@ -129,24 +129,135 @@ Using Chrome DevTools → Toggle Device Toolbar → iPhone SE or similar:
 
 ### Items NOT tested in Milestone 1 (deferred)
 
-- "Who are you?" / device identity screen — Milestone 2
-- Active session detection (Continue Session state) — Milestone 2
-- Start Session functionality — Milestone 3
+- "Who are you?" / device identity screen — post-MVP
+- Active session detection → implemented in Milestone 2 ✅
+- Start Session functionality → implemented in Milestone 2 ✅
 - Leaderboard — Milestone 5
 
 ---
 
-## Milestone 2 — Players
+## Milestone 2 — Sessions (RPC-based)
 
-### Add Player
-- [ ] "I'm New" / Add Player form shows display_name and code fields
-- [ ] Code is auto-suggested (e.g., from initials of display_name)
-- [ ] User can override the suggested code
-- [ ] Submitting with a duplicate code within the group shows a clear error
-- [ ] Error message suggests an alternative code
-- [ ] Submitting with a valid, unique code creates the player
-- [ ] New player appears in the player list immediately after creation
-- [ ] Code format is validated (uppercase alphanumeric only)
+> **Scope:** join_code canonicalization, `create_session` RPC, `end_session` RPC, Start Session UI, Active Session UI, active-session detection on dashboard.
+
+---
+
+### Prerequisites
+
+1. Apply the migration delta to your Supabase project:
+   ```
+   BROWSER → Supabase dashboard → SQL Editor → New query
+   Paste: supabase/migrations/m2_rpc_sessions.sql (run all three BLOCKS in order)
+   ```
+2. Insert at least 4 test players into your test group:
+   ```sql
+   -- Replace the group_id with your actual group's UUID
+   -- Get it: SELECT id FROM public.groups WHERE join_code = 'test-picklers';
+   INSERT INTO public.players (group_id, display_name, code)
+   VALUES
+     ('<group_id>', 'Alice Smith',   'ALS'),
+     ('<group_id>', 'Bob Jones',     'BOJ'),
+     ('<group_id>', 'Carol White',   'CAW'),
+     ('<group_id>', 'David Brown',   'DAB');
+   ```
+3. Run `npm run dev`
+
+---
+
+### Test G — join_code Canonicalization
+
+| # | Step | Expected |
+|---|---|---|
+| G-1 | In Supabase SQL Editor, run: `SELECT conname FROM pg_constraint WHERE conname = 'groups_join_code_lowercase';` | Returns 1 row |
+| G-2 | Try to insert a mixed-case join_code: `INSERT INTO public.groups (name, join_code) VALUES ('Bad', 'BadCode');` | Error: violates check constraint `groups_join_code_lowercase` |
+| G-3 | Visit `/g/TEST-PICKLERS` (uppercase) | Page loads the group correctly (app lowercases the param) |
+| G-4 | Visit `/g/Test-Picklers` (mixed) | Page loads the group correctly |
+
+---
+
+### Test H — Dashboard Active-Session Detection
+
+| # | Step | Expected |
+|---|---|---|
+| H-1 | Visit `/g/test-picklers` with no sessions in DB | Dashboard shows **"🏓 Start Session"** as primary (green), "📊 Leaderboard" as secondary (disabled) |
+| H-2 | Insert an active session directly in SQL: `INSERT INTO public.sessions (group_id, session_date, name) VALUES ('<group_id>', current_date, '2026-02-20 ALS BOJ CAW DAB');` | — |
+| H-3 | Reload `/g/test-picklers` | Dashboard shows **"🏓 Continue Session"** as primary, **"+ New Session"** as secondary. Green banner shows session name. |
+| H-4 | End the session: `UPDATE public.sessions SET ended_at = now(), closed_reason = 'manual' WHERE ended_at IS NULL;` | — |
+| H-5 | Reload `/g/test-picklers` | Dashboard returns to "🏓 Start Session" primary state |
+| H-6 | Insert a session started 5 hours ago: `INSERT INTO public.sessions (group_id, session_date, name, started_at) VALUES ('<group_id>', current_date, 'Old', now() - interval '5 hours');` | — |
+| H-7 | Reload `/g/test-picklers` | Dashboard shows "🏓 Start Session" (old session not active — past 4-hour window) |
+
+---
+
+### Test I — Start Session UI (`/g/{join_code}/start`)
+
+| # | Step | Expected |
+|---|---|---|
+| I-1 | From dashboard, tap "🏓 Start Session" | Navigates to `/g/test-picklers/start` |
+| I-2 | Page loads | Shows "Start Session" heading, player search input, list of all 4 test players as tappable buttons (≥64px tall) |
+| I-3 | Search for "ali" | List filters to show only Alice Smith |
+| I-4 | Clear search | All 4 players shown again |
+| I-5 | Tap "Alice Smith" | Button turns green with ✓; counter shows "1 selected" |
+| I-6 | Tap "Alice Smith" again | Button returns to white; counter shows "0 selected" |
+| I-7 | Select only 3 players and tap "Start Session (3 players)" | Error: "Please select at least 4 players." Submit button is disabled (visually grey) until 4 selected |
+| I-8 | Select all 4 players | Submit button becomes active, label reads "Start Session (4 players)" |
+| I-9 | Tap "Start Session (4 players)" | Button shows "Starting…", then browser navigates to `/g/test-picklers/session/{new_uuid}` |
+| I-10 | In Supabase Table Editor, check `sessions` table | New row exists with correct `group_id`, `session_date`, and `name` in format `YYYY-MM-DD ALS BOJ CAW DAB` (codes sorted alphabetically) |
+| I-11 | In Supabase Table Editor, check `session_players` table | 4 rows exist with the new `session_id` and the 4 player UUIDs |
+| I-12 | In Supabase SQL Editor, verify `create_session` RPC validates player count: `SELECT public.create_session('test-picklers', ARRAY['<uuid1>', '<uuid2>']::uuid[]);` | Error: "At least 4 players are required to start a session" |
+| I-13 | Tap back arrow "← test-picklers" | Returns to group dashboard |
+
+---
+
+### Test J — Active Session Page (`/g/{join_code}/session/{session_id}`)
+
+| # | Step | Expected |
+|---|---|---|
+| J-1 | Navigate to the active session page (from dashboard "Continue Session" or direct URL) | Page shows: "Active" green badge, started time, session name in monospace, list of attendees with code badges |
+| J-2 | Attendee list | Shows all 4 selected players with their codes in green circles |
+| J-3 | "🏓 Record Game" button | Visible but disabled (grey, says "Coming in Milestone 4") |
+| J-4 | "End Session" button | Visible, outlined red text |
+| J-5 | Tap "End Session" (first tap) | Button changes to solid red "⚠️ Confirm End Session". A "Cancel" link appears below. |
+| J-6 | Tap "Cancel" | Button returns to original "End Session" state |
+| J-7 | Tap "End Session" → then tap "⚠️ Confirm End Session" | Button shows "Ending session…", then browser navigates back to `/g/test-picklers` |
+| J-8 | Dashboard after ending | Shows "🏓 Start Session" (no active session banner) |
+| J-9 | In Supabase, verify: `SELECT ended_at, closed_reason FROM public.sessions WHERE id = '<session_id>';` | `ended_at` is set, `closed_reason = 'manual'` |
+| J-10 | Revisit the ended session URL directly | Page shows "Ended" grey badge, no "End Session" button, shows "This session has ended." message |
+| J-11 | Try to call `end_session` on a non-existent UUID via SQL: `SELECT public.end_session('00000000-0000-0000-0000-000000000000');` | Error: "Session not found" |
+
+---
+
+### Test K — RLS Enforcement (no anon UPDATE)
+
+| # | Step | Expected |
+|---|---|---|
+| K-1 | In Supabase SQL Editor, simulate anon role trying to UPDATE: `SET ROLE anon; UPDATE public.sessions SET ended_at = now() WHERE true; RESET ROLE;` | Error: permission denied (no UPDATE policy for anon role) |
+| K-2 | In Supabase SQL Editor, verify `end_session` RPC works as anon: `SET ROLE anon; SELECT public.end_session('<any_valid_session_id>'); RESET ROLE;` | Success (SECURITY DEFINER allows the UPDATE internally) |
+| K-3 | Verify no anon UPDATE policy exists on sessions: `SELECT policyname, cmd FROM pg_policies WHERE tablename = 'sessions' AND cmd = 'UPDATE';` | Returns 0 rows |
+
+---
+
+### Test L — Vercel Production (after deploying M2)
+
+| # | Step | Expected |
+|---|---|---|
+| L-1 | Push to `main`, confirm Vercel redeploys successfully | Build passes, no errors in Vercel Functions log |
+| L-2 | Visit production URL dashboard | Start Session link works |
+| L-3 | Start a session on production | Navigates to session page, session exists in Supabase |
+| L-4 | End the session on production | Redirects to dashboard, session ended in DB |
+
+---
+
+### Items NOT tested in Milestone 2 (deferred)
+
+- "Who are you?" / device identity screen — post-MVP scope (see `docs/assumptions.md` A-001)
+- Add Player UI — Milestone 3 scope (players must be seeded via SQL for now)
+- Game recording — Milestone 4
+- Leaderboard — Milestone 5
+
+---
+
+## Milestone 2 (original placeholder) — Players
 - [ ] Empty display_name is rejected
 
 ---

@@ -70,6 +70,45 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 
 ---
 
+## [Milestone 2] — Sessions with RPC-Based End Session (2026-02-20)
+
+### Added
+- `supabase/migrations/m2_rpc_sessions.sql` — delta migration (apply to existing DB):
+  - Block 1: normalize existing `join_code` rows to lowercase; add `groups_join_code_lowercase` CHECK constraint
+  - Block 2: `create_session(group_join_code, player_ids)` SECURITY INVOKER RPC — atomically inserts session + session_players, validates group + player count ≥ 4, builds label, returns session UUID
+  - Block 3: `end_session(p_session_id)` SECURITY DEFINER RPC — sets `ended_at = now(), closed_reason = 'manual'`; bypasses RLS without an anon UPDATE policy; search_path pinned
+- `src/app/actions/sessions.ts` — Next.js Server Actions wrapping both RPCs (anon key only, no service role)
+- `src/app/g/[join_code]/start/page.tsx` — Server Component: loads group + all active players
+- `src/app/g/[join_code]/start/StartSessionForm.tsx` — Client Component: player search, toggle selection, 4-player minimum enforced, calls `createSessionAction`, redirects to session page
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — Server Component: loads session + attendees, shows Active/Ended badge, 4-hour active window check, disabled "Record Game" placeholder
+- `src/app/g/[join_code]/session/[session_id]/EndSessionButton.tsx` — Client Component: two-tap confirmation, calls `endSessionAction`, redirects to dashboard
+
+### Changed
+- `supabase/schema.sql` — updated to canonical from-scratch state including new constraint, both RPCs, and updated notes
+- `src/app/g/[join_code]/page.tsx` — replaced hardcoded "no active session" state with live query; now shows "Continue Session" or "Start Session" based on DB; resolves D-TODO-M2
+
+### Decisions
+- See `docs/decisions.md`: D-017, D-018, D-019, D-020, D-021, D-022
+
+### Assumptions
+- See `docs/assumptions.md`: A-012, A-013
+
+### Docs updated
+- `docs/decisions.md` — D-017 through D-022; D-TODO-M2 resolved
+- `docs/testing.md` — Full M2 test matrix (Tests G–L): join_code canonicalization, dashboard state detection, Start Session UI, Active Session UI, End Session UX, RLS enforcement, Vercel
+- `docs/assumptions.md` — A-012, A-013 added
+- `docs/how-to-update-schema.md` — RPC Functions section added; RLS table updated
+- `CHANGELOG.md` — this entry
+- `README.md` — milestone status updated
+
+### Known limitations / deferred to later milestones
+- "Who are you?" device identity — descoped from MVP core; players seeded via SQL
+- Add Player UI — Milestone 3
+- Game recording ("Record Game" button disabled) — Milestone 4
+- Leaderboard — Milestone 5
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

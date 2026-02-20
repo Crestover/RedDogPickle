@@ -2,38 +2,63 @@ import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 
 /**
- * Server Component — fetches the group on the server using the anon key.
- * No client JS needed for the data fetch; keeps the page fast on mobile.
+ * Group dashboard — Server Component.
+ *
+ * Active session definition (SPEC §5.1):
+ *   ended_at IS NULL AND started_at > now() - 4 hours
+ *
+ * The most recent such session is shown with "Continue Session".
+ * When none exists, "Start Session" is the primary action.
+ *
+ * Resolves D-TODO-M2 from docs/decisions.md (now D-017).
  */
 
 interface PageProps {
   params: Promise<{ join_code: string }>;
 }
 
-async function getGroup(joinCode: string) {
+interface ActiveSession {
+  id: string;
+  name: string;
+  started_at: string;
+}
+
+async function getGroupAndActiveSession(joinCode: string): Promise<{
+  group: { id: string; name: string; join_code: string } | null;
+  activeSession: ActiveSession | null;
+}> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const { data, error } = await supabase
+  const { data: group } = await supabase
     .from("groups")
     .select("id, name, join_code")
-    // join_code is stored lowercase in the DB (see schema constraint).
-    // Lowercase the param here to match, per docs/decisions.md D-011.
     .eq("join_code", joinCode.toLowerCase())
     .maybeSingle();
 
-  if (error) {
-    console.error("[getGroup] Supabase error:", error.message);
-    return null;
-  }
-  return data;
+  if (!group) return { group: null, activeSession: null };
+
+  // Active session: ended_at IS NULL AND started_at within last 4 hours
+  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
+
+  const { data: session } = await supabase
+    .from("sessions")
+    .select("id, name, started_at")
+    .eq("group_id", group.id)
+    .is("ended_at", null)
+    .gte("started_at", fourHoursAgo)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return { group, activeSession: session ?? null };
 }
 
 export default async function GroupPage({ params }: PageProps) {
   const { join_code } = await params;
-  const group = await getGroup(join_code);
+  const { group, activeSession } = await getGroupAndActiveSession(join_code);
 
   // ── Not Found ──────────────────────────────────────────────────────────
   if (!group) {
@@ -62,8 +87,6 @@ export default async function GroupPage({ params }: PageProps) {
   }
 
   // ── Found ──────────────────────────────────────────────────────────────
-  // TODO (Milestone 2): Detect active session here and swap primary button
-  // to "Continue Session" when one exists. See docs/decisions.md D-TODO-M2.
   return (
     <main className="flex min-h-screen flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-8">
@@ -77,32 +100,55 @@ export default async function GroupPage({ params }: PageProps) {
           <p className="mt-1 text-sm text-gray-400 font-mono">{group.join_code}</p>
         </div>
 
+        {/* Active session banner */}
+        {activeSession && (
+          <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-green-700 mb-0.5">
+              Active Session
+            </p>
+            <p className="text-sm font-mono text-green-900 truncate">
+              {activeSession.name}
+            </p>
+          </div>
+        )}
+
         {/* State-aware action panel */}
-        {/* Milestone 1: always shows "no active session" state */}
         <div className="space-y-3">
-          {/* Primary action */}
-          <button
-            disabled
-            className="flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-5 text-lg font-semibold text-white shadow-sm opacity-60 cursor-not-allowed min-h-[64px]"
-            title="Coming in Milestone 2"
-          >
-            🏓 Start Session
-          </button>
-
-          {/* Secondary action */}
-          <button
-            disabled
-            className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 shadow-sm opacity-60 cursor-not-allowed min-h-[56px]"
-            title="Coming in Milestone 5"
-          >
-            📊 Leaderboard
-          </button>
+          {activeSession ? (
+            /* ── Active session state ── */
+            <>
+              <Link
+                href={`/g/${group.join_code}/session/${activeSession.id}`}
+                className="flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700 active:bg-green-800 transition-colors min-h-[64px]"
+              >
+                🏓 Continue Session
+              </Link>
+              <Link
+                href={`/g/${group.join_code}/start`}
+                className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-colors min-h-[56px]"
+              >
+                + New Session
+              </Link>
+            </>
+          ) : (
+            /* ── No active session state ── */
+            <>
+              <Link
+                href={`/g/${group.join_code}/start`}
+                className="flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700 active:bg-green-800 transition-colors min-h-[64px]"
+              >
+                🏓 Start Session
+              </Link>
+              <button
+                disabled
+                className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 shadow-sm opacity-50 cursor-not-allowed min-h-[56px]"
+                title="Coming in Milestone 5"
+              >
+                📊 Leaderboard
+              </button>
+            </>
+          )}
         </div>
-
-        {/* Coming-soon notice */}
-        <p className="text-center text-xs text-gray-400">
-          Session &amp; game recording coming soon.
-        </p>
 
         {/* Back link */}
         <div className="pt-4 border-t border-gray-200">

@@ -96,7 +96,32 @@ This file records every significant decision made during the build, along with t
 **Decision:** "Start Session" and "Leaderboard" buttons render as disabled in Milestone 1 with a `title` attribute explaining they are coming in later milestones.
 **Why:** The milestone scope explicitly excludes session creation and game recording. Rendering the buttons as disabled (rather than not rendering them) establishes the correct layout and tap-target sizes for mobile early, making Milestone 2 integration a simple un-disable + wire-up.
 
-### D-TODO-M2: Active Session Detection Deferred
-**Decision:** The group dashboard in Milestone 1 always shows the "no active session" state (Start Session primary, Leaderboard secondary).
-**Why:** Active session detection (`ended_at IS NULL AND started_at > now() - 4 hours`) requires querying the `sessions` table, which has no data yet. Detection will be added in Milestone 2 when session creation is implemented.
-**Action required:** In Milestone 2, replace the hardcoded "no active session" state in `/g/[join_code]/page.tsx` with a live query. Update this entry to D-017 when resolved.
+### D-TODO-M2: Active Session Detection Deferred → RESOLVED as D-017
+
+---
+
+## Milestone 2 — Sessions (RPC-based)
+
+### D-017: Active Session Detection via Server-Side Query (Resolves D-TODO-M2)
+**Decision:** The group dashboard queries the `sessions` table on the server at page-load time to find the most recent active session (`ended_at IS NULL AND started_at >= now() - 4 hours`). Result drives the "Start Session" vs. "Continue Session" state.
+**Why:** Server Component fetch keeps the page fast (no client-side data waterfall). The query is simple and cheap — one row, indexed on `(group_id, started_at desc)`. The 4-hour window is evaluated in the application using `Date.now()` converted to ISO string for the `.gte()` filter, matching the SPEC §5.1 definition exactly.
+
+### D-018: Session Creation via SECURITY INVOKER RPC (`create_session`)
+**Decision:** Session creation uses a Postgres RPC function (`create_session`) with `SECURITY INVOKER`. The function atomically inserts the session row and all `session_players` rows, builds the session label, and returns the new session UUID.
+**Why:** Atomicity — both inserts happen in a single function call, eliminating the race condition where a session could exist without attendees. `SECURITY INVOKER` means the function runs as the anon role, so existing INSERT RLS policies apply. No service role key needed for session creation.
+
+### D-019: Session End via SECURITY DEFINER RPC (`end_session`)
+**Decision:** Session ending uses a Postgres RPC function (`end_session`) with `SECURITY DEFINER` and `search_path = public`. The function sets `ended_at = now()` and `closed_reason = 'manual'`. It is callable by the anon key.
+**Why:** There is no anon UPDATE RLS policy on `sessions` (by design — games are immutable, session end must be deliberate). `SECURITY DEFINER` allows the function to execute the UPDATE while running as the function owner (postgres), bypassing RLS. `search_path = public` is pinned as a Supabase security best practice to prevent search-path injection attacks. The anon key can call the function via `supabase.rpc()` — the grant statement enables this.
+
+### D-020: No Service Role Key in Milestone 2
+**Decision:** The `SUPABASE_SERVICE_ROLE_KEY` is not used in Milestone 2. Both RPCs are callable with the anon key. The server actions use `NEXT_PUBLIC_SUPABASE_ANON_KEY` only.
+**Why:** The RPC design (D-018, D-019) eliminates the need for the service role key in this milestone. This keeps the env var surface minimal and reduces risk. The service role key may be added in a future milestone if needed.
+
+### D-021: End Session UX — Two-Tap Confirmation
+**Decision:** The "End Session" button requires two taps: the first tap changes it to "Confirm End Session" (red); the second tap executes the action. A "Cancel" link appears between taps.
+**Why:** Ending a session is irreversible in the MVP (no re-open). A single accidental tap courtside would be frustrating. Two taps with a cancel path prevents accidental endings while remaining fast (no modal/dialog needed).
+
+### D-022: join_code Lowercase Enforced at Both App and DB Layer
+**Decision:** In addition to the existing regex constraint (`^[a-z0-9\-]+$`), a new CHECK constraint (`join_code = lower(join_code)`) is added to `public.groups`. Existing rows are normalized before the constraint is applied.
+**Why:** Belt-and-suspenders: the regex already implied lowercase, but an explicit equality check makes the DB reject mixed-case inserts even if the regex were accidentally changed. The migration normalizes any pre-existing rows so the constraint addition does not fail.

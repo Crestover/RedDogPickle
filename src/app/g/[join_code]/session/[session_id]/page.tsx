@@ -1,4 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase/server";
+import { RPC } from "@/lib/supabase/rpc";
+import { one } from "@/lib/supabase/helpers";
+import type { PlayerStats, PairCount, Player } from "@/lib/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
@@ -10,32 +13,24 @@ interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
 }
 
-interface PlayerStats {
-  player_id: string;
-  display_name: string;
-  code: string;
-  games_played: number;
-  games_won: number;
-  win_pct: number;
-  points_for: number;
-  points_against: number;
-  point_diff: number;
-  avg_point_diff: number;
-}
-
-interface PairCount {
-  player_a_id: string;
-  player_a_name: string;
-  player_b_id: string;
-  player_b_name: string;
-  games_together: number;
+/** Extract player codes for a given team from the game_players join. */
+function teamCodes(
+  gamePlayers: unknown[],
+  team: "A" | "B"
+): string[] {
+  return gamePlayers
+    .filter((gp) => (gp as { team: string }).team === team)
+    .map((gp) => {
+      const player = one(
+        (gp as { players?: { code?: string } | { code?: string }[] | null }).players
+      ) as { code?: string } | null;
+      return player?.code ?? "?";
+    })
+    .sort();
 }
 
 async function getSessionData(joinCode: string, sessionId: string) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = getServerClient();
 
   // Fetch the group
   const { data: group } = await supabase
@@ -73,7 +68,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
 
   // Fetch session standings via RPC
   const { data: standings, error: standingsError } = await supabase.rpc(
-    "get_session_stats",
+    RPC.GET_SESSION_STATS,
     { p_session_id: sessionId }
   );
 
@@ -83,7 +78,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
 
   // Fetch pairing balance via RPC
   const { data: pairCounts, error: pairError } = await supabase.rpc(
-    "get_session_pair_counts",
+    RPC.GET_SESSION_PAIR_COUNTS,
     { p_session_id: sessionId }
   );
 
@@ -130,15 +125,11 @@ export default async function SessionPage({ params }: PageProps) {
   // Flatten attendees into Player[] for RecordGameForm, sorted by code
   const players = attendees
     .map((row) => {
-      const player = Array.isArray(row.players) ? row.players[0] : row.players;
+      const player = one(row.players) as Player | null;
       if (!player) return null;
-      return {
-        id: (player as { id: string }).id,
-        display_name: (player as { display_name: string }).display_name,
-        code: (player as { code: string }).code,
-      };
+      return player;
     })
-    .filter((p): p is { id: string; display_name: string; code: string } => p !== null)
+    .filter((p): p is Player => p !== null)
     .sort((a, b) => a.code.localeCompare(b.code));
 
   return (
@@ -206,23 +197,8 @@ export default async function SessionPage({ params }: PageProps) {
                   ? game.game_players
                   : [];
 
-                const teamAPlayers = gamePlayers
-                  .filter((gp) => (gp as { team: string }).team === "A")
-                  .map((gp) => {
-                    const p = (gp as { players?: { code?: string } | { code?: string }[] | null }).players;
-                    const player = Array.isArray(p) ? p[0] : p;
-                    return player?.code ?? "?";
-                  })
-                  .sort();
-
-                const teamBPlayers = gamePlayers
-                  .filter((gp) => (gp as { team: string }).team === "B")
-                  .map((gp) => {
-                    const p = (gp as { players?: { code?: string } | { code?: string }[] | null }).players;
-                    const player = Array.isArray(p) ? p[0] : p;
-                    return player?.code ?? "?";
-                  })
-                  .sort();
+                const teamAPlayers = teamCodes(gamePlayers, "A");
+                const teamBPlayers = teamCodes(gamePlayers, "B");
 
                 const winnerTeam =
                   game.team_a_score > game.team_b_score ? "A" : "B";

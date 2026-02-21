@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
 /**
@@ -27,10 +27,7 @@ async function getGroupAndActiveSession(joinCode: string): Promise<{
   group: { id: string; name: string; join_code: string } | null;
   activeSession: ActiveSession | null;
 }> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = getServerClient();
 
   const { data: group } = await supabase
     .from("groups")

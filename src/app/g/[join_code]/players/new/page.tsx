@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import AddPlayerForm from "./AddPlayerForm";
@@ -9,10 +9,7 @@ interface PageProps {
 }
 
 async function getGroup(joinCode: string) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = getServerClient();
   const { data } = await supabase
     .from("groups")
     .select("id, name, join_code")

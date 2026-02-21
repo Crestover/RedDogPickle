@@ -1,7 +1,8 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { getServerClient } from "@/lib/supabase/server";
+import { RPC } from "@/lib/supabase/rpc";
 
 /**
  * Server Action: recordGameAction
@@ -23,13 +24,6 @@ import { redirect } from "next/navigation";
  *                                   — warn UI to show confirm prompt
  *   - { error: string }             — validation or unexpected error
  */
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 export type RecordGameResult =
   | { error: string }
@@ -68,9 +62,9 @@ export async function recordGameAction(
     return { error: `Winning margin must be at least 2 (got ${winner - loser}).` };
   }
 
-  const supabase = getSupabase();
+  const supabase = getServerClient();
 
-  const { data, error } = await supabase.rpc("record_game", {
+  const { data, error } = await supabase.rpc(RPC.RECORD_GAME, {
     p_session_id:   sessionId,
     p_team_a_ids:   teamAIds,
     p_team_b_ids:   teamBIds,

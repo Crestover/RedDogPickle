@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { getServerClient } from "@/lib/supabase/server";
 
 /**
  * Server Action: addPlayerAction
@@ -17,13 +17,6 @@ import { redirect } from "next/navigation";
  *
  * Uses the anon key — INSERT is permitted by RLS policy.
  */
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 const CODE_REGEX = /^[A-Z0-9]+$/;
 
@@ -56,7 +49,7 @@ export async function addPlayerAction(
     };
   }
 
-  const supabase = getSupabase();
+  const supabase = getServerClient();
 
   // ── Insert ───────────────────────────────────────────────────────────
   const { error } = await supabase.from("players").insert({
@@ -83,4 +76,3 @@ export async function addPlayerAction(
   // ── Redirect back ────────────────────────────────────────────────────
   redirect(redirectTo);
 }
-

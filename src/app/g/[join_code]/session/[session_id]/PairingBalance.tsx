@@ -6,13 +6,7 @@
  * which pairs are overdue to play together.
  */
 
-interface PairCount {
-  player_a_id: string;
-  player_a_name: string;
-  player_b_id: string;
-  player_b_name: string;
-  games_together: number;
-}
+import type { PairCount } from "@/lib/types";
 
 interface PairingBalanceProps {
   pairs: PairCount[];

@@ -1,4 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase/server";
+import { RPC } from "@/lib/supabase/rpc";
+import type { PlayerStats } from "@/lib/types";
+import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -15,30 +18,10 @@ interface PageProps {
   searchParams: Promise<{ range?: string }>;
 }
 
-interface PlayerStats {
-  player_id: string;
-  display_name: string;
-  code: string;
-  games_played: number;
-  games_won: number;
-  win_pct: number;
-  points_for: number;
-  points_against: number;
-  point_diff: number;
-  avg_point_diff: number;
-}
-
 type RangeMode = "all" | "30d" | "last";
 
-function createSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
-
 async function getGroup(joinCode: string) {
-  const supabase = createSupabase();
+  const supabase = getServerClient();
   const { data: group } = await supabase
     .from("groups")
     .select("id, name, join_code")
@@ -48,8 +31,8 @@ async function getGroup(joinCode: string) {
 }
 
 async function getGroupStats(joinCode: string, days: number | null) {
-  const supabase = createSupabase();
-  const { data: stats, error } = await supabase.rpc("get_group_stats", {
+  const supabase = getServerClient();
+  const { data: stats, error } = await supabase.rpc(RPC.GET_GROUP_STATS, {
     p_join_code: joinCode,
     p_days: days,
   });
@@ -61,11 +44,11 @@ async function getGroupStats(joinCode: string, days: number | null) {
 }
 
 async function getLastSessionStats(joinCode: string) {
-  const supabase = createSupabase();
+  const supabase = getServerClient();
 
   // Find the most recently ended session
   const { data: sessionId, error: idError } = await supabase.rpc(
-    "get_last_session_id",
+    RPC.GET_LAST_SESSION_ID,
     { p_join_code: joinCode }
   );
 
@@ -78,7 +61,7 @@ async function getLastSessionStats(joinCode: string) {
 
   // Fetch stats for that session
   const { data: stats, error: statsError } = await supabase.rpc(
-    "get_session_stats",
+    RPC.GET_SESSION_STATS,
     { p_session_id: sessionId }
   );
 
@@ -88,11 +71,6 @@ async function getLastSessionStats(joinCode: string) {
   }
 
   return (stats ?? []) as PlayerStats[];
-}
-
-function formatDiff(n: number): string {
-  if (n > 0) return `+${n}`;
-  return `${n}`;
 }
 
 // Conservative regex matching our join_code format (lowercase alphanumeric + hyphens)
@@ -193,60 +171,13 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           </div>
         ) : (
           <div className="space-y-2">
-            {stats.map((player, index) => {
-              const losses = player.games_played - player.games_won;
-              return (
-                <div
-                  key={player.player_id}
-                  className="rounded-xl bg-white border border-gray-200 px-4 py-3"
-                >
-                  {/* Top row: rank, code badge, name, W-L */}
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-gray-400 w-6 text-right shrink-0">
-                      #{index + 1}
-                    </span>
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 font-mono">
-                      {player.code}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate">
-                        {player.display_name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {player.games_won}W–{losses}L
-                        <span className="mx-1.5 text-gray-300">·</span>
-                        {player.win_pct}%
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p
-                        className={`text-sm font-bold ${
-                          player.point_diff > 0
-                            ? "text-green-700"
-                            : player.point_diff < 0
-                            ? "text-red-600"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {formatDiff(player.point_diff)}
-                      </p>
-                      <p className="text-xs text-gray-400">pt diff</p>
-                    </div>
-                  </div>
-
-                  {/* Detail row */}
-                  <div className="mt-2 flex items-center gap-4 pl-9 text-xs text-gray-400">
-                    <span>{player.games_played} games</span>
-                    <span>
-                      PF {player.points_for} / PA {player.points_against}
-                    </span>
-                    <span>
-                      Avg {formatDiff(player.avg_point_diff)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            {stats.map((player, index) => (
+              <PlayerStatsRow
+                key={player.player_id}
+                rank={index + 1}
+                player={player}
+              />
+            ))}
           </div>
         )}
       </div>

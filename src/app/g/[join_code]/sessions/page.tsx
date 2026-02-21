@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { getServerClient } from "@/lib/supabase/server";
+import type { Session } from "@/lib/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -11,15 +12,6 @@ import { notFound } from "next/navigation";
 
 interface PageProps {
   params: Promise<{ join_code: string }>;
-}
-
-interface Session {
-  id: string;
-  name: string;
-  session_date: string;
-  started_at: string;
-  ended_at: string | null;
-  closed_reason: string | null;
 }
 
 function isActive(session: Session): boolean {
@@ -41,10 +33,7 @@ function formatDate(dateStr: string): string {
 }
 
 async function getGroupAndSessions(joinCode: string) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = getServerClient();
 
   const { data: group } = await supabase
     .from("groups")

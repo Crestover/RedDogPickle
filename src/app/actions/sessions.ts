@@ -1,7 +1,8 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { getServerClient } from "@/lib/supabase/server";
+import { RPC } from "@/lib/supabase/rpc";
 
 /**
  * Server Actions for session management.
@@ -14,13 +15,6 @@ import { redirect } from "next/navigation";
  *
  * No service role key is used or needed in Milestone 2.
  */
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 // ─────────────────────────────────────────────────────────────
 // createSessionAction
@@ -38,8 +32,8 @@ export async function createSessionAction(
     return { error: "Please select at least 4 players." };
   }
 
-  const supabase = getSupabase();
-  const { data: sessionId, error } = await supabase.rpc("create_session", {
+  const supabase = getServerClient();
+  const { data: sessionId, error } = await supabase.rpc(RPC.CREATE_SESSION, {
     group_join_code: joinCode.trim().toLowerCase(),
     player_ids: playerIds,
   });
@@ -64,8 +58,8 @@ export async function endSessionAction(
   sessionId: string,
   joinCode: string
 ): Promise<{ error: string } | never> {
-  const supabase = getSupabase();
-  const { error } = await supabase.rpc("end_session", {
+  const supabase = getServerClient();
+  const { error } = await supabase.rpc(RPC.END_SESSION, {
     p_session_id: sessionId,
   });
 

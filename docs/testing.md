@@ -560,6 +560,25 @@ Same as Milestone 2. No new migration to apply.
 
 ---
 
+## Milestone 5.2 — Pairing Balance + Session Page Layout Cleanup
+
+### Test AC — Pairing Balance
+
+| # | Step | Expected |
+|---|---|---|
+| AC-1 | Session page with attendees but no games | "Pairing Balance" section visible; all attendee pairs listed with "0 games" |
+| AC-2 | Record a game (e.g. ALS+BOJ vs CAW+DAB) | After refresh, ALS·BOJ shows "1 game", ALS·CAW shows "0 games", etc. |
+| AC-3 | Record a second game with same teams | ALS·BOJ shows "2 games"; other same-team pairs also update |
+| AC-4 | Sort order | Pairs sorted fewest-first (0 games at top), then by name |
+| AC-5 | Pluralisation | "0 games", "1 game", "2 games" (singular for 1, plural for 0 and 2+) |
+| AC-6 | Attendees section removed | No "Attendees (N)" section on session page |
+| AC-7 | EndSessionButton in header | "End" button visible next to session name (compact pill style) |
+| AC-8 | EndSessionButton two-tap | Tap → "Confirm?"; tap again → ends session; "Cancel" link available |
+| AC-9 | Ended session | No EndSessionButton visible; no Record Game form; Pairing Balance still shows |
+| AC-10 | Pairing Balance empty | Section hidden when no attendees (0 pairs) |
+
+---
+
 ## Milestone 6 — Polish & Acceptance Criteria
 
 ### Full SPEC §12 Acceptance Criteria

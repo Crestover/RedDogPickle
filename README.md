@@ -81,7 +81,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   │       │   └── page.tsx                     # Session History list
 │   │       └── session/[session_id]/
 │   │           ├── page.tsx                     # Session view + game list
-│   │           ├── EndSessionButton.tsx         # Two-tap end button (client)
+│   │           ├── EndSessionButton.tsx         # Compact end button (client)
+│   │           ├── PairingBalance.tsx          # Same-team pair counts (server)
 │   │           ├── RecordGameForm.tsx           # 3-step game entry (client)
 │   │           └── SessionStandings.tsx        # Collapsible standings (client)
 │   └── lib/
@@ -95,7 +96,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │       ├── m4_record_game.sql                   # M4 delta: record_game RPC
 │       ├── m4.1_duplicate_warn.sql              # M4.1 delta: warn-and-confirm
 │       ├── m5_group_leaderboards.sql            # M5 delta: view + session/group stats RPCs
-│       └── m5.1_last_session_standings.sql     # M5.1 delta: extended session stats + last session RPC
+│       ├── m5.1_last_session_standings.sql     # M5.1 delta: extended session stats + last session RPC
+│       └── m5.2_pairing_balance.sql           # M5.2 delta: pairing balance RPC
 ├── docs/                                        # Developer documentation
 ├── .env.example                                 # Env var template (no secrets)
 ├── SPEC.md                                      # Product specification

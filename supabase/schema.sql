@@ -2,7 +2,7 @@
 -- RedDogPickle — Canonical Schema (source of truth)
 -- ============================================================
 -- This file represents the complete DB state after all
--- migrations through M5.1. Run from scratch on an empty DB
+-- migrations through M5.2. Run from scratch on an empty DB
 -- (after tables, constraints, indexes, and RLS are in place)
 -- to recreate all views and functions.
 --
@@ -15,6 +15,7 @@
 -- ============================================================
 
 -- 0. Drop existing objects to prevent conflicts on re-run
+DROP FUNCTION IF EXISTS public.get_session_pair_counts(uuid);
 DROP FUNCTION IF EXISTS public.get_last_session_id(text);
 DROP FUNCTION IF EXISTS public.get_group_stats(text, integer);
 DROP FUNCTION IF EXISTS public.get_session_stats(uuid);
@@ -284,6 +285,68 @@ BEGIN
 END;
 $func$;
 
+-- 6. Get Session Pair Counts (M5.2)
+--    Returns every attendee pair with same-team game count.
+--    Includes 0-count pairs. Sorted fewest-first, then by name.
+CREATE OR REPLACE FUNCTION public.get_session_pair_counts(p_session_id uuid)
+RETURNS TABLE (
+    player_a_id    uuid,
+    player_a_name  text,
+    player_b_id    uuid,
+    player_b_name  text,
+    games_together bigint
+)
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $func$
+BEGIN
+    RETURN QUERY
+    WITH attendees AS (
+        SELECT sp.player_id, p.display_name
+          FROM public.session_players sp
+          JOIN public.players p ON p.id = sp.player_id
+         WHERE sp.session_id = p_session_id
+    ),
+    all_pairs AS (
+        SELECT a.player_id  AS a_id,
+               a.display_name AS a_name,
+               b.player_id  AS b_id,
+               b.display_name AS b_name
+          FROM attendees a
+         CROSS JOIN attendees b
+         WHERE a.player_id < b.player_id
+    ),
+    played_pairs AS (
+        SELECT LEAST(gp1.player_id, gp2.player_id)    AS p1,
+               GREATEST(gp1.player_id, gp2.player_id) AS p2,
+               COUNT(*)::bigint                        AS cnt
+          FROM public.game_players gp1
+          JOIN public.game_players gp2
+            ON gp1.game_id = gp2.game_id
+           AND gp1.team    = gp2.team
+           AND gp1.player_id < gp2.player_id
+          JOIN public.games g
+            ON g.id = gp1.game_id
+         WHERE g.session_id = p_session_id
+         GROUP BY LEAST(gp1.player_id, gp2.player_id),
+                  GREATEST(gp1.player_id, gp2.player_id)
+    )
+    SELECT ap.a_id,
+           ap.a_name,
+           ap.b_id,
+           ap.b_name,
+           COALESCE(pp.cnt, 0)::bigint AS games_together
+      FROM all_pairs ap
+      LEFT JOIN played_pairs pp
+        ON pp.p1 = ap.a_id
+       AND pp.p2 = ap.b_id
+     ORDER BY COALESCE(pp.cnt, 0) ASC,
+              ap.a_name ASC,
+              ap.b_name ASC;
+END;
+$func$;
+
 -- ============================================================
 -- GRANTS
 -- ============================================================
@@ -292,6 +355,7 @@ GRANT EXECUTE ON FUNCTION public.record_game(uuid, uuid[], uuid[], integer, inte
 GRANT EXECUTE ON FUNCTION public.get_session_stats(uuid) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_group_stats(text, integer) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_last_session_id(text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_session_pair_counts(uuid) TO anon, authenticated;
 
 -- ============================================================
 -- NOTES

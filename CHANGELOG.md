@@ -358,6 +358,44 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 
 ---
 
+## [Milestone 5.2] — Pairing Balance + Session Page Layout Cleanup (2026-02-21)
+
+### Added
+- `supabase/migrations/m5.2_pairing_balance.sql`:
+  - New `get_session_pair_counts(p_session_id uuid)` RPC — returns every attendee pair
+    with same-team game count; includes 0-count pairs for all combinations from
+    session_players; sorted fewest-first, then by name
+  - SECURITY INVOKER; grants to anon + authenticated
+- `src/app/g/[join_code]/session/[session_id]/PairingBalance.tsx` — Server Component:
+  - Displays "Pairing Balance" section with header and "Fewest games together first" subtext
+  - Each row: "Player A · Player B — N game(s)" with correct pluralisation
+  - Hidden when no pairs (0 attendees)
+
+### Changed
+- `supabase/schema.sql` — updated with `get_session_pair_counts` function definition,
+  drop entry, and grant; version comment updated to M5.2
+- `src/app/g/[join_code]/session/[session_id]/page.tsx`:
+  - **Removed** redundant Attendees section (RecordGameForm team selector already shows all players)
+  - **Removed** "This session has ended" message block (status badge in header is sufficient)
+  - **Moved** EndSessionButton into session header (inline next to session name)
+  - **Added** PairingBalance section between Session Standings and Record Game form
+  - **Added** `get_session_pair_counts` RPC call to data fetching
+  - New layout order: Header (with EndSession) → Standings → Pairing Balance → Record Game → Games
+- `src/app/g/[join_code]/session/[session_id]/EndSessionButton.tsx`:
+  - Restyled as compact inline pill ("End" / "Confirm?" / "Cancel") for header placement
+
+### Decisions
+- See `docs/decisions.md`: D-050 through D-052
+
+### Docs updated
+- `docs/decisions.md` — D-050 (Pairing Balance replaces Attendees), D-051 (0-count pairs),
+  D-052 (EndSessionButton in header)
+- `docs/testing.md` — Test AC: Pairing Balance (10 test cases)
+- `CHANGELOG.md` — this entry
+- `README.md` — PairingBalance.tsx added to project structure
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

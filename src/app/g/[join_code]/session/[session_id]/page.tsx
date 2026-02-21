@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
+import PairingBalance from "./PairingBalance";
 import RecordGameForm from "./RecordGameForm";
 import SessionStandings from "./SessionStandings";
 
@@ -20,6 +21,14 @@ interface PlayerStats {
   points_against: number;
   point_diff: number;
   avg_point_diff: number;
+}
+
+interface PairCount {
+  player_a_id: string;
+  player_a_name: string;
+  player_b_id: string;
+  player_b_name: string;
+  games_together: number;
 }
 
 async function getSessionData(joinCode: string, sessionId: string) {
@@ -72,12 +81,23 @@ async function getSessionData(joinCode: string, sessionId: string) {
     console.error("get_session_stats error:", standingsError);
   }
 
+  // Fetch pairing balance via RPC
+  const { data: pairCounts, error: pairError } = await supabase.rpc(
+    "get_session_pair_counts",
+    { p_session_id: sessionId }
+  );
+
+  if (pairError) {
+    console.error("get_session_pair_counts error:", pairError);
+  }
+
   return {
     group,
     session,
     attendees: attendees ?? [],
     games: games ?? [],
     standings: (standings ?? []) as PlayerStats[],
+    pairCounts: (pairCounts ?? []) as PairCount[],
   };
 }
 
@@ -97,7 +117,7 @@ export default async function SessionPage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const { group, session, attendees, games, standings } = data;
+  const { group, session, attendees, games, standings, pairCounts } = data;
   const active = isActiveSession(session);
 
   // Format started_at for display
@@ -147,67 +167,30 @@ export default async function SessionPage({ params }: PageProps) {
             )}
             <span className="text-xs text-gray-400">Started {startedLabel}</span>
           </div>
-          <h1 className="text-xl font-bold leading-tight font-mono">
-            {session.name}
-          </h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-bold leading-tight font-mono">
+              {session.name}
+            </h1>
+            {active && (
+              <EndSessionButton sessionId={session.id} joinCode={group.join_code} />
+            )}
+          </div>
         </div>
 
-        {/* Session Standings — above actions and games */}
+        {/* Session Standings — collapsible */}
         <SessionStandings standings={standings} />
 
-        {/* Attendees */}
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
-            Attendees ({attendees.length})
-          </h2>
-          <div className="space-y-2">
-            {attendees.map((row) => {
-              const player = Array.isArray(row.players)
-                ? row.players[0]
-                : row.players;
-              if (!player) return null;
-              return (
-                <div
-                  key={row.player_id}
-                  className="flex items-center gap-3 rounded-xl bg-white border border-gray-200 px-4 py-3 min-h-[56px]"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-800 font-mono">
-                    {(player as { code: string }).code}
-                  </span>
-                  <span className="font-medium text-gray-900">
-                    {(player as { display_name: string }).display_name}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* Pairing Balance — fewest games together first */}
+        <PairingBalance pairs={pairCounts} />
 
-        {/* Actions */}
-        {active ? (
-          <div className="space-y-4">
-            {/* Record Game */}
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
-              <RecordGameForm
-                sessionId={session.id}
-                joinCode={group.join_code}
-                attendees={players}
-              />
-            </div>
-
-            {/* End Session */}
-            <EndSessionButton sessionId={session.id} joinCode={group.join_code} />
-          </div>
-        ) : (
-          <div className="rounded-xl bg-gray-100 px-4 py-4 text-center">
-            <p className="text-sm text-gray-600 font-medium">
-              This session has ended.
-            </p>
-            {session.closed_reason && (
-              <p className="text-xs text-gray-400 mt-1">
-                Reason: {session.closed_reason}
-              </p>
-            )}
+        {/* Record Game form — only when session is active */}
+        {active && (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
+            <RecordGameForm
+              sessionId={session.id}
+              joinCode={group.join_code}
+              attendees={players}
+            />
           </div>
         )}
 

@@ -281,3 +281,23 @@ This file records every significant decision made during the build, along with t
 ### D-049: Session Standings as Collapsible Client Component
 **Decision:** `SessionStandings.tsx` is a `"use client"` component with `useState` for open/closed toggle. Default state is expanded (standings visible).
 **Why:** A collapsible section lets users quickly hide standings for a streamlined courtside flow (focus on recording games). Expanded by default ensures standings are visible on page load without extra taps.
+
+---
+
+## Milestone 5.2 — Pairing Balance + Session Page Layout Cleanup
+
+### D-050: Pairing Balance Replaces Redundant Attendees Section
+**Decision:** The "Attendees" section on the session page is removed entirely. The new "Pairing Balance" section replaces it between Session Standings and the Record Game form.
+**Why:** The RecordGameForm team selector already shows all session attendees with their codes. The attendees list was redundant information. Pairing Balance is a decision aid — it shows which pairs have played together least, helping the group rotate partners fairly.
+
+---
+
+### D-051: `get_session_pair_counts` Includes 0-Count Pairs
+**Decision:** The `get_session_pair_counts` RPC uses `session_players` as the authoritative attendee list and generates all combinations via `CROSS JOIN` with `a < b`. `LEFT JOIN` to `played_pairs` ensures every pair appears, even with 0 shared games.
+**Why:** Before any games are recorded, the group needs to see all possible pairings. Omitting 0-count pairs would make the section empty at session start, which is exactly when the information is most useful for planning the first game's teams.
+
+---
+
+### D-052: EndSessionButton Moved Into Session Header
+**Decision:** `EndSessionButton` is rendered inline next to the session name in the header area, styled as a compact pill button ("End" / "Confirm?" / "Cancel"). It only appears when the session is active.
+**Why:** Reduces visual clutter by grouping status controls together. The old full-width button in the actions section took up disproportionate space for a rarely-used action. The compact inline placement keeps it accessible without dominating the page layout.

@@ -193,20 +193,18 @@ export default async function SessionPage({ params }: PageProps) {
                 const teamAPlayers = gamePlayers
                   .filter((gp) => (gp as { team: string }).team === "A")
                   .map((gp) => {
-                    const p = Array.isArray((gp as { players: unknown }).players)
-                      ? ((gp as { players: unknown[] }).players as { code: string }[])[0]
-                      : (gp as { players: { code: string } }).players;
-                    return p?.code ?? "?";
+                    const p = (gp as { players?: { code?: string } | { code?: string }[] | null }).players;
+                    const player = Array.isArray(p) ? p[0] : p;
+                    return player?.code ?? "?";
                   })
                   .sort();
 
                 const teamBPlayers = gamePlayers
                   .filter((gp) => (gp as { team: string }).team === "B")
                   .map((gp) => {
-                    const p = Array.isArray((gp as { players: unknown }).players)
-                      ? ((gp as { players: unknown[] }).players as { code: string }[])[0]
-                      : (gp as { players: { code: string } }).players;
-                    return p?.code ?? "?";
+                    const p = (gp as { players?: { code?: string } | { code?: string }[] | null }).players;
+                    const player = Array.isArray(p) ? p[0] : p;
+                    return player?.code ?? "?";
                   })
                   .sort();
 

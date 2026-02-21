@@ -478,33 +478,57 @@ Same as Milestone 2. No new migration to apply.
 
 ---
 
-### Items NOT tested in Milestone 4 (deferred)
+---
 
-- Leaderboard — Milestone 5
-- Session summary leaderboard — Milestone 5
-- 30-day stats toggle — Milestone 5
+## Milestone 5 — Group Leaderboards & Stats
+
+### Test W — Group Leaderboard — All-time Math Correctness
+
+| # | Step | Expected |
+|---|---|---|
+| W-1 | Navigate to `/g/{join_code}/leaderboard` | Page loads with "Leaderboard" title, "All-time" toggle active |
+| W-2 | Player who played 4 games (won 3) | games_played=4, games_won=3, win_pct=75.0 |
+| W-3 | Same player scored 11,11,11 for, 8,9,7 against | points_for=33, points_against=24, point_diff=+9, avg_point_diff=+2.3 |
+| W-4 | Losses column | W-L display shows correct losses (games_played − games_won) |
+| W-5 | Player with 0 games | Not shown (only players with ≥1 game appear) |
+| W-6 | Player from a DIFFERENT group | Not shown (group filter works) |
+| W-7 | Rank numbers | Sequential #1, #2, #3… matching sort order |
 
 ---
 
-## Milestone 5 — Leaderboards & Stats
+### Test X — Group Leaderboard — 30-Day Filter
 
-### Session Summary
-- [ ] Session summary shows the session leaderboard
-- [ ] Session summary shows game history sorted by `sequence_num` descending (most recent first)
-- [ ] Each game shows: teams, scores, time played
-- [ ] No edit button is present (games are immutable)
+| # | Step | Expected |
+|---|---|---|
+| X-1 | Click "Last 30 Days" toggle | URL changes to `?range=30d`, toggle highlights "Last 30 Days" |
+| X-2 | Games played > 30 days ago | Not included in stats |
+| X-3 | Games played within 30 days | Included in stats |
+| X-4 | Player with ALL games > 30 days ago | Not shown in 30-day view |
+| X-5 | Click "All-time" toggle | URL drops `?range` param, full stats restored |
+| X-6 | Empty 30-day view (no recent games) | Shows "No games in the last 30 days." with "Start a Session" link |
 
-### All-Time Leaderboard
-- [ ] Shows all players with at least 1 game
-- [ ] Columns: games_played, games_won, win_pct, points_for, points_against, point_diff, avg_point_diff
-- [ ] Sorted: win_pct desc → games_won desc → point_diff desc
-- [ ] Stats are accurate (verify manually with known game data)
+---
 
-### 30-Day Toggle
-- [ ] Toggle between "All Time" and "Last 30 Days" works
-- [ ] 30-day filter: only games where `played_at >= now() - 30 days`
-- [ ] Players with 0 games in the last 30 days are excluded from the 30-day view
-- [ ] Toggling back to "All Time" restores the full leaderboard
+### Test Y — Sorting and Tie-Breaking
+
+| # | Step | Expected |
+|---|---|---|
+| Y-1 | Two players: A has 75% win, B has 50% win | A ranks higher |
+| Y-2 | Two players: same win_pct, A has 5 wins, B has 3 wins | A ranks higher (games_won tiebreak) |
+| Y-3 | Two players: same win_pct and games_won, A has +10 diff, B has +5 diff | A ranks higher (point_diff tiebreak) |
+| Y-4 | Two players: all stats tied, names "Alice" and "Bob" | Alice ranks higher (display_name ASC) |
+| Y-5 | Verify sort is consistent across page refreshes | Same order every time |
+
+---
+
+### Test Z — Dashboard Leaderboard Link
+
+| # | Step | Expected |
+|---|---|---|
+| Z-1 | Dashboard with active session | Shows "Continue Session", "+ New Session", AND "📊 Leaderboard" buttons |
+| Z-2 | Dashboard without active session | Shows "Start Session" AND "📊 Leaderboard" buttons |
+| Z-3 | Click "📊 Leaderboard" from dashboard | Navigates to `/g/{join_code}/leaderboard` |
+| Z-4 | Leaderboard back link | "← {group.name}" navigates back to dashboard |
 
 ---
 

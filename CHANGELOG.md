@@ -231,6 +231,94 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 - `docs/testing.md` — Test U replaced with 10-step warn-and-confirm test matrix
 - `CHANGELOG.md` — this entry
 
+## [Milestone 4.2] — Live Leaderboards & DB Hardening (2026-02-21)
+
+### Added
+- `supabase/migrations/m4.2_leaderboards.sql` — Leaderboard logic layer:
+  - `public.vw_player_game_stats` — View: Normalizes game results into a per-player perspective (is_win, points_for, points_against).
+  - `get_session_stats(p_session_id)` RPC — Aggregates the view to return live standings (wins, games played, point differential).
+- `src/app/g/[join_code]/session/[session_id]/Leaderboard.tsx` — Client Component:
+  - Displays a ranked table of attendees.
+  - Shows Win/Loss records and Point Differential (e.g., "+12").
+  - Auto-updates as new games are recorded.
+
+### Changed
+- `supabase/schema.sql` — **Hardened & Canonicalized**:
+  - Replaced generic `$$` with `$BODY$` / `$func$` tags to prevent Supabase SQL Editor parsing errors ("unterminated dollar-quoted string").
+  - Fixed `record_game` fingerprinting: Added explicit `::text` casting for UUIDs and strings to satisfy the `digest` function requirements.
+  - Atomic Insert fix: Verified `RETURNING id INTO v_game_id` placement for PL/pgSQL stability.
+  - Implemented `DROP FUNCTION` logic to handle Postgres return-type signature conflicts during schema updates.
+- `src/app/g/[join_code]/session/[session_id]/page.tsx`:
+  - Integrated `get_session_stats` call to fetch live rankings alongside the game history list.
+  - Improved layout to balance the "Live Standings" vs "Recent Games" views.
+
+### Fixed
+- Resolved `42601` syntax errors in Supabase SQL Editor by standardizing on named dollar-quotes.
+- Fixed `42P13` "cannot change return type" error by adding explicit drops for modified RPC signatures.
+- Corrected team-sorting logic in the game fingerprint to ensure it is truly order-invariant (Team A vs Team B is the same as Team B vs Team A).
+
+### Decisions
+- See `docs/decisions.md`: D-038 (Leaderboard ranking ties), D-039 (RPC vs Client-side aggregation).
+
+### Docs updated
+- `docs/decisions.md` — D-038, D-039 added.
+- `docs/testing.md` — M4.2 test matrix (Tests W–Z): Win calculation, Point Diff accuracy, Tie-breaking verification.
+- `CHANGELOG.md` — this entry.
+---
+
+## [Milestone 5] — Group Leaderboards & Stats (2026-02-21)
+
+### Added
+- `supabase/migrations/m5_group_leaderboards.sql` — codifies all leaderboard DB artifacts:
+  - `CREATE OR REPLACE VIEW vw_player_game_stats` — normalises games into per-player rows
+    (was applied directly in Supabase during M4.2; now in version control);
+    adds `is_valid` boolean to flag garbage rows (NULL scores, ties, 0-0)
+  - `CREATE OR REPLACE FUNCTION get_session_stats(p_session_id)` — session leaderboard RPC
+    (was applied directly in Supabase during M4.2; now in version control);
+    updated with `FILTER (WHERE is_valid)` aggregates and `HAVING` clause
+  - `CREATE FUNCTION get_group_stats(p_join_code text, p_days integer DEFAULT NULL)` — new
+    group-wide leaderboard RPC with optional time-range filter (NULL = all-time, 30 = last 30 days)
+  - Returns: player_id, display_name, code, games_played, games_won, win_pct, points_for,
+    points_against, point_diff, avg_point_diff
+  - Sorted: win_pct DESC, games_won DESC, point_diff DESC, display_name ASC
+  - SECURITY INVOKER — reads only data accessible via anon SELECT RLS
+  - Grants to both `anon` and `authenticated` roles
+  - Robustness: all aggregates use `FILTER (WHERE is_valid)` to skip invalid rows;
+    day-anchored cutoff `(CURRENT_DATE - p_days)::timestamptz` for stable UX;
+    `NULLIF` for divide-by-zero protection; explicit `::bigint`/`::numeric(5,1)` casting;
+    `HAVING COUNT(*) FILTER (WHERE is_valid) > 0` to exclude zero-game players;
+    INNER JOIN `players` after aggregation subquery
+- `src/app/g/[join_code]/leaderboard/page.tsx` — Server Component:
+  - Mobile-first ranked player list with code badges, W-L records, win%, point diff
+  - Detail row: games played, PF/PA, avg point diff
+  - Toggle via `?range=30d` query param (no Client Component needed — pure `<Link>` elements)
+  - Empty state with "Start a Session" link
+  - Input sanitisation: `decodeURIComponent` + trim + lowercase + regex validation;
+    only `"30d"` accepted as valid range value
+
+### Changed
+- `supabase/schema.sql` — rewritten as complete source of truth for all views, functions, and grants
+  through M5; now includes view definition with `is_valid`, `get_session_stats` with FILTER/HAVING,
+  `get_group_stats` with all robustness patterns, and structured drop/create/grant sections
+- `src/app/g/[join_code]/page.tsx`:
+  - Replaced disabled "📊 Leaderboard" placeholder button with live `<Link>` to leaderboard page
+  - Leaderboard link now appears in BOTH states (active session and no active session),
+    per SPEC §8.1
+
+### No new tables or RLS policy changes
+- All stats derived from existing `games`, `game_players`, `sessions`, `players` tables
+- No anon UPDATE or DELETE policies added
+
+### Decisions
+- See `docs/decisions.md`: D-038 through D-045
+
+### Docs updated
+- `docs/decisions.md` — D-038 through D-045 (includes robustness decisions: is_valid flag,
+  day-anchored cutoff, explicit type casting, frontend input sanitisation)
+- `docs/testing.md` — M5 test matrix (Tests W–Z): All-time math, 30-day filter, sorting/tie-breaking, dashboard link
+- `CHANGELOG.md` — this entry
+- `README.md` — milestone status + project structure updated
+
 ---
 
 <!-- Template for future entries:

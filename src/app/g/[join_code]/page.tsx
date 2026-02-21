@@ -129,6 +129,12 @@ export default async function GroupPage({ params }: PageProps) {
               >
                 + New Session
               </Link>
+              <Link
+                href={`/g/${group.join_code}/leaderboard`}
+                className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-colors min-h-[56px]"
+              >
+                📊 Leaderboard
+              </Link>
             </>
           ) : (
             /* ── No active session state ── */
@@ -139,13 +145,12 @@ export default async function GroupPage({ params }: PageProps) {
               >
                 🏓 Start Session
               </Link>
-              <button
-                disabled
-                className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 shadow-sm opacity-50 cursor-not-allowed min-h-[56px]"
-                title="Coming in Milestone 5"
+              <Link
+                href={`/g/${group.join_code}/leaderboard`}
+                className="flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-colors min-h-[56px]"
               >
                 📊 Leaderboard
-              </button>
+              </Link>
             </>
           )}
         </div>

@@ -28,6 +28,7 @@ DROP FUNCTION IF EXISTS public.end_session(uuid);
 -- Used by get_session_stats and get_group_stats.
 -- Codified in migration m5_group_leaderboards.sql (was previously
 -- applied directly in Supabase during M4.2).
+-- is_valid excludes garbage rows (NULL scores, ties, 0-0).
 CREATE OR REPLACE VIEW public.vw_player_game_stats AS
 SELECT
   gp.player_id,
@@ -35,6 +36,12 @@ SELECT
   g.session_id,
   gp.team,
   g.played_at,
+  -- is_valid: true when scores are non-null, unequal, and at least one > 0
+  (   g.team_a_score IS NOT NULL
+  AND g.team_b_score IS NOT NULL
+  AND g.team_a_score <> g.team_b_score
+  AND (g.team_a_score > 0 OR g.team_b_score > 0)
+  )                                                         AS is_valid,
   CASE
     WHEN gp.team = 'A' AND g.team_a_score > g.team_b_score THEN 1
     WHEN gp.team = 'B' AND g.team_b_score > g.team_a_score THEN 1
@@ -101,7 +108,8 @@ BEGIN
 END;
 $BODY$;
 
--- 3. Get Session Stats (M4.2, codified M5)
+-- 3. Get Session Stats (M4.2, codified + hardened M5)
+--    FILTER (WHERE is_valid) excludes garbage rows from aggregates
 CREATE OR REPLACE FUNCTION public.get_session_stats(p_session_id uuid)
 RETURNS TABLE (
     player_id    uuid,
@@ -117,17 +125,25 @@ BEGIN
     RETURN QUERY
     SELECT
         v.player_id,
-        COUNT(v.game_id),
-        SUM(v.is_win),
+        COUNT(*)        FILTER (WHERE v.is_valid)::bigint,
+        SUM(v.is_win)   FILTER (WHERE v.is_valid)::bigint,
         SUM(v.points_for - v.points_against)
+                        FILTER (WHERE v.is_valid)::bigint
     FROM public.vw_player_game_stats v
     WHERE v.session_id = p_session_id
     GROUP BY v.player_id
-    ORDER BY SUM(v.is_win) DESC, SUM(v.points_for - v.points_against) DESC;
+    HAVING COUNT(*) FILTER (WHERE v.is_valid) > 0
+    ORDER BY
+        SUM(v.is_win)   FILTER (WHERE v.is_valid) DESC,
+        SUM(v.points_for - v.points_against)
+                        FILTER (WHERE v.is_valid) DESC;
 END;
 $func$;
 
 -- 4. Get Group Stats (M5)
+--    Day-anchored cutoff: CURRENT_DATE - p_days (stable within day)
+--    INNER JOIN players AFTER aggregation
+--    HAVING games_played > 0
 CREATE OR REPLACE FUNCTION public.get_group_stats(
   p_join_code text,
   p_days      integer DEFAULT NULL
@@ -162,25 +178,45 @@ BEGIN
 
   RETURN QUERY
   SELECT
-    v.player_id,
+    agg.player_id,
     p.display_name,
     p.code,
-    COUNT(*)::bigint                                          AS games_played,
-    SUM(v.is_win)::bigint                                     AS games_won,
-    ROUND(SUM(v.is_win) * 100.0 / COUNT(*), 1)               AS win_pct,
-    SUM(v.points_for)::bigint                                 AS points_for,
-    SUM(v.points_against)::bigint                             AS points_against,
-    SUM(v.points_for - v.points_against)::bigint              AS point_diff,
-    ROUND(SUM(v.points_for - v.points_against) * 1.0
-          / COUNT(*), 1)                                      AS avg_point_diff
-  FROM public.vw_player_game_stats v
-  JOIN public.sessions s ON s.id = v.session_id
-  JOIN public.players  p ON p.id = v.player_id
-  WHERE s.group_id = v_group_id
-    AND (p_days IS NULL
-         OR v.played_at >= now() - make_interval(days => p_days))
-  GROUP BY v.player_id, p.display_name, p.code
-  ORDER BY win_pct DESC, games_won DESC, point_diff DESC, p.display_name ASC;
+    agg.games_played,
+    agg.games_won,
+    agg.win_pct,
+    agg.points_for,
+    agg.points_against,
+    agg.point_diff,
+    agg.avg_point_diff
+  FROM (
+    SELECT
+      v.player_id,
+      COUNT(*)        FILTER (WHERE v.is_valid)::bigint       AS games_played,
+      SUM(v.is_win)   FILTER (WHERE v.is_valid)::bigint       AS games_won,
+      ROUND(
+        SUM(v.is_win) FILTER (WHERE v.is_valid)::numeric * 100.0
+        / NULLIF(COUNT(*) FILTER (WHERE v.is_valid)::numeric, 0),
+        1
+      )::numeric(5,1)                                         AS win_pct,
+      SUM(v.points_for)  FILTER (WHERE v.is_valid)::bigint    AS points_for,
+      SUM(v.points_against) FILTER (WHERE v.is_valid)::bigint AS points_against,
+      SUM(v.points_for - v.points_against)
+                        FILTER (WHERE v.is_valid)::bigint      AS point_diff,
+      ROUND(
+        SUM(v.points_for - v.points_against) FILTER (WHERE v.is_valid)::numeric
+        / NULLIF(COUNT(*) FILTER (WHERE v.is_valid)::numeric, 0),
+        1
+      )::numeric(5,1)                                         AS avg_point_diff
+    FROM public.vw_player_game_stats v
+    JOIN public.sessions s ON s.id = v.session_id
+    WHERE s.group_id = v_group_id
+      AND (p_days IS NULL
+           OR v.played_at >= (CURRENT_DATE - p_days)::timestamptz)
+    GROUP BY v.player_id
+    HAVING COUNT(*) FILTER (WHERE v.is_valid) > 0
+  ) agg
+  INNER JOIN public.players p ON p.id = agg.player_id
+  ORDER BY agg.win_pct DESC, agg.games_won DESC, agg.point_diff DESC, p.display_name ASC;
 END;
 $func$;
 
@@ -189,8 +225,8 @@ $func$;
 -- ============================================================
 GRANT EXECUTE ON FUNCTION public.end_session(uuid) TO anon;
 GRANT EXECUTE ON FUNCTION public.record_game(uuid, uuid[], uuid[], integer, integer, boolean) TO anon;
-GRANT EXECUTE ON FUNCTION public.get_session_stats(uuid) TO anon;
-GRANT EXECUTE ON FUNCTION public.get_group_stats(text, integer) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_session_stats(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_group_stats(text, integer) TO anon, authenticated;
 
 -- ============================================================
 -- NOTES
@@ -202,3 +238,6 @@ GRANT EXECUTE ON FUNCTION public.get_group_stats(text, integer) TO anon;
 --   15-min recency check in record_game RPC is the duplicate gate
 -- pgcrypto extension required for DIGEST() in record_game
 -- create_session RPC (M2) is SECURITY INVOKER; defined in m2_rpc_sessions.sql
+-- vw_player_game_stats.is_valid: excludes garbage rows (NULL scores, ties, 0-0)
+--   All aggregates use FILTER (WHERE is_valid) to skip invalid data
+-- "Last 30 days" uses day-anchored cutoff: CURRENT_DATE - p_days (stable within day)

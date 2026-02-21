@@ -205,3 +205,53 @@ This file records every significant decision made during the build, along with t
 ### D-037: Duplicate Warning Uses Relative Time from `existing_created_at`
 **Decision:** The amber warning banner displays how long ago the potential duplicate was recorded using `existing_created_at` from the RPC response, computed client-side as a relative string ("2 minutes ago").
 **Why:** An absolute timestamp ("16:42:03") is less immediately meaningful courtside. "2 minutes ago" tells the user at a glance whether this is likely an accident. The RPC returns the ISO timestamp; the `relativeTime()` helper in `RecordGameForm` converts it.
+
+---
+
+## Milestone 5 — Group Leaderboards & Stats
+
+### D-038: `get_group_stats` Uses `p_join_code text` (Not `group_id`)
+**Decision:** The group leaderboard RPC accepts `p_join_code text` instead of `p_group_id uuid`.
+**Why:** The frontend route parameter is `join_code` (from `/g/[join_code]/leaderboard`). Passing join_code directly avoids an extra group-lookup query on the client/server. The RPC resolves the group internally and raises if not found.
+
+---
+
+### D-039: Leaderboard Toggle via URL Query Param `?range=30d`
+**Decision:** The All-time / Last 30 Days toggle uses a URL query parameter (`?range=30d`) instead of client-side state.
+**Why:** This keeps the leaderboard page as a pure Server Component — no Client Component, no `useState`, no hydration cost. The toggle is just two `<Link>` elements. This also makes the current view bookmarkable and shareable.
+
+---
+
+### D-040: `vw_player_game_stats` View Codified in Migration
+**Decision:** The `vw_player_game_stats` view (originally applied directly in Supabase during M4.2) is now defined in `m5_group_leaderboards.sql` using `CREATE OR REPLACE VIEW`.
+**Why:** The repository must be the complete source of truth for DB state. Any artifact applied directly in Supabase without a migration is a drift risk. M5 codifies both the view and `get_session_stats` alongside the new `get_group_stats` function.
+
+---
+
+### D-041: Group Leaderboard Uses SECURITY INVOKER
+**Decision:** `get_group_stats` runs as `SECURITY INVOKER` (not DEFINER).
+**Why:** The function only performs SELECT queries against tables that already have anon SELECT RLS policies. No privilege escalation is needed. INVOKER is the safer default — it ensures the function can never read more than the caller is allowed to.
+
+---
+
+### D-042: Invalid-Score Protection via `is_valid` Flag
+**Decision:** `vw_player_game_stats` includes a boolean `is_valid` column. All aggregates in `get_session_stats` and `get_group_stats` use `FILTER (WHERE is_valid)` to exclude garbage rows.
+**Why:** The `record_game` RPC enforces score rules (winner ≥ 11, margin ≥ 2, scores ≠ equal), but a directly inserted row (migration, manual fix, future import) could violate these. `is_valid` guards stats from NULL scores, ties, and 0-0 games. Invalid rows are preserved in the table but invisible in aggregates.
+
+---
+
+### D-043: Day-Anchored "Last 30 Days" Cutoff
+**Decision:** The 30-day filter uses `CURRENT_DATE - p_days` (calendar-day boundary) instead of `now() - interval '30 days'` (rolling timestamp).
+**Why:** A rolling cutoff would shift every second, meaning the same player could rank differently between page loads within minutes. Day-anchoring gives stable, cache-friendly results: the same request returns the same data all day. The cast `::timestamptz` ensures correct comparison against `played_at`.
+
+---
+
+### D-044: Explicit Type Casting in RPC Aggregates
+**Decision:** All aggregated columns use explicit casts: `::bigint` for counts and sums, `::numeric` for ROUND inputs, `::numeric(5,1)` for percentages and averages. Division uses `NULLIF(…, 0)` to prevent divide-by-zero.
+**Why:** Postgres may infer different types depending on context (bigint vs integer vs numeric), causing return-type mismatches with the declared `RETURNS TABLE`. Explicit casting prevents `42P13` errors and ensures stable types regardless of data.
+
+---
+
+### D-045: Frontend Input Sanitisation on Leaderboard Route
+**Decision:** The leaderboard page validates `join_code` against a conservative regex (`/^[a-z0-9][a-z0-9-]{0,30}$/`) and only accepts `"30d"` as a valid `range` parameter. Invalid input triggers `notFound()`.
+**Why:** Although the RPC also validates (`lower(p_join_code)` + exception on not found), rejecting bad input at the edge is defence in depth. It prevents malformed strings from reaching the database and provides a clean 404 instead of a server error.

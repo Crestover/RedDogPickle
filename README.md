@@ -75,6 +75,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   │       ├── players/new/
 │   │       │   ├── page.tsx                     # Add Player (server)
 │   │       │   └── AddPlayerForm.tsx            # Name + code form (client)
+│   │       ├── leaderboard/
+│   │       │   └── page.tsx                     # Group Leaderboard (all-time / 30-day)
 │   │       ├── sessions/
 │   │       │   └── page.tsx                     # Session History list
 │   │       └── session/[session_id]/
@@ -89,7 +91,9 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   ├── schema.sql                               # Full DB schema (source of truth)
 │   └── migrations/
 │       ├── m2_rpc_sessions.sql                  # M2 delta: constraint + 2 RPCs
-│       └── m4_record_game.sql                   # M4 delta: record_game RPC
+│       ├── m4_record_game.sql                   # M4 delta: record_game RPC
+│       ├── m4.1_duplicate_warn.sql              # M4.1 delta: warn-and-confirm
+│       └── m5_group_leaderboards.sql            # M5 delta: view + session/group stats RPCs
 ├── docs/                                        # Developer documentation
 ├── .env.example                                 # Env var template (no secrets)
 ├── SPEC.md                                      # Product specification
@@ -108,7 +112,7 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 | 2 | Sessions (RPC-based create + end) | ✅ Complete |
 | 3 | Add Player & Session History | ✅ Complete |
 | 4 | Record Game | ✅ Complete |
-| 5 | Leaderboards & Stats | 🔜 Pending |
+| 5 | Leaderboards & Stats | ✅ Complete |
 | 6 | Polish & Acceptance Criteria | 🔜 Pending |
 
 ---

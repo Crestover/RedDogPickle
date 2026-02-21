@@ -14,11 +14,12 @@
 --   - Grants
 -- ============================================================
 
--- 0. Drop existing functions to prevent "return type" conflicts
+-- 0. Drop existing objects to prevent conflicts on re-run
 DROP FUNCTION IF EXISTS public.get_group_stats(text, integer);
 DROP FUNCTION IF EXISTS public.get_session_stats(uuid);
 DROP FUNCTION IF EXISTS public.record_game(uuid, uuid[], uuid[], integer, integer, boolean);
 DROP FUNCTION IF EXISTS public.end_session(uuid);
+DROP VIEW IF EXISTS public.vw_player_game_stats;
 
 -- ============================================================
 -- VIEWS
@@ -29,7 +30,7 @@ DROP FUNCTION IF EXISTS public.end_session(uuid);
 -- Codified in migration m5_group_leaderboards.sql (was previously
 -- applied directly in Supabase during M4.2).
 -- is_valid excludes garbage rows (NULL scores, ties, 0-0).
-CREATE OR REPLACE VIEW public.vw_player_game_stats AS
+CREATE VIEW public.vw_player_game_stats AS
 SELECT
   gp.player_id,
   gp.game_id,

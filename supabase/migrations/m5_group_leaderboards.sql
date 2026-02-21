@@ -16,8 +16,12 @@
 -- ────────────────────────────────────────────────────────────
 -- 1. View: normalise each game into per-player rows
 --    is_valid excludes garbage rows (NULL scores, ties, 0-0)
+--    DROP first because column order changed from M4.2 version;
+--    CREATE OR REPLACE VIEW cannot rename/reorder columns.
 -- ────────────────────────────────────────────────────────────
-CREATE OR REPLACE VIEW public.vw_player_game_stats AS
+DROP VIEW IF EXISTS public.vw_player_game_stats;
+
+CREATE VIEW public.vw_player_game_stats AS
 SELECT
   gp.player_id,
   gp.game_id,

@@ -5,9 +5,9 @@ import { notFound } from "next/navigation";
 /**
  * Group Leaderboard — Server Component.
  *
- * SPEC §7.5: All-time (default) and Last 30 Days toggle.
- * Stats computed from raw games via get_group_stats RPC.
- * Toggle via ?range=30d query param (no Client Component needed).
+ * Three toggle pills: All-time (default) | Last 30 Days | Last Session.
+ * Stats computed from raw games via get_group_stats / get_session_stats RPCs.
+ * Toggle via ?range=30d | ?range=last query param (no Client Component needed).
  */
 
 interface PageProps {
@@ -28,33 +28,66 @@ interface PlayerStats {
   avg_point_diff: number;
 }
 
-async function getGroupAndStats(joinCode: string, days: number | null) {
-  const supabase = createClient(
+type RangeMode = "all" | "30d" | "last";
+
+function createSupabase() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+}
 
-  // Fetch group for header
+async function getGroup(joinCode: string) {
+  const supabase = createSupabase();
   const { data: group } = await supabase
     .from("groups")
     .select("id, name, join_code")
     .eq("join_code", joinCode.toLowerCase())
     .maybeSingle();
+  return group;
+}
 
-  if (!group) return null;
-
-  // Fetch stats via RPC
+async function getGroupStats(joinCode: string, days: number | null) {
+  const supabase = createSupabase();
   const { data: stats, error } = await supabase.rpc("get_group_stats", {
     p_join_code: joinCode,
     p_days: days,
   });
-
   if (error) {
     console.error("get_group_stats error:", error);
-    return { group, stats: [] as PlayerStats[] };
+    return [] as PlayerStats[];
+  }
+  return (stats ?? []) as PlayerStats[];
+}
+
+async function getLastSessionStats(joinCode: string) {
+  const supabase = createSupabase();
+
+  // Find the most recently ended session
+  const { data: sessionId, error: idError } = await supabase.rpc(
+    "get_last_session_id",
+    { p_join_code: joinCode }
+  );
+
+  if (idError) {
+    console.error("get_last_session_id error:", idError);
+    return [] as PlayerStats[];
   }
 
-  return { group, stats: (stats ?? []) as PlayerStats[] };
+  if (!sessionId) return [] as PlayerStats[];
+
+  // Fetch stats for that session
+  const { data: stats, error: statsError } = await supabase.rpc(
+    "get_session_stats",
+    { p_session_id: sessionId }
+  );
+
+  if (statsError) {
+    console.error("get_session_stats error:", statsError);
+    return [] as PlayerStats[];
+  }
+
+  return (stats ?? []) as PlayerStats[];
 }
 
 function formatDiff(n: number): string {
@@ -65,6 +98,18 @@ function formatDiff(n: number): string {
 // Conservative regex matching our join_code format (lowercase alphanumeric + hyphens)
 const JOIN_CODE_RE = /^[a-z0-9][a-z0-9-]{0,30}$/;
 
+function parseRange(range?: string): RangeMode {
+  if (range === "30d") return "30d";
+  if (range === "last") return "last";
+  return "all";
+}
+
+function emptyMessage(mode: RangeMode): string {
+  if (mode === "30d") return "No games in the last 30 days.";
+  if (mode === "last") return "No completed sessions yet.";
+  return "No games recorded yet.";
+}
+
 export default async function LeaderboardPage({ params, searchParams }: PageProps) {
   const { join_code: rawJoinCode } = await params;
   const { range } = await searchParams;
@@ -73,14 +118,19 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
   const joinCode = decodeURIComponent(rawJoinCode).trim().toLowerCase();
   if (!JOIN_CODE_RE.test(joinCode)) notFound();
 
-  // Only "30d" is valid; anything else defaults to all-time
-  const is30d = range === "30d";
-  const days = is30d ? 30 : null;
+  const mode = parseRange(range);
 
-  const result = await getGroupAndStats(joinCode, days);
-  if (!result) notFound();
+  const group = await getGroup(joinCode);
+  if (!group) notFound();
 
-  const { group, stats } = result;
+  // Fetch stats based on selected range
+  let stats: PlayerStats[];
+  if (mode === "last") {
+    stats = await getLastSessionStats(joinCode);
+  } else {
+    const days = mode === "30d" ? 30 : null;
+    stats = await getGroupStats(joinCode, days);
+  }
 
   return (
     <main className="flex min-h-screen flex-col px-4 py-8">
@@ -96,12 +146,12 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           <h1 className="mt-3 text-2xl font-bold">Leaderboard</h1>
         </div>
 
-        {/* Toggle */}
+        {/* Toggle — 3 pills */}
         <div className="flex rounded-xl bg-gray-100 p-1">
           <Link
             href={`/g/${group.join_code}/leaderboard`}
-            className={`flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition-colors ${
-              !is30d
+            className={`flex-1 rounded-lg px-2 py-2 text-center text-sm font-semibold transition-colors ${
+              mode === "all"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
@@ -110,24 +160,30 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           </Link>
           <Link
             href={`/g/${group.join_code}/leaderboard?range=30d`}
-            className={`flex-1 rounded-lg px-3 py-2 text-center text-sm font-semibold transition-colors ${
-              is30d
+            className={`flex-1 rounded-lg px-2 py-2 text-center text-sm font-semibold transition-colors ${
+              mode === "30d"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
-            Last 30 Days
+            30 Days
+          </Link>
+          <Link
+            href={`/g/${group.join_code}/leaderboard?range=last`}
+            className={`flex-1 rounded-lg px-2 py-2 text-center text-sm font-semibold transition-colors ${
+              mode === "last"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Last Session
           </Link>
         </div>
 
         {/* Stats */}
         {stats.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-300 p-8 text-center">
-            <p className="text-gray-500 text-sm">
-              {is30d
-                ? "No games in the last 30 days."
-                : "No games recorded yet."}
-            </p>
+            <p className="text-gray-500 text-sm">{emptyMessage(mode)}</p>
             <Link
               href={`/g/${group.join_code}/start`}
               className="mt-4 inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700 transition-colors"

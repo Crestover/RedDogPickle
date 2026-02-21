@@ -321,6 +321,43 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 
 ---
 
+## [Milestone 5.1] — Last Session Leaderboard + Session Standings (2026-02-21)
+
+### Added
+- `supabase/migrations/m5.1_last_session_standings.sql`:
+  - Extended `get_session_stats` from 4 to 10 columns (matching `get_group_stats` shape);
+    now returns display_name, code, win_pct, points_for, points_against, avg_point_diff
+    using aggregate-then-JOIN pattern with FILTER/HAVING/NULLIF/explicit casting
+  - New `get_last_session_id(p_join_code text)` RPC — returns most recently ended session
+    UUID for a group (or NULL if none)
+  - Grants to both `anon` and `authenticated` roles
+- `src/app/g/[join_code]/session/[session_id]/SessionStandings.tsx` — Client Component:
+  - Collapsible ranked player list with code badges, W-L, win%, point diff, PF/PA, avg
+  - Chevron toggle (▼/▶); expanded by default
+  - Reuses same card layout as group leaderboard
+
+### Changed
+- `supabase/schema.sql` — updated with extended `get_session_stats` (10 cols),
+  `get_last_session_id`, and corresponding drop/grant entries
+- `src/app/g/[join_code]/leaderboard/page.tsx`:
+  - 3-pill toggle: "All-time" | "30 Days" | "Last Session" (`?range=last`)
+  - "Last Session" calls `get_last_session_id` then `get_session_stats`
+  - Contextual empty state messages per range mode
+- `src/app/g/[join_code]/session/[session_id]/page.tsx`:
+  - Added `get_session_stats` RPC call to data fetching
+  - Inserted `<SessionStandings>` section above attendees, actions, and game list
+
+### Decisions
+- See `docs/decisions.md`: D-046 through D-049
+
+### Docs updated
+- `docs/decisions.md` — D-046 through D-049 (extended RPC shape, last-session RPC,
+  standings placement, collapsible component)
+- `docs/testing.md` — Tests AA–AB: Last Session toggle, Session Standings
+- `CHANGELOG.md` — this entry
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

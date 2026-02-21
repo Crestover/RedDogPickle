@@ -253,5 +253,31 @@ This file records every significant decision made during the build, along with t
 ---
 
 ### D-045: Frontend Input Sanitisation on Leaderboard Route
-**Decision:** The leaderboard page validates `join_code` against a conservative regex (`/^[a-z0-9][a-z0-9-]{0,30}$/`) and only accepts `"30d"` as a valid `range` parameter. Invalid input triggers `notFound()`.
+**Decision:** The leaderboard page validates `join_code` against a conservative regex (`/^[a-z0-9][a-z0-9-]{0,30}$/`) and only accepts `"30d"` and `"last"` as valid `range` parameters. Invalid input triggers `notFound()`.
 **Why:** Although the RPC also validates (`lower(p_join_code)` + exception on not found), rejecting bad input at the edge is defence in depth. It prevents malformed strings from reaching the database and provides a clean 404 instead of a server error.
+
+---
+
+## Milestone 5.1 — Last Session Leaderboard + Session Standings
+
+### D-046: Extended `get_session_stats` to 10-Column Return Shape
+**Decision:** Extended `get_session_stats(uuid)` from 4 columns (`player_id, games_played, wins, point_diff`) to 10 columns matching `get_group_stats` (`+ display_name, code, games_won, win_pct, points_for, points_against, avg_point_diff`). Uses the same aggregate-then-JOIN pattern.
+**Why:** Enables reuse of the same `PlayerStats` TypeScript interface across the group leaderboard, "Last Session" leaderboard tab, and session standings component. Avoids separate player lookups and client-side stat computation.
+
+---
+
+### D-047: `get_last_session_id` RPC for "Last Session" Toggle
+**Decision:** New `get_last_session_id(p_join_code text)` RPC returns the UUID of the most recently ended session for a group (`ended_at IS NOT NULL`, ordered by `ended_at DESC LIMIT 1`). Returns NULL if no ended sessions exist.
+**Why:** Keeps the "last session" resolution logic server-side. The leaderboard page calls this RPC first, then feeds the result to `get_session_stats` if non-null. Avoids exposing session queries to the client.
+
+---
+
+### D-048: Session Standings Placed Above Actions and Games
+**Decision:** The "Session Standings" section renders between the session header and the attendees list — above the RecordGameForm, EndSessionButton, and game history.
+**Why:** The session page is the primary context for live standings during play. Burying standings below the game list or record form would require scrolling past the most-used UI elements to see rankings.
+
+---
+
+### D-049: Session Standings as Collapsible Client Component
+**Decision:** `SessionStandings.tsx` is a `"use client"` component with `useState` for open/closed toggle. Default state is expanded (standings visible).
+**Why:** A collapsible section lets users quickly hide standings for a streamlined courtside flow (focus on recording games). Expanded by default ensures standings are visible on page load without extra taps.

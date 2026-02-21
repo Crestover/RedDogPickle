@@ -1,4 +1,4 @@
-# 🏓 RedDog Pickle
+# 🏓 RedDog Pickle 
 
 Mobile-first pickleball stats tracker for live courtside scoring, leaderboards, and player stats.
 
@@ -76,13 +76,14 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   │       │   ├── page.tsx                     # Add Player (server)
 │   │       │   └── AddPlayerForm.tsx            # Name + code form (client)
 │   │       ├── leaderboard/
-│   │       │   └── page.tsx                     # Group Leaderboard (all-time / 30-day)
+│   │       │   └── page.tsx                     # Group Leaderboard (all-time / 30d / last)
 │   │       ├── sessions/
 │   │       │   └── page.tsx                     # Session History list
 │   │       └── session/[session_id]/
 │   │           ├── page.tsx                     # Session view + game list
 │   │           ├── EndSessionButton.tsx         # Two-tap end button (client)
-│   │           └── RecordGameForm.tsx           # 3-step game entry (client)
+│   │           ├── RecordGameForm.tsx           # 3-step game entry (client)
+│   │           └── SessionStandings.tsx        # Collapsible standings (client)
 │   └── lib/
 │       ├── suggestCode.ts                       # Pure util: initials → player code
 │       └── supabase/
@@ -93,7 +94,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │       ├── m2_rpc_sessions.sql                  # M2 delta: constraint + 2 RPCs
 │       ├── m4_record_game.sql                   # M4 delta: record_game RPC
 │       ├── m4.1_duplicate_warn.sql              # M4.1 delta: warn-and-confirm
-│       └── m5_group_leaderboards.sql            # M5 delta: view + session/group stats RPCs
+│       ├── m5_group_leaderboards.sql            # M5 delta: view + session/group stats RPCs
+│       └── m5.1_last_session_standings.sql     # M5.1 delta: extended session stats + last session RPC
 ├── docs/                                        # Developer documentation
 ├── .env.example                                 # Env var template (no secrets)
 ├── SPEC.md                                      # Product specification

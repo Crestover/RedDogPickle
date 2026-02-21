@@ -3,9 +3,23 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
 import RecordGameForm from "./RecordGameForm";
+import SessionStandings from "./SessionStandings";
 
 interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
+}
+
+interface PlayerStats {
+  player_id: string;
+  display_name: string;
+  code: string;
+  games_played: number;
+  games_won: number;
+  win_pct: number;
+  points_for: number;
+  points_against: number;
+  point_diff: number;
+  avg_point_diff: number;
 }
 
 async function getSessionData(joinCode: string, sessionId: string) {
@@ -48,7 +62,23 @@ async function getSessionData(joinCode: string, sessionId: string) {
     .eq("session_id", sessionId)
     .order("sequence_num", { ascending: false });
 
-  return { group, session, attendees: attendees ?? [], games: games ?? [] };
+  // Fetch session standings via RPC
+  const { data: standings, error: standingsError } = await supabase.rpc(
+    "get_session_stats",
+    { p_session_id: sessionId }
+  );
+
+  if (standingsError) {
+    console.error("get_session_stats error:", standingsError);
+  }
+
+  return {
+    group,
+    session,
+    attendees: attendees ?? [],
+    games: games ?? [],
+    standings: (standings ?? []) as PlayerStats[],
+  };
 }
 
 function isActiveSession(session: {
@@ -67,7 +97,7 @@ export default async function SessionPage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const { group, session, attendees, games } = data;
+  const { group, session, attendees, games, standings } = data;
   const active = isActiveSession(session);
 
   // Format started_at for display
@@ -121,6 +151,9 @@ export default async function SessionPage({ params }: PageProps) {
             {session.name}
           </h1>
         </div>
+
+        {/* Session Standings — above actions and games */}
+        <SessionStandings standings={standings} />
 
         {/* Attendees */}
         <div>

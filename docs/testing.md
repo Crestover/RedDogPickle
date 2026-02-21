@@ -532,6 +532,34 @@ Same as Milestone 2. No new migration to apply.
 
 ---
 
+## Milestone 5.1 — Last Session Leaderboard + Session Standings
+
+### Test AA — Leaderboard "Last Session" Toggle
+
+| # | Step | Expected |
+|---|---|---|
+| AA-1 | Navigate to `/g/{join_code}/leaderboard` | 3-pill toggle: "All-time" (active), "30 Days", "Last Session" |
+| AA-2 | Click "Last Session" pill | URL changes to `?range=last`; shows stats from most recently ended session |
+| AA-3 | Verify stats match | Compare displayed W-L, win%, point diff against the last ended session's raw game data |
+| AA-4 | No ended sessions exist | "Last Session" tab shows "No completed sessions yet." with "Start a Session" link |
+| AA-5 | Click "All-time" or "30 Days" | Switches back to group-wide stats; URL updates accordingly |
+| AA-6 | Direct URL `?range=last` | Loads correctly without navigating through pills |
+
+---
+
+### Test AB — Session Standings
+
+| # | Step | Expected |
+|---|---|---|
+| AB-1 | Session page with games recorded | "Session Standings" section visible ABOVE attendees, actions, and game list |
+| AB-2 | Standings content | Shows ranked list: #N, code badge, name, W-L, win%, point diff (green/red), PF/PA, avg |
+| AB-3 | Collapse toggle | Clicking header ▼/▶ collapses/expands standings section |
+| AB-4 | Default state | Standings expanded on page load |
+| AB-5 | No games yet | Session Standings section hidden (no empty state shown) |
+| AB-6 | Stats accuracy | Hand-verify one player's stats against raw game data for the session |
+
+---
+
 ## Milestone 6 — Polish & Acceptance Criteria
 
 ### Full SPEC §12 Acceptance Criteria

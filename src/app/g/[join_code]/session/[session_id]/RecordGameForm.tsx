@@ -15,7 +15,7 @@
  *   and two actions: Cancel (reset form) / Record anyway (force=true).
  */
 
-import { useState, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition } from "react";
 import { recordGameAction } from "@/app/actions/games";
 import type { Player } from "@/lib/types";
 
@@ -52,6 +52,13 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
   const [error, setError] = useState("");
   const [possibleDup, setPossibleDup] = useState<PossibleDuplicate | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [shutoutArmed, setShutoutArmed] = useState(false);
+  const shutoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up shutout timer on unmount
+  useEffect(() => () => {
+    if (shutoutTimerRef.current) clearTimeout(shutoutTimerRef.current);
+  }, []);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function getTeam(playerId: string): Team {
@@ -62,6 +69,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
 
   function togglePlayer(playerId: string, targetTeam: "A" | "B") {
     setError("");
+    disarmShutout();
     const currentTeam = getTeam(playerId);
 
     if (currentTeam === targetTeam) {
@@ -81,6 +89,18 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
 
   function playerName(id: string) { return attendees.find((p) => p.id === id)?.display_name ?? id; }
   function playerCode(id: string) { return attendees.find((p) => p.id === id)?.code ?? "?"; }
+
+  /** True when one team scored 0 and the other scored ≥ 11 */
+  function isShutout(): boolean {
+    const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
+    if (isNaN(a) || isNaN(b)) return false;
+    return Math.min(a, b) === 0 && Math.max(a, b) >= 11;
+  }
+
+  function disarmShutout() {
+    setShutoutArmed(false);
+    if (shutoutTimerRef.current) { clearTimeout(shutoutTimerRef.current); shutoutTimerRef.current = null; }
+  }
 
   // ── Validation ─────────────────────────────────────────────────────────────
   function validateSelection(): string | null {
@@ -118,16 +138,29 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
   function handleBack() {
     setError("");
     setPossibleDup(null);
+    disarmShutout();
     setStep((prev) => (prev === "confirm" ? "scores" : "select"));
   }
 
   function handleReset() {
     setStep("select"); setTeamA([]); setTeamB([]);
     setScoreA(""); setScoreB(""); setError(""); setPossibleDup(null);
+    disarmShutout();
   }
 
   /** Submit with force=false (normal path) or force=true (override duplicate) */
   function submit(force: boolean) {
+    // Shutout guard — arm on first tap, save on second tap
+    if (!force && isShutout() && !shutoutArmed) {
+      setShutoutArmed(true);
+      shutoutTimerRef.current = setTimeout(() => {
+        setShutoutArmed(false);
+        shutoutTimerRef.current = null;
+      }, 8_000);
+      return;
+    }
+    disarmShutout();
+
     const selErr = validateSelection();
     const scErr = validateScores();
     if (selErr || scErr) { setError(selErr ?? scErr ?? ""); return; }
@@ -308,7 +341,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
             <input
               id="score-a" type="number" inputMode="numeric" pattern="[0-9]*"
               min={0} max={99} value={scoreA}
-              onChange={(e) => { setScoreA(e.target.value); setError(""); }}
+              onChange={(e) => { setScoreA(e.target.value); setError(""); disarmShutout(); }}
               placeholder="0"
               className="w-full rounded-xl border-2 border-blue-200 bg-blue-50 px-4 py-4 text-center text-2xl font-bold text-blue-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[64px]"
             />
@@ -318,7 +351,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
             <input
               id="score-b" type="number" inputMode="numeric" pattern="[0-9]*"
               min={0} max={99} value={scoreB}
-              onChange={(e) => { setScoreB(e.target.value); setError(""); }}
+              onChange={(e) => { setScoreB(e.target.value); setError(""); disarmShutout(); }}
               placeholder="0"
               className="w-full rounded-xl border-2 border-orange-200 bg-orange-50 px-4 py-4 text-center text-2xl font-bold text-orange-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500 min-h-[64px]"
             />
@@ -384,6 +417,16 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
         </div>
       </div>
 
+      {/* ── Shutout confirmation banner ─────────────────────────────────── */}
+      {shutoutArmed && !possibleDup && (
+        <p
+          className="text-sm text-red-700 font-medium rounded-lg bg-red-50 border border-red-200 px-3 py-2"
+          role="alert"
+        >
+          Score includes a 0. Tap Save again to confirm.
+        </p>
+      )}
+
       {/* ── Possible-duplicate warning banner ───────────────────────────── */}
       {possibleDup && (
         <div
@@ -433,7 +476,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
           disabled={isPending}
           className="flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700 active:bg-green-800 transition-colors min-h-[64px] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isPending ? "Saving…" : "✅ Save Game"}
+          {isPending ? "Saving…" : shutoutArmed ? "Confirm Shutout ✅" : "✅ Save Game"}
         </button>
       )}
 

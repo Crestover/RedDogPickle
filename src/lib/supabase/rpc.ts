@@ -13,4 +13,5 @@ export const RPC = {
   GET_GROUP_STATS: "get_group_stats",
   GET_LAST_SESSION_ID: "get_last_session_id",
   GET_SESSION_PAIR_COUNTS: "get_session_pair_counts",
+  APPLY_RATINGS_FOR_GAME: "apply_ratings_for_game",
 } as const;

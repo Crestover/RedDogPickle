@@ -12,11 +12,17 @@ import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
  * chevron toggle for fast courtside flow.
  */
 
-interface SessionStandingsProps {
-  standings: PlayerStats[];
+interface RatingInfo {
+  rating: number;
+  provisional: boolean;
 }
 
-export default function SessionStandings({ standings }: SessionStandingsProps) {
+interface SessionStandingsProps {
+  standings: PlayerStats[];
+  ratings?: Record<string, RatingInfo>;
+}
+
+export default function SessionStandings({ standings, ratings }: SessionStandingsProps) {
   const [open, setOpen] = useState(true);
 
   if (standings.length === 0) return null;
@@ -39,13 +45,18 @@ export default function SessionStandings({ standings }: SessionStandingsProps) {
       {/* Standings list */}
       {open && (
         <div className="space-y-2">
-          {standings.map((player, index) => (
-            <PlayerStatsRow
-              key={player.player_id}
-              rank={index + 1}
-              player={player}
-            />
-          ))}
+          {standings.map((player, index) => {
+            const pr = ratings?.[player.player_id];
+            return (
+              <PlayerStatsRow
+                key={player.player_id}
+                rank={index + 1}
+                player={player}
+                rating={pr?.rating ?? null}
+                provisional={pr?.provisional ?? false}
+              />
+            );
+          })}
         </div>
       )}
     </div>

@@ -439,6 +439,56 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [Milestone 6] — Elo v1 + Trust UX + Version/Changelog (2026-02-21)
+
+### Added
+- `src/app/changelog/page.tsx` — `/changelog` route: Server Component reads `CHANGELOG.md`,
+  renders as HTML via `marked`. Pre-escapes `<` and `>` before parsing to prevent raw HTML injection.
+- `supabase/migrations/m6_elo_v1.sql`:
+  - `player_ratings` table (PK `group_id + player_id`, rating default 1200, provisional flag)
+  - `rating_events` table (audit log, `UNIQUE(game_id, player_id, algo_version)`)
+  - `apply_ratings_for_game(p_game_id)` RPC — SECURITY DEFINER, idempotent Elo calculation:
+    team average rating, K = 40 if provisional (`games_rated < 5`), K = 20 otherwise,
+    standard logistic expected score formula, no margin-of-victory
+  - RLS: anon SELECT on both tables; no INSERT/UPDATE for anon (RPC is SECURITY DEFINER)
+  - Indexes on `rating_events(game_id)`, `rating_events(player_id)`, `player_ratings(group_id)`
+
+### Changed
+- `next.config.ts` — injects `NEXT_PUBLIC_APP_VERSION` from `package.json` at build time
+- `package.json` — version bumped from `0.1.0` to `0.2.0`; added `marked` dependency
+- `src/app/page.tsx` — version footer: `v0.2.0 · Changes` linking to `/changelog`
+- `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx` — shutout two-tap guard:
+  - Detects shutout (one team scored 0, other scored ≥ 11) on first Save tap
+  - Shows inline red warning: "Score includes a 0. Tap Save again to confirm."
+  - Button changes to "Confirm Shutout ✅"; 8-second armed window auto-disarms
+  - Non-shutout games: zero added friction (same one-tap save)
+  - Disarms on any state change (score edit, player toggle, back, reset)
+- `src/app/actions/games.ts` — fire-and-forget Elo trigger: after `record_game` returns
+  `inserted`, spawns `apply_ratings_for_game` RPC via `void .then().catch()` pattern;
+  if Elo fails, game still records and redirect proceeds normally
+- `src/lib/supabase/rpc.ts` — added `APPLY_RATINGS_FOR_GAME` constant
+- `src/lib/types.ts` — added `PlayerRating` interface
+- `src/lib/components/PlayerStatsRow.tsx` — optional `rating` and `provisional` props;
+  displays Elo rating below point diff (`1200* Elo` for provisional, `1200 Elo` for established)
+- `src/app/g/[join_code]/leaderboard/page.tsx` — fetches `player_ratings` for group,
+  passes rating/provisional to `PlayerStatsRow`
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — fetches `player_ratings`,
+  builds ratings record, passes to `SessionStandings`
+- `src/app/g/[join_code]/session/[session_id]/SessionStandings.tsx` — optional `ratings` prop,
+  passes through to `PlayerStatsRow`
+- `supabase/schema.sql` — updated to M6: added `apply_ratings_for_game` RPC definition,
+  `player_ratings` and `rating_events` table notes, drop/grant entries
+
+### Decisions
+- See `docs/decisions.md`: D-054 through D-058
+
+### Docs updated
+- `docs/decisions.md` — D-054 through D-058
+- `CHANGELOG.md` — this entry
+- `README.md` — project structure + milestone status updated
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

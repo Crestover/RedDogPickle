@@ -1,6 +1,6 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
-import type { PlayerStats } from "@/lib/types";
+import type { PlayerStats, PlayerRating } from "@/lib/types";
 import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -73,6 +73,25 @@ async function getLastSessionStats(joinCode: string) {
   return (stats ?? []) as PlayerStats[];
 }
 
+async function getGroupRatings(groupId: string): Promise<Map<string, PlayerRating>> {
+  const supabase = getServerClient();
+  const { data, error } = await supabase
+    .from("player_ratings")
+    .select("group_id, player_id, rating, games_rated, provisional")
+    .eq("group_id", groupId);
+
+  if (error) {
+    console.error("player_ratings query error:", error);
+    return new Map();
+  }
+
+  const map = new Map<string, PlayerRating>();
+  for (const row of data ?? []) {
+    map.set(row.player_id, row as PlayerRating);
+  }
+  return map;
+}
+
 // Conservative regex matching our join_code format (lowercase alphanumeric + hyphens)
 const JOIN_CODE_RE = /^[a-z0-9][a-z0-9-]{0,30}$/;
 
@@ -109,6 +128,9 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
     const days = mode === "30d" ? 30 : null;
     stats = await getGroupStats(joinCode, days);
   }
+
+  // Fetch Elo ratings for display
+  const ratingsMap = await getGroupRatings(group.id);
 
   return (
     <main className="flex min-h-screen flex-col px-4 py-8">
@@ -171,13 +193,18 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           </div>
         ) : (
           <div className="space-y-2">
-            {stats.map((player, index) => (
-              <PlayerStatsRow
-                key={player.player_id}
-                rank={index + 1}
-                player={player}
-              />
-            ))}
+            {stats.map((player, index) => {
+              const pr = ratingsMap.get(player.player_id);
+              return (
+                <PlayerStatsRow
+                  key={player.player_id}
+                  rank={index + 1}
+                  player={player}
+                  rating={pr?.rating ?? null}
+                  provisional={pr?.provisional ?? false}
+                />
+              );
+            })}
           </div>
         )}
       </div>

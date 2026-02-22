@@ -318,3 +318,35 @@ This file records every significant decision made during the build, along with t
 - 4 FK indexes on `games.session_id`, `sessions.group_id`, `game_players.game_id`, `session_players.session_id`
 
 **Why:** The M5.2 codebase had 9 files with identical Supabase client creation, 3 files with identical PlayerStats interfaces, and raw RPC strings throughout. Any change to a shared concept (e.g., adding a field to PlayerStats) would require updating multiple files — a maintenance risk. FK indexes are not auto-created by Supabase/Postgres on foreign key columns, but every page query joins on these columns. Zero behavior/UX changes; identical rendered output.
+
+---
+
+## Milestone 6 — Elo v1 + Trust UX + Version/Changelog
+
+### D-054: Version Exposed via `next.config.ts` Build-Time Env Var
+**Decision:** `NEXT_PUBLIC_APP_VERSION` is injected from `package.json` at build time via `next.config.ts` `env` option. No separate `src/lib/version.ts` file.
+**Why:** `process.env.NEXT_PUBLIC_APP_VERSION` is available in both Server and Client Components with zero import overhead. The `env` option in Next.js config bakes the value at compile time, so there's no runtime cost or file read.
+
+---
+
+### D-055: Shutout Two-Tap Guard (Inline Confirmation)
+**Decision:** When a game score includes a 0 (shutout: one team scored 0, the other ≥ 11), the first tap on "Save Game" arms a confirmation state instead of submitting. An inline red warning appears: "Score includes a 0. Tap Save again to confirm." The button changes to "Confirm Shutout ✅". After 8 seconds the armed state auto-disarms. Any state change (score edit, player toggle, back, reset) also disarms.
+**Why:** Shutouts are uncommon enough that a 0-score is more likely a typo than intentional. But adding a modal or extra step would slow down legitimate shutout recording. The two-tap pattern mirrors the existing duplicate-warn UX: inline warning, no navigation change, zero friction for non-shutout games. The 8-second timeout ensures abandoned confirmations don't persist.
+
+---
+
+### D-056: Elo Applied Fire-and-Forget After `record_game`
+**Decision:** After `record_game` returns `{ status: "inserted", game_id }`, the server action spawns `apply_ratings_for_game(game_id)` via `void supabase.rpc(...).then().catch()` — no await, no blocking. The redirect fires immediately regardless of Elo outcome.
+**Why:** The non-negotiable constraint is that game recording must never be delayed by Elo computation. If the Elo RPC fails (network issue, SQL error), the game is still recorded and the user sees normal behavior. Errors are logged server-side for debugging. This pattern guarantees the <12s courtside flow is preserved.
+
+---
+
+### D-057: Elo Formula — K 40/20, Provisional < 5 Games, Team Average, No MOV
+**Decision:** Standard logistic Elo with: K = 40 for provisional players (games_rated < 5), K = 20 for established. Team rating = average of both teammates' individual ratings. Expected score: `E = 1 / (1 + 10^((R_opponent - R_self) / 400))`. No margin-of-victory adjustment. Win = 1, loss = 0 (no draws in pickleball).
+**Why:** Simple and well-understood. K = 40 for new players lets ratings converge quickly during the first few games. K = 20 stabilizes ratings for established players. Team average is the simplest team rating model. MOV (margin of victory) adds complexity and can incentivize score-running, which conflicts with the trust-based courtside ethos. Can be added in v2 if desired.
+
+---
+
+### D-058: Elo Idempotency via EXISTS + UNIQUE Constraint
+**Decision:** `apply_ratings_for_game` begins with `IF EXISTS (SELECT 1 FROM rating_events WHERE game_id = p_game_id AND algo_version = 'elo_v1') THEN RETURN; END IF;`. The `rating_events` table also has a `UNIQUE(game_id, player_id, algo_version)` constraint as a belt-and-suspenders backstop.
+**Why:** The fire-and-forget pattern means the RPC could theoretically be called multiple times for the same game (retry logic, duplicate triggers). The EXISTS check makes the function a no-op on re-invocation. The UNIQUE constraint provides database-level enforcement even if the EXISTS check were somehow bypassed.

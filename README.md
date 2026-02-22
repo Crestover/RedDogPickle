@@ -64,6 +64,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   ├── app/
 │   │   ├── layout.tsx                           # Root layout
 │   │   ├── page.tsx                             # / → Enter Group Code
+│   │   ├── changelog/
+│   │   │   └── page.tsx                         # /changelog (renders CHANGELOG.md)
 │   │   ├── actions/
 │   │   │   ├── sessions.ts                      # createSessionAction, endSessionAction
 │   │   │   ├── players.ts                       # addPlayerAction
@@ -107,7 +109,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │       ├── m5_group_leaderboards.sql            # M5 delta: view + session/group stats RPCs
 │       ├── m5.1_last_session_standings.sql     # M5.1 delta: extended session stats + last session RPC
 │       ├── m5.2_pairing_balance.sql           # M5.2 delta: pairing balance RPC
-│       └── m5.3_indexes.sql                   # M5.3 delta: FK performance indexes
+│       ├── m5.3_indexes.sql                   # M5.3 delta: FK performance indexes
+│       └── m6_elo_v1.sql                      # M6 delta: Elo tables, RLS, RPC
 ├── docs/                                        # Developer documentation
 ├── .env.example                                 # Env var template (no secrets)
 ├── SPEC.md                                      # Product specification
@@ -127,7 +130,7 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 | 3 | Add Player & Session History | ✅ Complete |
 | 4 | Record Game | ✅ Complete |
 | 5 | Leaderboards & Stats | ✅ Complete |
-| 6 | Polish & Acceptance Criteria | 🔜 Pending |
+| 6 | Elo v1 + Trust UX + Version/Changelog | ✅ Complete |
 
 ---
 
@@ -137,4 +140,4 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 - **Immutable records** — games cannot be edited or deleted
 - **Cross-device duplicate prevention** — via deterministic `dedupe_key` + DB unique constraint
 - **No auth** — trust-based group model; device identity via localStorage only
-- **Elo-ready** — full chronological game data stored; rating engine can be added without schema changes
+- **Elo ratings** — fire-and-forget Elo v1 applied after each game; provisional K=40, established K=20

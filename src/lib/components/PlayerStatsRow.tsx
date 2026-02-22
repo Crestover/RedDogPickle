@@ -11,9 +11,11 @@ import { formatDiff } from "@/lib/formatting";
 interface PlayerStatsRowProps {
   rank: number;
   player: PlayerStats;
+  rating?: number | null;
+  provisional?: boolean;
 }
 
-export default function PlayerStatsRow({ rank, player }: PlayerStatsRowProps) {
+export default function PlayerStatsRow({ rank, player, rating, provisional }: PlayerStatsRowProps) {
   const losses = player.games_played - player.games_won;
 
   return (
@@ -49,6 +51,11 @@ export default function PlayerStatsRow({ rank, player }: PlayerStatsRowProps) {
             {formatDiff(player.point_diff)}
           </p>
           <p className="text-xs text-gray-400">pt diff</p>
+          {rating != null && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              {Math.round(rating)}{provisional ? "*" : ""} Elo
+            </p>
+          )}
         </div>
       </div>
 

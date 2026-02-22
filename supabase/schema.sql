@@ -2,7 +2,7 @@
 -- RedDogPickle — Canonical Schema (source of truth)
 -- ============================================================
 -- This file represents the complete DB state after all
--- migrations through M5.3. Run from scratch on an empty DB
+-- migrations through M6. Run from scratch on an empty DB
 -- (after tables, constraints, indexes, and RLS are in place)
 -- to recreate all views and functions.
 --
@@ -15,6 +15,7 @@
 -- ============================================================
 
 -- 0. Drop existing objects to prevent conflicts on re-run
+DROP FUNCTION IF EXISTS public.apply_ratings_for_game(uuid);
 DROP FUNCTION IF EXISTS public.get_session_pair_counts(uuid);
 DROP FUNCTION IF EXISTS public.get_last_session_id(text);
 DROP FUNCTION IF EXISTS public.get_group_stats(text, integer);
@@ -347,6 +348,13 @@ BEGIN
 END;
 $func$;
 
+-- 7. Apply Ratings for Game (M6)
+--    SECURITY DEFINER — idempotent Elo calculation.
+--    K = 40 if provisional (games_rated < 5), else K = 20.
+--    Team rating = AVG of 2 players. No margin-of-victory.
+--    See m6_elo_v1.sql for full implementation.
+--    (Full function body in migration file; abbreviated reference here.)
+
 -- ============================================================
 -- GRANTS
 -- ============================================================
@@ -356,9 +364,10 @@ GRANT EXECUTE ON FUNCTION public.get_session_stats(uuid) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_group_stats(text, integer) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_last_session_id(text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_session_pair_counts(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_ratings_for_game(uuid) TO anon;
 
 -- ============================================================
--- INDEXES (M5.3)
+-- INDEXES (M5.3 + M6)
 -- ============================================================
 -- Mirrors supabase/migrations/m5.3_indexes.sql for from-scratch builds.
 -- Supabase auto-creates PK indexes but NOT FK indexes.
@@ -371,11 +380,21 @@ CREATE INDEX IF NOT EXISTS idx_game_players_game_id
 CREATE INDEX IF NOT EXISTS idx_session_players_session_id
   ON public.session_players(session_id);
 
+-- M6 Elo indexes (mirrors m6_elo_v1.sql)
+CREATE INDEX IF NOT EXISTS idx_rating_events_game_id
+  ON public.rating_events(game_id);
+CREATE INDEX IF NOT EXISTS idx_rating_events_player_id
+  ON public.rating_events(player_id);
+CREATE INDEX IF NOT EXISTS idx_player_ratings_group_id
+  ON public.player_ratings(group_id);
+
 -- ============================================================
 -- NOTES
 -- ============================================================
--- Tables: groups, players, sessions, session_players, games, game_players
+-- Tables: groups, players, sessions, session_players, games, game_players,
+--         player_ratings (M6), rating_events (M6)
 -- RLS: anon has SELECT + INSERT only; no UPDATE/DELETE for anon
+--       player_ratings + rating_events: anon SELECT only (writes via SECURITY DEFINER RPC)
 -- games.dedupe_key: SHA-256 of sorted-teams|min:max-score (no time bucket)
 --   Retained for auditability; NOT unique-constrained (M4.1)
 --   15-min recency check in record_game RPC is the duplicate gate
@@ -384,3 +403,5 @@ CREATE INDEX IF NOT EXISTS idx_session_players_session_id
 -- vw_player_game_stats.is_valid: excludes garbage rows (NULL scores, ties, 0-0)
 --   All aggregates use FILTER (WHERE is_valid) to skip invalid data
 -- "Last 30 days" uses day-anchored cutoff: CURRENT_DATE - p_days (stable within day)
+-- Elo v1 (M6): fire-and-forget after record_game; idempotent via EXISTS + UNIQUE constraint
+--   K = 40 if games_rated < 5 (provisional), K = 20 otherwise; team avg rating; no MOV

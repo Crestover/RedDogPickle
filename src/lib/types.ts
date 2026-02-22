@@ -42,6 +42,15 @@ export interface Group {
   join_code: string;
 }
 
+/** Player Elo rating from player_ratings table. */
+export interface PlayerRating {
+  group_id: string;
+  player_id: string;
+  rating: number;
+  games_rated: number;
+  provisional: boolean;
+}
+
 /** Session row shape from sessions table. */
 export interface Session {
   id: string;

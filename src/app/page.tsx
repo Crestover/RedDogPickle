@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function HomePage() {
   const router = useRouter();
@@ -70,6 +71,15 @@ export default function HomePage() {
             Go to Group →
           </button>
         </form>
+
+        {/* Version footer */}
+        <p className="text-center text-xs text-gray-400">
+          v{process.env.NEXT_PUBLIC_APP_VERSION}
+          <span className="mx-1">·</span>
+          <Link href="/changelog" className="underline hover:text-gray-600 transition-colors">
+            Changes
+          </Link>
+        </p>
       </div>
     </main>
   );

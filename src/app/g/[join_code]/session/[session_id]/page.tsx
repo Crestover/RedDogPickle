@@ -1,7 +1,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
-import type { PlayerStats, PairCount, Player } from "@/lib/types";
+import type { PlayerStats, PairCount, Player, PlayerRating } from "@/lib/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
@@ -86,6 +86,16 @@ async function getSessionData(joinCode: string, sessionId: string) {
     console.error("get_session_pair_counts error:", pairError);
   }
 
+  // Fetch Elo ratings for this group
+  const { data: ratingsData, error: ratingsError } = await supabase
+    .from("player_ratings")
+    .select("group_id, player_id, rating, games_rated, provisional")
+    .eq("group_id", group.id);
+
+  if (ratingsError) {
+    console.error("player_ratings query error:", ratingsError);
+  }
+
   return {
     group,
     session,
@@ -93,6 +103,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
     games: games ?? [],
     standings: (standings ?? []) as PlayerStats[],
     pairCounts: (pairCounts ?? []) as PairCount[],
+    ratings: (ratingsData ?? []) as PlayerRating[],
   };
 }
 
@@ -112,8 +123,14 @@ export default async function SessionPage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const { group, session, attendees, games, standings, pairCounts } = data;
+  const { group, session, attendees, games, standings, pairCounts, ratings } = data;
   const active = isActiveSession(session);
+
+  // Build ratings record for SessionStandings (plain object for serialization)
+  const ratingsRecord: Record<string, { rating: number; provisional: boolean }> = {};
+  for (const r of ratings) {
+    ratingsRecord[r.player_id] = { rating: r.rating, provisional: r.provisional };
+  }
 
   // Format started_at for display
   const startedAt = new Date(session.started_at);
@@ -169,7 +186,7 @@ export default async function SessionPage({ params }: PageProps) {
         </div>
 
         {/* Session Standings — collapsible */}
-        <SessionStandings standings={standings} />
+        <SessionStandings standings={standings} ratings={ratingsRecord} />
 
         {/* Pairing Balance — fewest games together first */}
         <PairingBalance pairs={pairCounts} />

@@ -96,7 +96,7 @@ export async function recordGameAction(
 
   // Fire-and-forget: apply Elo ratings. If this fails the game is still saved.
   if (result.game_id) {
-    void supabase.rpc(RPC.APPLY_RATINGS_FOR_GAME, { p_game_id: result.game_id })
+    void Promise.resolve(supabase.rpc(RPC.APPLY_RATINGS_FOR_GAME, { p_game_id: result.game_id }))
       .then(({ error: eloErr }) => { if (eloErr) console.error("[recordGameAction] Elo RPC failed (non-blocking):", eloErr); })
       .catch((err) => console.error("[recordGameAction] Elo RPC failed (non-blocking):", err));
   }

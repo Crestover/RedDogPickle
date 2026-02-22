@@ -42,6 +42,11 @@
 --   6. dedupe_key = encode(digest(raw, 'sha256'), 'hex')
 -- ────────────────────────────────────────────────────────────
 
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+
+drop function if exists public.record_game(uuid, uuid[], uuid[], integer, integer, boolean);
+
 create or replace function public.record_game(
   p_session_id   uuid,
   p_team_a_ids   uuid[],
@@ -52,7 +57,7 @@ create or replace function public.record_game(
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_session         record;
@@ -177,8 +182,12 @@ begin
   v_bucket := floor(extract(epoch from now()) / 600)::bigint::text;
 
   -- Concatenate + hash
-  v_raw        := v_lo || '|' || v_hi || '|' || v_score_part || '|' || v_bucket;
-  v_dedupe_key := encode(digest(v_raw, 'sha256'), 'hex');
+  v_raw := v_lo || '|' || v_hi || '|' || v_score_part || '|' || v_bucket;
+
+  v_dedupe_key := extensions.encode(
+  extensions.digest(convert_to(v_raw, 'UTF8'), 'sha256'),
+  'hex'
+  );
 
   -- ── 8. Derive sequence_num ──────────────────────────────
   select coalesce(max(sequence_num), 0) + 1

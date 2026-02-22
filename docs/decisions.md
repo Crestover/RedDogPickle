@@ -301,3 +301,20 @@ This file records every significant decision made during the build, along with t
 ### D-052: EndSessionButton Moved Into Session Header
 **Decision:** `EndSessionButton` is rendered inline next to the session name in the header area, styled as a compact pill button ("End" / "Confirm?" / "Cancel"). It only appears when the session is active.
 **Why:** Reduces visual clutter by grouping status controls together. The old full-width button in the actions section took up disproportionate space for a rarely-used action. The compact inline placement keeps it accessible without dominating the page layout.
+
+---
+
+## Milestone 5.3 — Maintainability + Performance Hardening
+
+### D-053: Code Organization Refactoring + FK Indexes
+**Decision:** Consolidate duplicated code into shared modules and add foreign-key indexes. Specifically:
+- 9 duplicate `createClient(process.env...!)` calls → centralized `getServerClient()` in `src/lib/supabase/server.ts`
+- 3 duplicate `PlayerStats` interfaces + 2 `PairCount` + 2 `Player` → single `src/lib/types.ts`
+- 2 duplicate `formatDiff()` functions → single `src/lib/formatting.ts`
+- Duplicated player stats card JSX (leaderboard + session standings) → `src/lib/components/PlayerStatsRow.tsx`
+- 7 raw RPC string literals → `RPC` constants in `src/lib/supabase/rpc.ts`
+- Unsafe `process.env!` assertions → `src/lib/env.ts` with descriptive errors
+- FK join `Array.isArray` guards → `one<T>()` normalizer in `src/lib/supabase/helpers.ts`
+- 4 FK indexes on `games.session_id`, `sessions.group_id`, `game_players.game_id`, `session_players.session_id`
+
+**Why:** The M5.2 codebase had 9 files with identical Supabase client creation, 3 files with identical PlayerStats interfaces, and raw RPC strings throughout. Any change to a shared concept (e.g., adding a field to PlayerStats) would require updating multiple files — a maintenance risk. FK indexes are not auto-created by Supabase/Postgres on foreign key columns, but every page query joins on these columns. Zero behavior/UX changes; identical rendered output.

@@ -2,7 +2,7 @@
 -- RedDogPickle — Canonical Schema (source of truth)
 -- ============================================================
 -- This file represents the complete DB state after all
--- migrations through M5.2. Run from scratch on an empty DB
+-- migrations through M5.3. Run from scratch on an empty DB
 -- (after tables, constraints, indexes, and RLS are in place)
 -- to recreate all views and functions.
 --
@@ -356,6 +356,20 @@ GRANT EXECUTE ON FUNCTION public.get_session_stats(uuid) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_group_stats(text, integer) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_last_session_id(text) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_session_pair_counts(uuid) TO anon, authenticated;
+
+-- ============================================================
+-- INDEXES (M5.3)
+-- ============================================================
+-- Mirrors supabase/migrations/m5.3_indexes.sql for from-scratch builds.
+-- Supabase auto-creates PK indexes but NOT FK indexes.
+CREATE INDEX IF NOT EXISTS idx_games_session_id
+  ON public.games(session_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_group_id
+  ON public.sessions(group_id);
+CREATE INDEX IF NOT EXISTS idx_game_players_game_id
+  ON public.game_players(game_id);
+CREATE INDEX IF NOT EXISTS idx_session_players_session_id
+  ON public.session_players(session_id);
 
 -- ============================================================
 -- NOTES

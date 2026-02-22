@@ -396,6 +396,49 @@ Every milestone must update `/docs` with: decisions, run guide, deploy guide, sc
 
 ---
 
+## [Milestone 5.3] — Maintainability + Performance Hardening (2026-02-21)
+
+No functional changes (refactor + docs only).
+
+### Added
+- `src/lib/env.ts` — Environment variable validation with descriptive error messages
+- `src/lib/types.ts` — Shared TypeScript interfaces: `PlayerStats`, `PairCount`, `Player`, `Group`, `Session`
+- `src/lib/formatting.ts` — Shared display helpers (`formatDiff`)
+- `src/lib/components/PlayerStatsRow.tsx` — Shared player stats card (deduplicates leaderboard + session standings)
+- `src/lib/supabase/server.ts` — Centralized server Supabase client factory (`getServerClient()`)
+- `src/lib/supabase/rpc.ts` — RPC function name constants (all 7 RPCs)
+- `src/lib/supabase/helpers.ts` — FK join shape normalizer (`one<T>()`)
+- `docs/indexes.md` — Expected database index documentation
+- `supabase/migrations/m5.3_indexes.sql` — Idempotent `CREATE INDEX IF NOT EXISTS` for 4 FK columns
+
+### Changed
+- `src/lib/supabase/client.ts` — uses `env` instead of raw `process.env!`
+- `src/app/actions/sessions.ts` — `getServerClient()` + `RPC` constants
+- `src/app/actions/players.ts` — `getServerClient()`
+- `src/app/actions/games.ts` — `getServerClient()` + `RPC` constants
+- `src/app/g/[join_code]/page.tsx` — `getServerClient()`
+- `src/app/g/[join_code]/start/page.tsx` — `getServerClient()`
+- `src/app/g/[join_code]/start/StartSessionForm.tsx` — imports shared `Player` type
+- `src/app/g/[join_code]/players/new/page.tsx` — `getServerClient()`
+- `src/app/g/[join_code]/sessions/page.tsx` — `getServerClient()` + shared `Session` type
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — `getServerClient()`, `RPC`, shared types, `one()`, `teamCodes()`
+- `src/app/g/[join_code]/session/[session_id]/SessionStandings.tsx` — `PlayerStatsRow` + shared `PlayerStats` type
+- `src/app/g/[join_code]/session/[session_id]/PairingBalance.tsx` — shared `PairCount` type
+- `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx` — imports shared `Player` type
+- `src/app/g/[join_code]/leaderboard/page.tsx` — `getServerClient()`, `RPC`, `PlayerStatsRow`, shared types
+- `supabase/schema.sql` — appended 4 FK indexes; version comment updated to M5.3
+
+### Decisions
+- See `docs/decisions.md`: D-053
+
+### Docs updated
+- `docs/decisions.md` — D-053
+- `docs/indexes.md` — new file
+- `CHANGELOG.md` — this entry
+- `README.md` — project structure + quick links updated
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

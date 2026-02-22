@@ -35,6 +35,7 @@ Mobile-first pickleball stats tracker for live courtside scoring, leaderboards, 
 | 🧠 [Decisions](./docs/decisions.md) | Architecture decisions + rationale |
 | 🧪 [Testing](./docs/testing.md) | Manual test checklist by screen |
 | 📝 [Assumptions](./docs/assumptions.md) | Recorded ambiguities and resolutions |
+| 📇 [Indexes](./docs/indexes.md) | Expected database indexes + rationale |
 
 ---
 
@@ -86,9 +87,17 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   │           ├── RecordGameForm.tsx           # 3-step game entry (client)
 │   │           └── SessionStandings.tsx        # Collapsible standings (client)
 │   └── lib/
+│       ├── env.ts                               # Env var validation
+│       ├── types.ts                             # Shared TypeScript interfaces
+│       ├── formatting.ts                        # Display helpers (formatDiff)
 │       ├── suggestCode.ts                       # Pure util: initials → player code
+│       ├── components/
+│       │   └── PlayerStatsRow.tsx               # Shared player stats card
 │       └── supabase/
-│           └── client.ts                        # Supabase anon client
+│           ├── client.ts                        # Supabase browser client
+│           ├── server.ts                        # Supabase server client factory
+│           ├── rpc.ts                           # RPC function name constants
+│           └── helpers.ts                       # FK join shape normalizer (one<T>)
 ├── supabase/
 │   ├── schema.sql                               # Full DB schema (source of truth)
 │   └── migrations/
@@ -97,7 +106,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │       ├── m4.1_duplicate_warn.sql              # M4.1 delta: warn-and-confirm
 │       ├── m5_group_leaderboards.sql            # M5 delta: view + session/group stats RPCs
 │       ├── m5.1_last_session_standings.sql     # M5.1 delta: extended session stats + last session RPC
-│       └── m5.2_pairing_balance.sql           # M5.2 delta: pairing balance RPC
+│       ├── m5.2_pairing_balance.sql           # M5.2 delta: pairing balance RPC
+│       └── m5.3_indexes.sql                   # M5.3 delta: FK performance indexes
 ├── docs/                                        # Developer documentation
 ├── .env.example                                 # Env var template (no secrets)
 ├── SPEC.md                                      # Product specification

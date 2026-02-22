@@ -1,0 +1,31 @@
+Role: Senior Technical Architect & Project Manager
+Task: Full Project State Extraction for Session Migration
+
+We are migrating this project to a fresh session to resolve latency. I need a comprehensive MEMORY.md file that captures the entirety of our progress, including the "hidden" details we’ve deferred.
+
+Analyze our entire history and generate a Markdown document with these exact sections:
+
+Current Project DNA: High-level app purpose, core tech stack, and the current "Active Sprint" goal.
+
+The "Source of Truth" (State of Code): >    * List all files currently in use and their specific roles.
+
+Summarize the core logic of the most complex functions we've built.
+
+The Design Back-Burner: >    * List all UI/UX enhancements, feature requests, and "v2" ideas we discussed but deferred for the MVP.
+
+The Technical Debt Confession: >    * Identify every shortcut, hardcoded value, "TODO," and missing error handler you’ve been holding on to for later. Be specific about which files contain this debt.
+
+Resolved Regressions: >    * Document the 3-5 most critical bugs we fixed and the "gotchas" to avoid in the future.
+
+Claude Code Execution Plan: >    * Provide the exact 3 next steps I should tell Claude Code to execute to keep momentum.
+
+Coding Standards & Patterns: Summarize our preferred naming conventions, folder structure, and any specific design patterns (e.g., "we use Tailwind for all styling, avoid inline CSS").
+
+The Validation Suite: List the exact terminal commands Claude Code should use to verify that the build is successful and tests are passing.
+
+Logic Guardrails: Are there any "load-bearing" hacks or specific logic choices we made to fix a bug that MUST NOT be changed? (e.g., "Do not change the Auth wrapper in index.js, it handles a specific Safari cookie bug").
+
+External Dependencies: List any APIs, environment variables (names only), or 3rd party tools we are integrated with so the next session knows the "outside world" we connect to.
+
+
+Format Rule: Output this as a single, copy-pastable code block. Use clear headings and bullet points. Do not provide conversational filler; just the data.

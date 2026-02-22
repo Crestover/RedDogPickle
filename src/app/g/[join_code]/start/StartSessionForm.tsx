@@ -2,12 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { createSessionAction } from "@/app/actions/sessions";
-
-interface Player {
-  id: string;
-  display_name: string;
-  code: string;
-}
+import type { Player } from "@/lib/types";
 
 interface Props {
   joinCode: string;

@@ -2,62 +2,35 @@
 -- Milestone 4.1: Duplicate warn-and-confirm (replaces hard-block)
 --
 -- Delta migration — apply to existing DB after m4_record_game.sql.
---
--- Changes:
---   1. DROP the unique constraint games_dedupe_key_unique.
---      Without a time bucket in the fingerprint, the same game
---      played legitimately a second time would be blocked forever.
---      The 15-minute recency check in the RPC is the sole gate.
---
---   2. REPLACE record_game with a new signature:
---        + p_force boolean DEFAULT false
---        - returns jsonb instead of uuid
---
---      Return shapes:
---        { "status": "inserted",           "game_id": "<uuid>" }
---        { "status": "possible_duplicate", "existing_game_id": "<uuid>",
---                                          "existing_created_at": "<iso>" }
---
---      Logic:
---        - Compute fingerprint (sha256) WITHOUT time bucket
---          (order-insensitive within teams AND across teams)
---        - If p_force = false:
---            look for existing game in same session with same fingerprint
---            AND created_at >= now() - interval '15 minutes'
---            If found → return possible_duplicate (no insert)
---        - If p_force = true OR no recent match:
---            insert games + game_players atomically, return inserted
---
---   No new tables. No new RLS policies.
---   games + game_players remain SELECT + INSERT only (no anon UPDATE/DELETE).
 -- ============================================================
 
 -- ── Step 1: Drop unique constraint on dedupe_key ────────────
--- The constraint hard-blocks identical fingerprints forever.
--- With no time bucket we must allow deliberate re-entry; the
--- 15-min recency check in the RPC handles accidental duplicates.
-alter table public.games
-  drop constraint if exists games_dedupe_key_unique;
+-- Allows deliberate duplicate re-entry; recency check handles accidental dups.
+ALTER TABLE public.games
+  DROP CONSTRAINT IF EXISTS games_dedupe_key_unique;
 
 
--- ── Step 2: Replace record_game RPC ────────────────────────
--- New signature: adds p_force, returns jsonb.
--- SECURITY DEFINER + search_path = public (same as before).
--- ────────────────────────────────────────────────────────────
-create or replace function public.record_game(
-  p_session_id   uuid,
-  p_team_a_ids   uuid[],
-  p_team_b_ids   uuid[],
+-- ── Step 2: Clean up existing signatures ────────────────────
+-- Ensure no ambiguous function versions remain.
+DROP FUNCTION IF EXISTS public.record_game(uuid, uuid[], uuid[], integer, integer);
+DROP FUNCTION IF EXISTS public.record_game(uuid, uuid[], uuid[], integer, integer, boolean);
+
+
+-- ── Step 3: Create refined record_game RPC ──────────────────
+CREATE OR REPLACE FUNCTION public.record_game(
+  p_session_id    uuid,
+  p_team_a_ids    uuid[],
+  p_team_b_ids    uuid[],
   p_team_a_score integer,
   p_team_b_score integer,
-  p_force        boolean default false
+  p_force         boolean DEFAULT false
 )
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
   v_session          record;
   v_attendee_ids     uuid[];
   v_all_player_ids   uuid[];
@@ -76,160 +49,138 @@ declare
   v_loser            integer;
   v_existing_id      uuid;
   v_existing_at      timestamptz;
-begin
-  -- ── 1. Validate session exists ──────────────────────────
-  select id, ended_at, started_at
-    into v_session
-    from public.sessions
-   where id = p_session_id;
+BEGIN
+  -- 1. Validate session exists
+  SELECT id, ended_at, started_at
+    INTO v_session
+    FROM public.sessions
+   WHERE id = p_session_id;
 
-  if v_session.id is null then
-    raise exception 'Session not found: %', p_session_id
-      using errcode = 'P0002';
-  end if;
+  IF v_session.id IS NULL THEN
+    RAISE EXCEPTION 'Session not found: %', p_session_id
+      USING ERRCODE = 'P0002';
+  END IF;
 
-  -- ── 2. Validate session is active (4-hour rule) ─────────
-  if v_session.ended_at is not null then
-    raise exception 'Session has already ended'
-      using errcode = 'P0001';
-  end if;
+  -- 2. Validate session is active (4-hour rule)
+  IF v_session.ended_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Session has already ended'
+      USING ERRCODE = 'P0001';
+  END IF;
 
-  if v_session.started_at < now() - interval '4 hours' then
-    raise exception 'Session has expired (older than 4 hours)'
-      using errcode = 'P0001';
-  end if;
+  IF v_session.started_at < NOW() - INTERVAL '4 hours' THEN
+    RAISE EXCEPTION 'Session has expired (older than 4 hours)'
+      USING ERRCODE = 'P0001';
+  END IF;
 
-  -- ── 3. Validate player counts ───────────────────────────
-  if array_length(p_team_a_ids, 1) is null or array_length(p_team_a_ids, 1) != 2 then
-    raise exception 'Team A must have exactly 2 players'
-      using errcode = 'P0001';
-  end if;
+  -- 3. Validate player counts
+  IF ARRAY_LENGTH(p_team_a_ids, 1) != 2 OR ARRAY_LENGTH(p_team_b_ids, 1) != 2 THEN
+    RAISE EXCEPTION 'Each team must have exactly 2 players'
+      USING ERRCODE = 'P0001';
+  END IF;
 
-  if array_length(p_team_b_ids, 1) is null or array_length(p_team_b_ids, 1) != 2 then
-    raise exception 'Team B must have exactly 2 players'
-      using errcode = 'P0001';
-  end if;
+  -- 4. Validate no overlap
+  FOREACH v_pid IN ARRAY p_team_a_ids LOOP
+    IF v_pid = ANY(p_team_b_ids) THEN
+      RAISE EXCEPTION 'Player % appears on both teams', v_pid
+        USING ERRCODE = 'P0001';
+    END IF;
+  END LOOP;
 
-  -- ── 4. Validate no player appears on both teams ─────────
-  foreach v_pid in array p_team_a_ids loop
-    if v_pid = any(p_team_b_ids) then
-      raise exception 'Player % appears on both teams', v_pid
-        using errcode = 'P0001';
-    end if;
-  end loop;
-
-  -- ── 5. Validate all 4 players are session attendees ─────
-  select array_agg(player_id)
-    into v_attendee_ids
-    from public.session_players
-   where session_id = p_session_id;
+  -- 5. Validate session attendees
+  SELECT ARRAY_AGG(player_id)
+    INTO v_attendee_ids
+    FROM public.session_players
+   WHERE session_id = p_session_id;
 
   v_all_player_ids := p_team_a_ids || p_team_b_ids;
 
-  foreach v_pid in array v_all_player_ids loop
-    if not (v_pid = any(v_attendee_ids)) then
-      raise exception 'Player % is not a session attendee', v_pid
-        using errcode = 'P0001';
-    end if;
-  end loop;
+  FOREACH v_pid IN ARRAY v_all_player_ids LOOP
+    IF NOT (v_pid = ANY(v_attendee_ids)) THEN
+      RAISE EXCEPTION 'Player % is not a session attendee', v_pid
+        USING ERRCODE = 'P0001';
+    END IF;
+  END LOOP;
 
-  -- ── 6. Validate scores ──────────────────────────────────
-  v_winner := greatest(p_team_a_score, p_team_b_score);
-  v_loser  := least(p_team_a_score, p_team_b_score);
+  -- 6. Validate scores
+  v_winner := GREATEST(p_team_a_score, p_team_b_score);
+  v_loser  := LEAST(p_team_a_score, p_team_b_score);
 
-  if v_winner < 11 then
-    raise exception 'Winning score must be at least 11 (got %)', v_winner
-      using errcode = 'P0001';
-  end if;
+  IF v_winner < 11 OR (v_winner - v_loser) < 2 THEN
+    RAISE EXCEPTION 'Invalid score: Winner must have 11+ and lead by 2'
+      USING ERRCODE = 'P0001';
+  END IF;
 
-  if (v_winner - v_loser) < 2 then
-    raise exception 'Winning margin must be at least 2 (got %)', (v_winner - v_loser)
-      using errcode = 'P0001';
-  end if;
+  -- 7. Compute Fingerprint (Order-Invariant)
+  SELECT ARRAY_AGG(u ORDER BY u) INTO v_team_a_sorted FROM UNNEST(p_team_a_ids) AS u;
+  SELECT ARRAY_AGG(u ORDER BY u) INTO v_team_b_sorted FROM UNNEST(p_team_b_ids) AS u;
 
-  -- ── 7. Compute fingerprint (NO time bucket) ─────────────
-  -- Order-insensitive within teams AND across teams.
-  select array_agg(u order by u) into v_team_a_sorted from unnest(p_team_a_ids) as u;
-  select array_agg(u order by u) into v_team_b_sorted from unnest(p_team_b_ids) as u;
+  v_team_a_str := ARRAY_TO_STRING(v_team_a_sorted, ',');
+  v_team_b_str := ARRAY_TO_STRING(v_team_b_sorted, ',');
 
-  v_team_a_str := array_to_string(v_team_a_sorted, ',');
-  v_team_b_str := array_to_string(v_team_b_sorted, ',');
-
-  -- Sort team strings lexicographically (team-order-invariant)
-  if v_team_a_str <= v_team_b_str then
+  IF v_team_a_str <= v_team_b_str THEN
     v_lo := v_team_a_str; v_hi := v_team_b_str;
-  else
+  ELSE
     v_lo := v_team_b_str; v_hi := v_team_a_str;
-  end if;
+  END IF;
 
-  -- Score part: min:max (order-insensitive)
-  v_score_part  := least(p_team_a_score, p_team_b_score)::text
-                || ':'
-                || greatest(p_team_a_score, p_team_b_score)::text;
+  v_score_part := v_loser::text || ':' || v_winner::text;
 
-  -- No time bucket — fingerprint is purely teams + scores
-  v_fingerprint := encode(digest(v_lo || '|' || v_hi || '|' || v_score_part, 'sha256'), 'hex');
+  v_fingerprint := ENCODE(
+    DIGEST(
+      CONVERT_TO(v_lo || '|' || v_hi || '|' || v_score_part, 'UTF8'),
+      'sha256'::text
+    ),
+    'hex'::text
+  );
 
-  -- ── 8. Recent-duplicate check (skipped when p_force = true) ─
-  if not p_force then
-    select id, created_at
-      into v_existing_id, v_existing_at
-      from public.games
-     where session_id  = p_session_id
-       and dedupe_key  = v_fingerprint
-       and created_at >= now() - interval '15 minutes'
-     order by created_at desc
-     limit 1;
+  -- 8. Duplicate check (Skip if forced)
+  IF NOT p_force THEN
+    SELECT id, created_at
+      INTO v_existing_id, v_existing_at
+      FROM public.games
+     WHERE session_id = p_session_id
+       AND dedupe_key = v_fingerprint
+       AND created_at >= NOW() - INTERVAL '15 minutes'
+     ORDER BY created_at DESC
+     LIMIT 1;
 
-    if v_existing_id is not null then
-      return jsonb_build_object(
-        'status',           'possible_duplicate',
+    IF v_existing_id IS NOT NULL THEN
+      RETURN JSONB_BUILD_OBJECT(
+        'status', 'possible_duplicate',
         'existing_game_id', v_existing_id,
         'existing_created_at', v_existing_at
       );
-    end if;
-  end if;
+    END IF;
+  END IF;
 
-  -- ── 9. Derive sequence_num atomically ───────────────────
-  select coalesce(max(sequence_num), 0) + 1
-    into v_sequence_num
-    from public.games
-   where session_id = p_session_id;
+  -- 9. Atomic Sequence & Insertion
+  SELECT COALESCE(MAX(sequence_num), 0) + 1
+    INTO v_sequence_num
+    FROM public.games
+   WHERE session_id = p_session_id;
 
-  -- ── 10. Insert game row ─────────────────────────────────
-  insert into public.games (
-    session_id,
-    sequence_num,
-    team_a_score,
-    team_b_score,
-    dedupe_key
+  INSERT INTO public.games (
+    session_id, sequence_num, team_a_score, team_b_score, dedupe_key
   )
-  values (
-    p_session_id,
-    v_sequence_num,
-    p_team_a_score,
-    p_team_b_score,
-    v_fingerprint
+  VALUES (
+    p_session_id, v_sequence_num, p_team_a_score, p_team_b_score, v_fingerprint
   )
-  returning id into v_game_id;
+  RETURNING id INTO v_game_id;
 
-  -- ── 11. Insert game_players rows (4 rows) ───────────────
-  foreach v_pid in array p_team_a_ids loop
-    insert into public.game_players (game_id, player_id, team)
-    values (v_game_id, v_pid, 'A');
-  end loop;
+  -- 10. Insert Players (using verified 'team' column)
+  INSERT INTO public.game_players (game_id, player_id, team)
+  SELECT v_game_id, id, 'A' FROM UNNEST(p_team_a_ids) AS id;
 
-  foreach v_pid in array p_team_b_ids loop
-    insert into public.game_players (game_id, player_id, team)
-    values (v_game_id, v_pid, 'B');
-  end loop;
+  INSERT INTO public.game_players (game_id, player_id, team)
+  SELECT v_game_id, id, 'B' FROM UNNEST(p_team_b_ids) AS id;
 
-  return jsonb_build_object(
-    'status',  'inserted',
+  -- 11. Final Return
+  RETURN JSONB_BUILD_OBJECT(
+    'status', 'inserted',
     'game_id', v_game_id
   );
-end;
+END;
 $$;
 
--- Re-grant execute to anon (covers the updated signature)
-grant execute on function public.record_game(uuid, uuid[], uuid[], integer, integer, boolean) to anon;
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION public.record_game(uuid, uuid[], uuid[], integer, integer, boolean) TO anon;

@@ -17,12 +17,7 @@
 
 import { useState, useTransition } from "react";
 import { recordGameAction } from "@/app/actions/games";
-
-interface Player {
-  id: string;
-  display_name: string;
-  code: string;
-}
+import type { Player } from "@/lib/types";
 
 interface Props {
   sessionId: string;

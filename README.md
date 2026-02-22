@@ -23,7 +23,7 @@ Mobile-first pickleball stats tracker for live courtside scoring, leaderboards, 
 |---|---|
 | 📋 [Product Spec](./SPEC.md) | Full feature specification v1.3 |
 | 🗺️ [Build Plan](./BUILD_PLAN.md) | 6-milestone roadmap |
-| 🔄 [Changelog](./CHANGELOG.md) | Milestone-by-milestone history |
+| 🔄 [Release Notes](./CHANGELOG_PUBLIC.md) | User-facing release notes |
 
 ### Developer Docs
 
@@ -36,6 +36,7 @@ Mobile-first pickleball stats tracker for live courtside scoring, leaderboards, 
 | 🧪 [Testing](./docs/testing.md) | Manual test checklist by screen |
 | 📝 [Assumptions](./docs/assumptions.md) | Recorded ambiguities and resolutions |
 | 📇 [Indexes](./docs/indexes.md) | Expected database indexes + rationale |
+| 🔧 [Engineering Changelog](./CHANGELOG.md) | Full internal change history (not user-facing) |
 
 ---
 
@@ -65,7 +66,7 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 │   │   ├── layout.tsx                           # Root layout
 │   │   ├── page.tsx                             # / → Enter Group Code
 │   │   ├── changelog/
-│   │   │   └── page.tsx                         # /changelog (renders CHANGELOG.md)
+│   │   │   └── page.tsx                         # /changelog (renders CHANGELOG_PUBLIC.md)
 │   │   ├── actions/
 │   │   │   ├── sessions.ts                      # createSessionAction, endSessionAction
 │   │   │   ├── players.ts                       # addPlayerAction
@@ -115,7 +116,8 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 ├── .env.example                                 # Env var template (no secrets)
 ├── SPEC.md                                      # Product specification
 ├── BUILD_PLAN.md                                # Milestone roadmap
-└── CHANGELOG.md                                 # Change history
+├── CHANGELOG.md                                 # Internal engineering change history
+└── CHANGELOG_PUBLIC.md                          # User-facing release notes (served at /changelog)
 ```
 
 ---

@@ -16,7 +16,7 @@ function escapeHtml(text: string): string {
 }
 
 export default async function ChangelogPage() {
-  const filePath = join(process.cwd(), "CHANGELOG.md");
+  const filePath = join(process.cwd(), "CHANGELOG_PUBLIC.md");
   const raw = await readFile(filePath, "utf-8");
 
   // Pre-escape < and > before parsing so no raw HTML can render

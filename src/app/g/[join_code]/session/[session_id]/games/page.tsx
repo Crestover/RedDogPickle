@@ -7,8 +7,14 @@ interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
 }
 
-/** Extract player codes for a given team from the game_players join. */
-function teamCodes(
+/** Derive first name from display_name: "Joe Smith" → "Joe", "Ignacio" → "Ignacio" */
+function firstName(displayName: string): string {
+  const space = displayName.indexOf(" ");
+  return space > 0 ? displayName.substring(0, space) : displayName;
+}
+
+/** Extract first names for a given team, sorted. */
+function teamNames(
   gamePlayers: unknown[],
   team: "A" | "B"
 ): string[] {
@@ -16,9 +22,9 @@ function teamCodes(
     .filter((gp) => (gp as { team: string }).team === team)
     .map((gp) => {
       const player = one(
-        (gp as { players?: { code?: string } | { code?: string }[] | null }).players
-      ) as { code?: string } | null;
-      return player?.code ?? "?";
+        (gp as { players?: { display_name?: string } | { display_name?: string }[] | null }).players
+      ) as { display_name?: string } | null;
+      return player?.display_name ? firstName(player.display_name) : "?";
     })
     .sort();
 }
@@ -26,7 +32,6 @@ function teamCodes(
 async function getGamesData(joinCode: string, sessionId: string) {
   const supabase = getServerClient();
 
-  // Fetch the group
   const { data: group } = await supabase
     .from("groups")
     .select("id, name, join_code")
@@ -35,7 +40,6 @@ async function getGamesData(joinCode: string, sessionId: string) {
 
   if (!group) return null;
 
-  // Fetch the session (must belong to this group)
   const { data: session } = await supabase
     .from("sessions")
     .select("id, name, started_at, ended_at")
@@ -45,7 +49,6 @@ async function getGamesData(joinCode: string, sessionId: string) {
 
   if (!session) return null;
 
-  // Fetch games for this session, newest first
   const { data: games } = await supabase
     .from("games")
     .select(
@@ -70,6 +73,13 @@ export default async function SessionGamesPage({ params }: PageProps) {
   const { group, session, games } = data;
   const activeGames = games.filter((g) => !(g as { voided_at?: string | null }).voided_at);
 
+  // Format session date
+  const sessionDate = new Date(session.started_at).toLocaleDateString([], {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
   return (
     <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
@@ -87,7 +97,7 @@ export default async function SessionGamesPage({ params }: PageProps) {
             All Games
           </h1>
           <p className="text-xs text-gray-400 mt-0.5">
-            {session.name} &middot; {activeGames.length} game{activeGames.length !== 1 ? "s" : ""}
+            {sessionDate} &middot; {activeGames.length} game{activeGames.length !== 1 ? "s" : ""}
             {activeGames.length !== games.length && (
               <span> ({games.length} total incl. voided)</span>
             )}
@@ -100,45 +110,59 @@ export default async function SessionGamesPage({ params }: PageProps) {
             No games recorded yet.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {games.map((game) => {
               const isVoided = !!(game as { voided_at?: string | null }).voided_at;
               const gamePlayers = Array.isArray(game.game_players)
                 ? game.game_players
                 : [];
-              const aCodes = teamCodes(gamePlayers, "A").join("/");
-              const bCodes = teamCodes(gamePlayers, "B").join("/");
+              const aNamesArr = teamNames(gamePlayers, "A");
+              const bNamesArr = teamNames(gamePlayers, "B");
               const time = new Date(game.played_at).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               });
 
+              const aWins = game.team_a_score > game.team_b_score;
+              const bWins = game.team_b_score > game.team_a_score;
+
+              // Color classes for winner highlighting (non-voided only)
+              const scoreAClass = !isVoided && aWins ? "text-emerald-600" : "text-gray-700";
+              const scoreBClass = !isVoided && bWins ? "text-emerald-600" : "text-gray-700";
+              const namesAClass = !isVoided && aWins ? "text-emerald-600 font-medium" : "text-gray-700";
+              const namesBClass = !isVoided && bWins ? "text-emerald-600 font-medium" : "text-gray-700";
+
               return (
                 <div
                   key={game.id}
-                  className={`rounded-lg bg-white border border-gray-200 px-3 py-2.5${isVoided ? " opacity-40" : ""}`}
+                  className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-60" : ""}`}
                 >
-                  {/* Top row: game number + voided badge + time */}
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs font-semibold text-gray-400">
+                  {/* Header row: Game # + badge + time */}
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-400">
                       Game #{game.sequence_num}
                       {isVoided && (
-                        <span className="ml-1.5 inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[9px] font-bold text-red-700 uppercase">
+                        <span className="ml-1.5 inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
                           Voided
                         </span>
                       )}
                     </span>
-                    <span className="text-[10px] text-gray-300">{time}</span>
+                    <span className="text-xs text-gray-400">{time}</span>
                   </div>
-                  {/* Score + teams row */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold font-mono text-gray-800 shrink-0">
-                      {game.team_a_score}&ndash;{game.team_b_score}
-                    </span>
-                    <span className="text-xs font-mono text-gray-500 truncate">
-                      {aCodes} vs {bCodes}
-                    </span>
-                  </div>
+
+                  {/* Score */}
+                  <p className="text-xl font-semibold font-mono mb-1">
+                    <span className={scoreAClass}>{game.team_a_score}</span>
+                    <span className="text-gray-300">&ndash;</span>
+                    <span className={scoreBClass}>{game.team_b_score}</span>
+                  </p>
+
+                  {/* Teams (first names) */}
+                  <p className="text-sm leading-snug">
+                    <span className={namesAClass}>{aNamesArr.join(" / ")}</span>
+                    <span className="text-gray-400"> vs </span>
+                    <span className={namesBClass}>{bNamesArr.join(" / ")}</span>
+                  </p>
                 </div>
               );
             })}

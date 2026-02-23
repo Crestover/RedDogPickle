@@ -37,7 +37,7 @@ export default async function StartSessionPage({ params }: PageProps) {
   const { group, players } = result;
 
   return (
-    <main className="flex min-h-screen flex-col px-4 py-8">
+    <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
         {/* Header */}
         <div>
@@ -72,6 +72,6 @@ export default async function StartSessionPage({ params }: PageProps) {
           <StartSessionForm joinCode={group.join_code} players={players} />
         )}
       </div>
-    </main>
+    </div>
   );
 }

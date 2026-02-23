@@ -105,7 +105,7 @@ export default async function CourtsPage({ params }: PageProps) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col px-4 py-8">
+    <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
         {/* Back link */}
         <Link
@@ -139,6 +139,6 @@ export default async function CourtsPage({ params }: PageProps) {
           ratings={ratingsRecord}
         />
       </div>
-    </main>
+    </div>
   );
 }

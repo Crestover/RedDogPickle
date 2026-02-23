@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 export default function HelpPage() {
   return (
-    <main className="flex min-h-screen flex-col px-4 py-8">
+    <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-8">
         {/* Back link */}
         <Link
@@ -187,6 +187,6 @@ export default function HelpPage() {
           </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

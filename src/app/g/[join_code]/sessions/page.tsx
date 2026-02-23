@@ -61,7 +61,7 @@ export default async function SessionHistoryPage({ params }: PageProps) {
   const { group, sessions } = result;
 
   return (
-    <main className="flex min-h-screen flex-col px-4 py-8">
+    <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
         {/* Header */}
         <div>
@@ -141,6 +141,6 @@ export default async function SessionHistoryPage({ params }: PageProps) {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }

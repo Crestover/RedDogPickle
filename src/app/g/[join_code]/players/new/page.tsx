@@ -36,7 +36,7 @@ export default async function AddPlayerPage({ params, searchParams }: PageProps)
   const redirectTo = backHref;
 
   return (
-    <main className="flex min-h-screen flex-col px-4 py-8">
+    <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
         {/* Header */}
         <div>
@@ -58,6 +58,6 @@ export default async function AddPlayerPage({ params, searchParams }: PageProps)
           redirectTo={redirectTo}
         />
       </div>
-    </main>
+    </div>
   );
 }

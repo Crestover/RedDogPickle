@@ -2,7 +2,6 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 export default function HomePage() {
   const router = useRouter();
@@ -21,7 +20,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
+    <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm space-y-8">
         {/* Logo / title */}
         <div className="text-center">
@@ -71,15 +70,7 @@ export default function HomePage() {
             Go to Group →
           </button>
         </form>
-
-        {/* Help link */}
-        <Link
-          href="/help"
-          className="block text-center text-sm text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          Learn more →
-        </Link>
       </div>
-    </main>
+    </div>
   );
 }

@@ -60,7 +60,7 @@ export default async function GroupPage({ params }: PageProps) {
   // ── Not Found ──────────────────────────────────────────────────────────
   if (!group) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-6 py-12 text-center">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
         <div className="w-full max-w-sm space-y-6">
           <div className="text-5xl">❓</div>
           <div>
@@ -79,13 +79,13 @@ export default async function GroupPage({ params }: PageProps) {
             ← Try a different code
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
   // ── Found ──────────────────────────────────────────────────────────────
   return (
-    <main className="flex min-h-screen flex-col px-4 py-8">
+    <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-8">
 
         {/* Header */}
@@ -168,6 +168,6 @@ export default async function GroupPage({ params }: PageProps) {
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

@@ -18,13 +18,15 @@
 import { useState, useRef, useEffect, useTransition } from "react";
 import { recordGameAction } from "@/app/actions/games";
 import type { Player } from "@/lib/types";
-import type { PairCountEntry } from "@/lib/autoSuggest";
+import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
+import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
 
 interface Props {
   sessionId: string;
   joinCode: string;
   attendees: Player[];
   pairCounts?: PairCountEntry[];
+  games?: GameRecord[];
 }
 
 type Step = "select" | "scores" | "confirm";
@@ -44,7 +46,7 @@ function relativeTime(isoString: string): string {
   return `${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`;
 }
 
-export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts }: Props) {
+export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts, games }: Props) {
   // ── State ──────────────────────────────────────────────────────────────────
   const [step, setStep] = useState<Step>("select");
   const [teamA, setTeamA] = useState<string[]>([]);
@@ -300,23 +302,42 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
             <p className="font-semibold text-blue-700 mb-1">Team A ({teamA.length}/2)</p>
             {teamA.length === 0 ? <p className="text-blue-400">None selected</p>
               : teamA.map((id) => <p key={id} className="text-blue-800 font-mono">{playerCode(id)} {playerName(id)}</p>)}
-            {teamA.length === 2 && (
-              <p className="text-[10px] text-blue-500 mt-1">
-                Partners {getPairCount(teamA[0], teamA[1])}&times; this session
-              </p>
-            )}
+            {teamA.length === 2 && (() => {
+              const count = getPairCount(teamA[0], teamA[1]);
+              return (
+                <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
+                  <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+                  Together this session: {count} game{count !== 1 ? "s" : ""}
+                </p>
+              );
+            })()}
           </div>
           <div className="flex-1 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
             <p className="font-semibold text-orange-700 mb-1">Team B ({teamB.length}/2)</p>
             {teamB.length === 0 ? <p className="text-orange-400">None selected</p>
               : teamB.map((id) => <p key={id} className="text-orange-800 font-mono">{playerCode(id)} {playerName(id)}</p>)}
-            {teamB.length === 2 && (
-              <p className="text-[10px] text-orange-500 mt-1">
-                Partners {getPairCount(teamB[0], teamB[1])}&times; this session
-              </p>
-            )}
+            {teamB.length === 2 && (() => {
+              const count = getPairCount(teamB[0], teamB[1]);
+              return (
+                <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
+                  <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+                  Together this session: {count} game{count !== 1 ? "s" : ""}
+                </p>
+              );
+            })()}
           </div>
         </div>
+
+        {/* Opponent matchup feedback — only when all 4 players selected */}
+        {teamA.length === 2 && teamB.length === 2 && games && games.length > 0 && (() => {
+          const count = getMatchupCount(teamA, teamB, games);
+          return (
+            <p className="flex items-center justify-center gap-1 text-[10px] text-gray-400">
+              <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+              Faced each other: {count} time{count !== 1 ? "s" : ""}
+            </p>
+          );
+        })()}
 
         {error && <p className="text-sm text-red-600 font-medium" role="alert">{error}</p>}
 

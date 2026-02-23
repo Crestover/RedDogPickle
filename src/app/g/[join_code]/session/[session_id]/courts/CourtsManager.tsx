@@ -3,7 +3,8 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { CourtData, AttendeeWithStatus, RpcResult } from "@/lib/types";
-import type { PairCountEntry } from "@/lib/autoSuggest";
+import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
+import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
 import VoidLastGameButton from "../VoidLastGameButton";
 import {
   suggestCourtsAction,
@@ -32,6 +33,7 @@ interface Props {
   pairCounts: PairCountEntry[];
   gamesPlayedMap: Record<string, number>;
   ratings: Record<string, { rating: number; provisional: boolean }>;
+  games: GameRecord[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -73,6 +75,7 @@ export default function CourtsManager({
   pairCounts,
   gamesPlayedMap,
   ratings,
+  games,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -567,13 +570,15 @@ export default function CourtsManager({
                 })}
                 {court.team_a_ids &&
                   court.team_a_ids[0] &&
-                  court.team_a_ids[1] && (
-                    <p className="text-[10px] text-blue-500 mt-0.5">
-                      Partners{" "}
-                      {getPairGames(court.team_a_ids[0], court.team_a_ids[1])}
-                      &times; this session
-                    </p>
-                  )}
+                  court.team_a_ids[1] && (() => {
+                    const count = getPairGames(court.team_a_ids[0], court.team_a_ids[1]);
+                    return (
+                      <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+                        <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+                        Together this session: {count} game{count !== 1 ? "s" : ""}
+                      </p>
+                    );
+                  })()}
               </div>
 
               {/* Team B */}
@@ -619,15 +624,36 @@ export default function CourtsManager({
                 })}
                 {court.team_b_ids &&
                   court.team_b_ids[0] &&
-                  court.team_b_ids[1] && (
-                    <p className="text-[10px] text-orange-500 mt-0.5">
-                      Partners{" "}
-                      {getPairGames(court.team_b_ids[0], court.team_b_ids[1])}
-                      &times; this session
-                    </p>
-                  )}
+                  court.team_b_ids[1] && (() => {
+                    const count = getPairGames(court.team_b_ids[0], court.team_b_ids[1]);
+                    return (
+                      <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
+                        <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+                        Together this session: {count} game{count !== 1 ? "s" : ""}
+                      </p>
+                    );
+                  })()}
               </div>
             </div>
+
+            {/* Opponent matchup feedback — when all 4 slots filled */}
+            {court.team_a_ids &&
+              court.team_a_ids[0] && court.team_a_ids[1] &&
+              court.team_b_ids &&
+              court.team_b_ids[0] && court.team_b_ids[1] &&
+              games.length > 0 && (() => {
+                const count = getMatchupCount(
+                  [court.team_a_ids[0], court.team_a_ids[1]],
+                  [court.team_b_ids[0], court.team_b_ids[1]],
+                  games
+                );
+                return (
+                  <p className="flex items-center justify-center gap-1 text-[10px] text-gray-400">
+                    <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+                    Faced each other: {count} time{count !== 1 ? "s" : ""}
+                  </p>
+                );
+              })()}
 
             {/* Score inputs — only for IN_PROGRESS courts */}
             {isInProgress && (

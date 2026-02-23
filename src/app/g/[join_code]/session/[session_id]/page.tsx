@@ -2,6 +2,7 @@ import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
 import type { PlayerStats, PairCount, Player, PlayerRating } from "@/lib/types";
+import type { GameRecord } from "@/lib/autoSuggest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
@@ -98,11 +99,29 @@ async function getSessionData(joinCode: string, sessionId: string) {
     console.error("player_ratings query error:", ratingsError);
   }
 
+  // Transform non-voided games into GameRecord[] for inline pairing feedback
+  const gameRecords: GameRecord[] = (games ?? [])
+    .filter((g) => !g.voided_at)
+    .map((g) => {
+      const gps = Array.isArray(g.game_players) ? g.game_players : [];
+      return {
+        id: g.id,
+        teamAIds: gps
+          .filter((gp: { team: string }) => gp.team === "A")
+          .map((gp: { player_id: string }) => gp.player_id),
+        teamBIds: gps
+          .filter((gp: { team: string }) => gp.team === "B")
+          .map((gp: { player_id: string }) => gp.player_id),
+        played_at: g.played_at,
+      };
+    });
+
   return {
     group,
     session,
     attendees: attendees ?? [],
     games: games ?? [],
+    gameRecords,
     standings: (standings ?? []) as PlayerStats[],
     pairCounts: (pairCounts ?? []) as PairCount[],
     ratings: (ratingsData ?? []) as PlayerRating[],
@@ -120,7 +139,7 @@ export default async function SessionPage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const { group, session, attendees, games, standings, pairCounts, ratings } = data;
+  const { group, session, attendees, games, gameRecords, standings, pairCounts, ratings } = data;
   const active = isActiveSession(session);
 
   // Stale detection: active but no non-voided game in 24 hours
@@ -214,6 +233,7 @@ export default async function SessionPage({ params }: PageProps) {
                 player_b_id: p.player_b_id,
                 games_together: p.games_together,
               }))}
+              games={gameRecords}
             />
           </div>
         )}

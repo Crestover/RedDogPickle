@@ -163,6 +163,7 @@ export default async function CourtsPage({ params }: PageProps) {
             pairCounts={pairCounts}
             gamesPlayedMap={gamesPlayedMap}
             ratings={ratingsRecord}
+            games={games}
           />
         )}
       </div>

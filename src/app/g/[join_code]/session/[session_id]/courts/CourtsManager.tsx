@@ -374,7 +374,6 @@ export default function CourtsManager({
 
       {/* ── Court cards ──────────────────────────────────── */}
       {activeCourts.map((court, courtIdx) => {
-        const courtPlayerIds = getCourtPlayerIds(court);
         const isComplete = canRecordCourt(court);
 
         return (

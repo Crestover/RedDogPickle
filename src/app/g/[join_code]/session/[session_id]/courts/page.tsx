@@ -1,7 +1,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
-import type { PlayerStats, PairCount, Player, PlayerRating } from "@/lib/types";
+import type { PairCount, Player, PlayerRating } from "@/lib/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import CourtsManager from "./CourtsManager";
@@ -70,11 +70,6 @@ export default async function CourtsPage({ params }: PageProps) {
       teamBIds: gps.filter((gp: { team: string }) => gp.team === "B").map((gp: { player_id: string }) => gp.player_id),
       played_at: g.played_at,
     };
-  });
-
-  // Fetch session standings
-  const { data: standings } = await supabase.rpc(RPC.GET_SESSION_STATS, {
-    p_session_id: session_id,
   });
 
   // Fetch pair counts

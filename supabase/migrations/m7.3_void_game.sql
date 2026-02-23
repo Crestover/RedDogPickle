@@ -162,18 +162,28 @@ $func$;
 GRANT EXECUTE ON FUNCTION public.void_last_game(uuid, text) TO anon;
 
 -- ── 5. recompute_session_ratings RPC ──────────────────────────
--- Session-scoped Elo recompute after voiding a game.
+-- Elo recompute triggered after voiding a game in a session.
 --
--- Respects R-EL1 (no retroactive changes) and R-EL2 (minimal scope):
---   - Only processes games from the affected session
---   - Only processes games after the group's Elo introduction
---   - Does NOT replay the entire group history
+-- Correctness: Because apply_ratings_for_game reads the CURRENT
+-- player_ratings to compute deltas, simply reversing one session's
+-- deltas leaves all later games' rating_events stale (they were
+-- computed against ratings that included the now-voided game).
 --
--- Algorithm:
---   1. Collect all rating_events for this session (the deltas)
---   2. Reverse those deltas from player_ratings
---   3. Delete the rating_events for this session
---   4. Replay only this session's non-voided games via apply_ratings_for_game
+-- Algorithm (forward-replay from earliest affected game):
+--   1. Find t0 = earliest played_at of any rated game in this session
+--      that falls within the Elo era (>= group's first rated game).
+--   2. Collect ALL rating_events for this group with played_at >= t0.
+--   3. Reverse those deltas from player_ratings (undo them all).
+--   4. Delete those rating_events.
+--   5. Replay ALL non-voided, rated-era games with played_at >= t0
+--      chronologically via apply_ratings_for_game.
+--
+-- This is minimal in normal use (typically only the active session
+-- has games at t0 or later), but stays correct when later games exist.
+--
+-- Respects R-EL1: only games within the rated era are touched.
+-- The Elo introduction boundary is the earliest played_at of any
+-- game that has a rating_event (not created_at, to avoid clock skew).
 
 CREATE OR REPLACE FUNCTION public.recompute_session_ratings(p_session_id uuid)
 RETURNS integer
@@ -183,7 +193,8 @@ SET search_path = public
 AS $func$
 DECLARE
   v_group_id  uuid;
-  v_elo_start timestamptz;
+  v_elo_start timestamptz;  -- group's Elo introduction boundary
+  v_t0        timestamptz;  -- earliest affected game in this session
   v_event     record;
   v_game_id   uuid;
   v_count     integer := 0;
@@ -197,9 +208,11 @@ BEGIN
     RAISE EXCEPTION 'Session not found: %', p_session_id;
   END IF;
 
-  -- Find the group's Elo introduction boundary
-  SELECT MIN(re.created_at) INTO v_elo_start
+  -- Find the group's Elo introduction boundary:
+  -- earliest played_at of any game that has a rating_event.
+  SELECT MIN(g.played_at) INTO v_elo_start
     FROM public.rating_events re
+    JOIN public.games g ON g.id = re.game_id
    WHERE re.group_id = v_group_id
      AND re.algo_version = 'elo_v1';
 
@@ -208,13 +221,27 @@ BEGIN
     RETURN 0;
   END IF;
 
-  -- Step 1+2: Reverse existing deltas for this session's rating_events
-  -- This undoes the Elo impact of all games in this session (including voided ones)
+  -- Find t0: earliest played_at of any game in this session that
+  -- falls within the rated era.  This is the rewind point.
+  SELECT MIN(g.played_at) INTO v_t0
+    FROM public.games g
+   WHERE g.session_id = p_session_id
+     AND g.played_at >= v_elo_start;
+
+  -- No rated-era games in this session → nothing to do
+  IF v_t0 IS NULL THEN
+    RETURN 0;
+  END IF;
+
+  -- Step 1: Reverse ALL rating_events for this group from t0 onward.
+  -- We join through games to filter by played_at >= v_t0.
   FOR v_event IN
-    SELECT player_id, delta
-      FROM public.rating_events
-     WHERE session_id = p_session_id
-       AND algo_version = 'elo_v1'
+    SELECT re.player_id, re.delta
+      FROM public.rating_events re
+      JOIN public.games g ON g.id = re.game_id
+     WHERE re.group_id = v_group_id
+       AND re.algo_version = 'elo_v1'
+       AND g.played_at >= v_t0
   LOOP
     UPDATE public.player_ratings
        SET rating      = rating - v_event.delta,
@@ -225,18 +252,23 @@ BEGIN
        AND player_id = v_event.player_id;
   END LOOP;
 
-  -- Step 3: Delete all rating_events for this session
-  DELETE FROM public.rating_events
-   WHERE session_id = p_session_id
-     AND algo_version = 'elo_v1';
+  -- Step 2: Delete those rating_events
+  DELETE FROM public.rating_events re
+   USING public.games g
+   WHERE g.id = re.game_id
+     AND re.group_id = v_group_id
+     AND re.algo_version = 'elo_v1'
+     AND g.played_at >= v_t0;
 
-  -- Step 4: Replay only this session's non-voided games (post-introduction)
+  -- Step 3: Replay ALL non-voided, rated-era games from t0 onward
+  -- across ALL sessions in this group (not just the affected one).
   FOR v_game_id IN
     SELECT g.id
       FROM public.games g
-     WHERE g.session_id = p_session_id
+      JOIN public.sessions s ON s.id = g.session_id
+     WHERE s.group_id = v_group_id
        AND g.voided_at IS NULL
-       AND g.played_at >= v_elo_start
+       AND g.played_at >= v_t0
      ORDER BY g.played_at ASC, g.sequence_num ASC
   LOOP
     PERFORM public.apply_ratings_for_game(v_game_id);

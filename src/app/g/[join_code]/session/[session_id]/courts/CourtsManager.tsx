@@ -25,6 +25,12 @@ interface SwapTarget {
   slot: number; // 1-indexed
 }
 
+interface EmptySlot {
+  courtNumber: number;
+  team: "A" | "B";
+  slot: number; // 1-indexed
+}
+
 interface Props {
   sessionId: string;
   joinCode: string;
@@ -32,7 +38,6 @@ interface Props {
   courts: CourtData[];
   pairCounts: PairCountEntry[];
   gamesPlayedMap: Record<string, number>;
-  ratings: Record<string, { rating: number; provisional: boolean }>;
   games: GameRecord[];
 }
 
@@ -65,6 +70,29 @@ function isCourtFull(court: CourtData): boolean {
   );
 }
 
+/** Get all empty slots across OPEN courts. */
+function getEmptySlots(court: CourtData): EmptySlot[] {
+  if (court.status !== "OPEN") return [];
+  const slots: EmptySlot[] = [];
+  if (court.team_a_ids) {
+    court.team_a_ids.forEach((id, idx) => {
+      if (!id) slots.push({ courtNumber: court.court_number, team: "A", slot: idx + 1 });
+    });
+  } else {
+    slots.push({ courtNumber: court.court_number, team: "A", slot: 1 });
+    slots.push({ courtNumber: court.court_number, team: "A", slot: 2 });
+  }
+  if (court.team_b_ids) {
+    court.team_b_ids.forEach((id, idx) => {
+      if (!id) slots.push({ courtNumber: court.court_number, team: "B", slot: idx + 1 });
+    });
+  } else {
+    slots.push({ courtNumber: court.court_number, team: "B", slot: 1 });
+    slots.push({ courtNumber: court.court_number, team: "B", slot: 2 });
+  }
+  return slots;
+}
+
 // ── Component ─────────────────────────────────────────────────
 
 export default function CourtsManager({
@@ -74,7 +102,6 @@ export default function CourtsManager({
   courts,
   pairCounts,
   gamesPlayedMap,
-  ratings,
   games,
 }: Props) {
   const router = useRouter();
@@ -85,6 +112,7 @@ export default function CourtsManager({
     Record<number, { scoreA: string; scoreB: string }>
   >({});
   const [swapTarget, setSwapTarget] = useState<SwapTarget | null>(null);
+  const [slotPickerPlayer, setSlotPickerPlayer] = useState<string | null>(null);
   const [outChoicePlayer, setOutChoicePlayer] = useState<string | null>(null);
   const [courtErrors, setCourtErrors] = useState<Record<number, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -115,6 +143,24 @@ export default function CourtsManager({
   const waitingPlayers = activePlayers.filter((p) => !assignedIds.has(p.id));
   const hasOpenCourts = courts.some((c) => c.status === "OPEN");
   const hasInProgressCourts = courts.some((c) => c.status === "IN_PROGRESS");
+
+  // Fairness summary: least/most games among active players
+  const activeGameCounts = activePlayers.map((p) => ({
+    code: p.code,
+    count: gamesPlayedMap[p.id] ?? 0,
+  }));
+  const minGames = activeGameCounts.length > 0
+    ? Math.min(...activeGameCounts.map((p) => p.count))
+    : 0;
+  const maxGames = activeGameCounts.length > 0
+    ? Math.max(...activeGameCounts.map((p) => p.count))
+    : 0;
+  const showFairness = activeGameCounts.length > 0 && minGames !== maxGames;
+  const leastPlayers = activeGameCounts.filter((p) => p.count === minGames);
+  const mostPlayers = activeGameCounts.filter((p) => p.count === maxGames);
+
+  // All empty slots across open courts (for slot picker)
+  const allEmptySlots = courts.flatMap(getEmptySlots);
 
   // ── Helpers ───────────────────────────────────────────────
 
@@ -337,6 +383,41 @@ export default function CourtsManager({
     }
   }
 
+  // ── Waiting chip tap (explicit behavior) ────────────────────
+
+  function handleWaitingChipTap(playerId: string) {
+    if (swapTarget) {
+      // Fast path: a court slot is already selected → assign immediately
+      handleSwapSelect(playerId);
+    } else {
+      // Show "Pick a slot" modal for this player
+      setSlotPickerPlayer(playerId);
+    }
+  }
+
+  // ── Assign player to a specific slot (from slot picker) ────
+
+  function handleSlotPickerAssign(courtNumber: number, team: "A" | "B", slot: number) {
+    if (!slotPickerPlayer) return;
+    const playerId = slotPickerPlayer;
+    setSlotPickerPlayer(null);
+
+    startTransition(async () => {
+      const result = await callAction(
+        () => assignCourtSlotAction(sessionId, joinCode, courtNumber, team, slot, playerId),
+        courtNumber
+      );
+      if (result.ok) {
+        router.refresh();
+      } else if (result.error?.code !== "STALE_STATE") {
+        setCourtErrors((prev) => ({
+          ...prev,
+          [courtNumber]: result.error?.message ?? "Failed to assign player",
+        }));
+      }
+    });
+  }
+
   // ── Mark player out ───────────────────────────────────────
 
   function handleMarkOut(playerId: string) {
@@ -414,65 +495,13 @@ export default function CourtsManager({
     return null;
   }
 
-  // ── Render ──────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // RENDER — New order: Courts → Fairness → Waiting (chips) →
+  //          On Court → Inactive → Controls (sticky bottom)
+  // ══════════════════════════════════════════════════════════════
 
   return (
-    <div className="space-y-6">
-      {/* ── Header controls ──────────────────────────────── */}
-      <div className="space-y-3">
-        {/* Court count control */}
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-700">Courts</span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleCourtCountChange(-1)}
-              disabled={courtCount <= 1 || isPending}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-lg font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              -
-            </button>
-            <span className="w-8 text-center text-lg font-bold text-gray-900">
-              {courtCount}
-            </span>
-            <button
-              type="button"
-              onClick={() => handleCourtCountChange(1)}
-              disabled={courtCount >= 8 || isPending}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-lg font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            >
-              +
-            </button>
-          </div>
-        </div>
-
-        {/* Action buttons */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => handleSuggest()}
-            disabled={isPending || !hasOpenCourts}
-            className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 active:bg-green-800 transition-colors min-w-[80px] disabled:opacity-40"
-          >
-            {isPending ? "Working..." : "Suggest All"}
-          </button>
-        </div>
-
-        {/* Void last game */}
-        <VoidLastGameButton
-          sessionId={sessionId}
-          joinCode={joinCode}
-          redirectPath={`/g/${joinCode}/session/${sessionId}/courts`}
-        />
-
-        {/* Global error */}
-        {globalError && (
-          <p className="text-xs text-red-600 font-medium" role="alert">
-            {globalError}
-          </p>
-        )}
-      </div>
-
+    <div className="space-y-6 pb-28">
       {/* ── Court cards ──────────────────────────────────── */}
       {courts.map((court) => {
         // Optimistic clear: show empty court card if just recorded
@@ -738,13 +767,187 @@ export default function CourtsManager({
         );
       })}
 
+      {/* ── Fairness summary ──────────────────────────────── */}
+      {showFairness && (
+        <p className="text-[10px] text-gray-400 text-center">
+          Least games: {leastPlayers.map((p) => p.code).join(", ")} ({minGames})
+          {" \u00b7 "}
+          Most games: {mostPlayers.map((p) => p.code).join(", ")} ({maxGames})
+        </p>
+      )}
+
+      {/* ── Waiting pool (horizontal scroll chips) ────────── */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+          Waiting ({waitingPlayers.length})
+        </h3>
+        {waitingPlayers.length === 0 ? (
+          <p className="text-xs text-gray-400">Everyone is on a court or inactive.</p>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+            {waitingPlayers.map((player) => {
+              const gp = gamesPlayedMap[player.id] ?? 0;
+              return (
+                <button
+                  key={player.id}
+                  type="button"
+                  onClick={() => handleWaitingChipTap(player.id)}
+                  disabled={isPending}
+                  className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 shrink-0 hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-40"
+                  style={{ height: "38px" }}
+                >
+                  <span className="text-xs font-bold font-mono text-gray-700">{player.code}</span>
+                  <span className="text-xs font-medium text-gray-600 truncate max-w-[80px]">{player.display_name}</span>
+                  <span className="text-[10px] text-gray-400">{gp}g</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── On Court (IN_PROGRESS players) ─────────────────── */}
+      {hasInProgressCourts && (() => {
+        const onCourtPlayers = activePlayers.filter((p) => getPlayerCourtNumber(p.id) !== null);
+        if (onCourtPlayers.length === 0) return null;
+
+        return (
+          <div className="space-y-2">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+              On Court ({onCourtPlayers.length})
+            </h3>
+            <div className="space-y-1">
+              {onCourtPlayers.map((player) => {
+                const courtNum = getPlayerCourtNumber(player.id);
+                const pendingOut = player.inactive_effective_after_game;
+
+                return (
+                  <div
+                    key={player.id}
+                    className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50/50 px-3 py-2"
+                  >
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-bold font-mono text-green-700">
+                      {player.code}
+                    </span>
+                    <span className="flex-1 text-sm font-medium text-gray-900">
+                      {player.display_name}
+                      <span className="text-xs text-gray-400 ml-1">C{courtNum}</span>
+                      {pendingOut && (
+                        <span className="ml-1 text-[10px] text-amber-600 font-semibold">
+                          (out next)
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkOut(player.id)}
+                      disabled={isPending}
+                      className="rounded px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors disabled:opacity-40"
+                    >
+                      Sit
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Inactive players ───────────────────────────────── */}
+      {inactivePlayers.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+            Inactive ({inactivePlayers.length})
+          </h3>
+          <div className="space-y-1">
+            {inactivePlayers.map((player) => (
+              <div
+                key={player.id}
+                className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 opacity-50"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold font-mono text-gray-600">
+                  {player.code}
+                </span>
+                <span className="flex-1 text-sm font-medium text-gray-900">
+                  {player.display_name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleMakeActive(player.id)}
+                  disabled={isPending}
+                  className="rounded px-2 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-40"
+                >
+                  Activate
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sticky bottom controls ─────────────────────────── */}
+      <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur-sm border-t border-gray-100 -mx-4 px-4 py-3 sm:static sm:bg-transparent sm:backdrop-blur-none sm:border-t-0 sm:mx-0 sm:px-0 sm:py-0">
+        <div className="space-y-3">
+          {/* Court count control */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-700">Courts</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleCourtCountChange(-1)}
+                disabled={courtCount <= 1 || isPending}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-lg font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                -
+              </button>
+              <span className="w-8 text-center text-lg font-bold text-gray-900">
+                {courtCount}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleCourtCountChange(1)}
+                disabled={courtCount >= 8 || isPending}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-lg font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Action buttons row */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleSuggest()}
+              disabled={isPending || !hasOpenCourts}
+              className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700 active:bg-green-800 transition-colors min-w-[80px] disabled:opacity-40"
+            >
+              {isPending ? "Working..." : "Suggest All"}
+            </button>
+            <VoidLastGameButton
+              sessionId={sessionId}
+              joinCode={joinCode}
+              redirectPath={`/g/${joinCode}/session/${sessionId}/courts`}
+            />
+          </div>
+
+          {/* Global error */}
+          {globalError && (
+            <p className="text-xs text-red-600 font-medium" role="alert">
+              {globalError}
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* ── Swap modal (bottom sheet) ────────────────────── */}
       {swapTarget && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30">
           <div className="w-full max-w-sm bg-white rounded-t-2xl px-4 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-gray-700">
-                Court {swapTarget.courtNumber} — Team {swapTarget.team}, Slot{" "}
+                Court {swapTarget.courtNumber} &middot; Team {swapTarget.team} &middot; Slot{" "}
                 {swapTarget.slot}
               </h3>
               <button
@@ -795,6 +998,44 @@ export default function CourtsManager({
         </div>
       )}
 
+      {/* ── Slot picker bottom sheet (from chip tap) ──────── */}
+      {slotPickerPlayer && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30">
+          <div className="w-full max-w-sm bg-white rounded-t-2xl px-4 py-4 space-y-2 max-h-[40vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gray-700">
+                Assign {playerCode(slotPickerPlayer)} to&hellip;
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSlotPickerPlayer(null)}
+                className="text-xs font-semibold text-gray-400 hover:text-gray-600"
+              >
+                Close
+              </button>
+            </div>
+
+            {allEmptySlots.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">
+                No open slots available.
+              </p>
+            ) : (
+              allEmptySlots.map((s) => (
+                <button
+                  key={`${s.courtNumber}-${s.team}-${s.slot}`}
+                  type="button"
+                  onClick={() => handleSlotPickerAssign(s.courtNumber, s.team, s.slot)}
+                  disabled={isPending}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40"
+                >
+                  Court {s.courtNumber} &middot; Team {s.team} &middot; Slot {s.slot}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Out choice modal ─────────────────────────────── */}
       {outChoicePlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-6">
@@ -830,135 +1071,6 @@ export default function CourtsManager({
           </div>
         </div>
       )}
-
-      {/* ── Manage Players ───────────────────────────────── */}
-      <div className="space-y-4">
-        {/* Active players waiting */}
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Waiting ({waitingPlayers.length})
-          </h3>
-          {waitingPlayers.length === 0 ? (
-            <p className="text-xs text-gray-400">Everyone is on a court or inactive.</p>
-          ) : (
-            <div className="space-y-1">
-              {waitingPlayers.map((player) => {
-                const gp = gamesPlayedMap[player.id] ?? 0;
-                const rating = ratings[player.id];
-
-                return (
-                  <div
-                    key={player.id}
-                    className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2"
-                  >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold font-mono text-gray-600">
-                      {player.code}
-                    </span>
-                    <span className="flex-1 text-sm font-medium text-gray-900">
-                      {player.display_name}
-                    </span>
-                    <span className="text-xs text-gray-400">{gp}g</span>
-                    {rating && (
-                      <span className="text-xs text-gray-400">
-                        {Math.round(rating.rating)}
-                        {rating.provisional && "?"}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleMarkOut(player.id)}
-                      disabled={isPending}
-                      className="rounded px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors disabled:opacity-40"
-                    >
-                      Sit
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* On Court (IN_PROGRESS players) */}
-        {hasInProgressCourts && (() => {
-          const onCourtPlayers = activePlayers.filter((p) => getPlayerCourtNumber(p.id) !== null);
-          if (onCourtPlayers.length === 0) return null;
-
-          return (
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                On Court ({onCourtPlayers.length})
-              </h3>
-              <div className="space-y-1">
-                {onCourtPlayers.map((player) => {
-                  const courtNum = getPlayerCourtNumber(player.id);
-                  const pendingOut = player.inactive_effective_after_game;
-
-                  return (
-                    <div
-                      key={player.id}
-                      className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50/50 px-3 py-2"
-                    >
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-bold font-mono text-green-700">
-                        {player.code}
-                      </span>
-                      <span className="flex-1 text-sm font-medium text-gray-900">
-                        {player.display_name}
-                        <span className="text-xs text-gray-400 ml-1">C{courtNum}</span>
-                        {pendingOut && (
-                          <span className="ml-1 text-[10px] text-amber-600 font-semibold">
-                            (out next)
-                          </span>
-                        )}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleMarkOut(player.id)}
-                        disabled={isPending}
-                        className="rounded px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors disabled:opacity-40"
-                      >
-                        Sit
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Inactive players */}
-        {inactivePlayers.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-              Inactive ({inactivePlayers.length})
-            </h3>
-            <div className="space-y-1">
-              {inactivePlayers.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 opacity-50"
-                >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold font-mono text-gray-600">
-                    {player.code}
-                  </span>
-                  <span className="flex-1 text-sm font-medium text-gray-900">
-                    {player.display_name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleMakeActive(player.id)}
-                    disabled={isPending}
-                    className="rounded px-2 py-0.5 text-[10px] font-semibold bg-green-100 text-green-700 hover:bg-green-200 transition-colors disabled:opacity-40"
-                  >
-                    Activate
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

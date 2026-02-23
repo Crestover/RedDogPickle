@@ -1,7 +1,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
-import type { PairCount, PlayerRating, CourtData, AttendeeWithStatus } from "@/lib/types";
+import type { PairCount, CourtData, AttendeeWithStatus } from "@/lib/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import CourtsManager from "./CourtsManager";
@@ -103,18 +103,6 @@ export default async function CourtsPage({ params }: PageProps) {
     games_together: p.games_together,
   }));
 
-  // Fetch ratings
-  const { data: ratingsData } = await supabase
-    .from("player_ratings")
-    .select("group_id, player_id, rating, games_rated, provisional")
-    .eq("group_id", group.id);
-
-  const ratings = (ratingsData ?? []) as PlayerRating[];
-  const ratingsRecord: Record<string, { rating: number; provisional: boolean }> = {};
-  for (const r of ratings) {
-    ratingsRecord[r.player_id] = { rating: r.rating, provisional: r.provisional };
-  }
-
   // Compute games-played-this-session per player
   const gamesPlayedMap: Record<string, number> = {};
   for (const game of games) {
@@ -162,7 +150,6 @@ export default async function CourtsPage({ params }: PageProps) {
             courts={courts}
             pairCounts={pairCounts}
             gamesPlayedMap={gamesPlayedMap}
-            ratings={ratingsRecord}
             games={games}
           />
         )}

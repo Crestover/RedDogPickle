@@ -1,14 +1,12 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
-import type { PlayerStats, PairCount, Player, PlayerRating } from "@/lib/types";
+import type { PairCount, Player } from "@/lib/types";
 import type { GameRecord } from "@/lib/autoSuggest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
-import PairingBalance from "./PairingBalance";
 import RecordGameForm from "./RecordGameForm";
-import SessionStandings from "./SessionStandings";
 import StaleBanner from "./StaleBanner";
 import VoidLastGameButton from "./VoidLastGameButton";
 
@@ -69,17 +67,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
     .eq("session_id", sessionId)
     .order("sequence_num", { ascending: false });
 
-  // Fetch session standings via RPC
-  const { data: standings, error: standingsError } = await supabase.rpc(
-    RPC.GET_SESSION_STATS,
-    { p_session_id: sessionId }
-  );
-
-  if (standingsError) {
-    console.error("get_session_stats error:", standingsError);
-  }
-
-  // Fetch pairing balance via RPC
+  // Fetch pairing balance via RPC (needed by RecordGameForm)
   const { data: pairCounts, error: pairError } = await supabase.rpc(
     RPC.GET_SESSION_PAIR_COUNTS,
     { p_session_id: sessionId }
@@ -87,16 +75,6 @@ async function getSessionData(joinCode: string, sessionId: string) {
 
   if (pairError) {
     console.error("get_session_pair_counts error:", pairError);
-  }
-
-  // Fetch Elo ratings for this group
-  const { data: ratingsData, error: ratingsError } = await supabase
-    .from("player_ratings")
-    .select("group_id, player_id, rating, games_rated, provisional")
-    .eq("group_id", group.id);
-
-  if (ratingsError) {
-    console.error("player_ratings query error:", ratingsError);
   }
 
   // Transform non-voided games into GameRecord[] for inline pairing feedback
@@ -122,9 +100,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
     attendees: attendees ?? [],
     games: games ?? [],
     gameRecords,
-    standings: (standings ?? []) as PlayerStats[],
     pairCounts: (pairCounts ?? []) as PairCount[],
-    ratings: (ratingsData ?? []) as PlayerRating[],
   };
 }
 
@@ -139,7 +115,7 @@ export default async function SessionPage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const { group, session, attendees, games, gameRecords, standings, pairCounts, ratings } = data;
+  const { group, session, attendees, games, gameRecords, pairCounts } = data;
   const active = isActiveSession(session);
 
   // Stale detection: active but no non-voided game in 24 hours
@@ -152,12 +128,6 @@ export default async function SessionPage({ params }: PageProps) {
     }, 0);
   const staleRef = lastGameAt || new Date(session.started_at).getTime();
   const isStale = active && Date.now() - staleRef > TWENTY_FOUR_HOURS_MS;
-
-  // Build ratings record for SessionStandings (plain object for serialization)
-  const ratingsRecord: Record<string, { rating: number; provisional: boolean }> = {};
-  for (const r of ratings) {
-    ratingsRecord[r.player_id] = { rating: r.rating, provisional: r.provisional };
-  }
 
   // Format started_at for display
   const startedAt = new Date(session.started_at);
@@ -176,6 +146,107 @@ export default async function SessionPage({ params }: PageProps) {
     .filter((p): p is Player => p !== null)
     .sort((a, b) => a.code.localeCompare(b.code));
 
+  // Compute "Last Result" from most recent non-voided game (codes only, single line)
+  const lastGame = games.find((g) => !(g as { voided_at?: string | null }).voided_at);
+  let lastResultLine: string | null = null;
+  if (lastGame) {
+    const gp = Array.isArray(lastGame.game_players) ? lastGame.game_players : [];
+    const aCodes = teamCodes(gp, "A").join("/");
+    const bCodes = teamCodes(gp, "B").join("/");
+    const time = new Date(lastGame.played_at).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    lastResultLine = `Last: ${lastGame.team_a_score}\u2013${lastGame.team_b_score} \u00b7 ${aCodes} vs ${bCodes} \u00b7 ${time}`;
+  }
+
+  // ── ACTIVE session layout ─────────────────────────────────────
+  if (active) {
+    return (
+      <div className="flex flex-col px-4 py-8">
+        <div className="w-full max-w-sm mx-auto space-y-6">
+          {/* Back link */}
+          <Link
+            href={`/g/${group.join_code}`}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            &larr; {group.name}
+          </Link>
+
+          {/* Session header */}
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <h1 className="text-xl font-bold leading-tight font-mono">
+                {session.name}
+              </h1>
+              <EndSessionButton sessionId={session.id} joinCode={group.join_code} />
+            </div>
+            <p className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-gray-400 mt-1">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Live Session &middot; Started {startedLabel}
+            </p>
+          </div>
+
+          {/* Stale session banner — UI only, does not block scoring */}
+          <StaleBanner isStale={isStale} sessionId={session.id} joinCode={group.join_code} />
+
+          {/* Record Game form — no wrapper card */}
+          <RecordGameForm
+            sessionId={session.id}
+            joinCode={group.join_code}
+            attendees={players}
+            pairCounts={pairCounts.map((p) => ({
+              player_a_id: p.player_a_id,
+              player_b_id: p.player_b_id,
+              games_together: p.games_together,
+            }))}
+            games={gameRecords}
+          />
+
+          {/* Last Result line — codes only, mono, single line */}
+          {lastResultLine && (
+            <p className="text-xs text-gray-500 font-mono truncate">
+              {lastResultLine}
+            </p>
+          )}
+
+          {/* Control strip */}
+          <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
+            <VoidLastGameButton
+              sessionId={session.id}
+              joinCode={group.join_code}
+            />
+            <span>&middot;</span>
+            <Link
+              href={`/g/${group.join_code}/session/${session.id}/courts`}
+              className="hover:text-gray-600 transition-colors"
+            >
+              Courts Board
+            </Link>
+            <span>&middot;</span>
+            <Link
+              href={`/g/${group.join_code}/leaderboard`}
+              className="hover:text-gray-600 transition-colors"
+            >
+              Standings
+            </Link>
+          </div>
+
+          {/* Footer */}
+          <div className="pt-2 border-t border-gray-200">
+            <Link
+              href={`/g/${group.join_code}/sessions`}
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              All sessions &rarr;
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ENDED session layout ──────────────────────────────────────
   return (
     <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
@@ -184,75 +255,21 @@ export default async function SessionPage({ params }: PageProps) {
           href={`/g/${group.join_code}`}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
-          ← {group.name}
+          &larr; {group.name}
         </Link>
 
         {/* Session header */}
         <div>
           <div className="flex items-center gap-2 mb-1">
-            {active ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-                <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                Active
-              </span>
-            ) : (
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
-                Ended
-              </span>
-            )}
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600">
+              Ended
+            </span>
             <span className="text-xs text-gray-400">Started {startedLabel}</span>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="text-xl font-bold leading-tight font-mono">
-              {session.name}
-            </h1>
-            {active && (
-              <EndSessionButton sessionId={session.id} joinCode={group.join_code} />
-            )}
-          </div>
+          <h1 className="text-xl font-bold leading-tight font-mono">
+            {session.name}
+          </h1>
         </div>
-
-        {/* Session Standings — collapsible */}
-        <SessionStandings standings={standings} ratings={ratingsRecord} />
-
-        {/* Pairing Balance — fewest games together first */}
-        <PairingBalance pairs={pairCounts} />
-
-        {/* Stale session banner — UI only, does not block scoring */}
-        <StaleBanner isStale={isStale} sessionId={session.id} joinCode={group.join_code} />
-
-        {/* Record Game form — only when session is active */}
-        {active && (
-          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
-            <RecordGameForm
-              sessionId={session.id}
-              joinCode={group.join_code}
-              attendees={players}
-              pairCounts={pairCounts.map((p) => ({
-                player_a_id: p.player_a_id,
-                player_b_id: p.player_b_id,
-                games_together: p.games_together,
-              }))}
-              games={gameRecords}
-            />
-          </div>
-        )}
-
-        {/* Void Last Game + Courts Mode — only when session is active */}
-        {active && (
-          <div className="flex items-center gap-3">
-            <VoidLastGameButton
-              sessionId={session.id}
-              joinCode={group.join_code}
-            />
-            <Link
-              href={`/g/${group.join_code}/session/${session.id}/courts`}
-              className="flex-1 text-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Courts Mode
-            </Link>
-          </div>
-        )}
 
         {/* Games recorded in this session */}
         {games.length > 0 && (() => {
@@ -299,7 +316,7 @@ export default async function SessionPage({ params }: PageProps) {
                     <div className="grid grid-cols-3 items-center text-center">
                       <div>
                         <p className="text-xs text-blue-600 font-semibold mb-0.5">
-                          Team A {!isVoided && winnerTeam === "A" && "🏆"}
+                          Team A {!isVoided && winnerTeam === "A" && "\u{1F3C6}"}
                         </p>
                         <p className="text-xs text-gray-500 font-mono">
                           {teamAPlayers.join(" ")}
@@ -315,7 +332,7 @@ export default async function SessionPage({ params }: PageProps) {
                       <div className="text-gray-300 text-lg font-bold">vs</div>
                       <div>
                         <p className="text-xs text-orange-600 font-semibold mb-0.5">
-                          Team B {!isVoided && winnerTeam === "B" && "🏆"}
+                          Team B {!isVoided && winnerTeam === "B" && "\u{1F3C6}"}
                         </p>
                         <p className="text-xs text-gray-500 font-mono">
                           {teamBPlayers.join(" ")}
@@ -343,7 +360,7 @@ export default async function SessionPage({ params }: PageProps) {
             href={`/g/${group.join_code}/sessions`}
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
-            View all sessions →
+            All sessions &rarr;
           </Link>
         </div>
       </div>

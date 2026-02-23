@@ -4,6 +4,7 @@ import { one } from "@/lib/supabase/helpers";
 import type { PairCount, CourtData, AttendeeWithStatus } from "@/lib/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import ModeToggle from "../ModeToggle";
 import CourtsManager from "./CourtsManager";
 import CourtsSetup from "./CourtsSetup";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
@@ -116,25 +117,29 @@ export default async function CourtsPage({ params }: PageProps) {
       <div className="w-full max-w-sm mx-auto space-y-6">
         {/* Back link */}
         <Link
-          href={`/g/${group.join_code}/session/${session.id}`}
+          href={`/g/${group.join_code}`}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
-          ← Back to Session
+          &larr; {group.name}
         </Link>
 
-        {/* Header */}
+        {/* Session header */}
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-800">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-              Active
-            </span>
-            <span className="text-xs text-gray-400">Courts Mode</span>
-          </div>
           <h1 className="text-xl font-bold leading-tight font-mono">
             {session.name}
           </h1>
+          <p className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-gray-400 mt-1">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Live Session &middot; Courts
+          </p>
         </div>
+
+        {/* Mode toggle: Manual | Courts */}
+        <ModeToggle
+          mode="courts"
+          manualHref={`/g/${group.join_code}/session/${session.id}`}
+          courtsHref={`/g/${group.join_code}/session/${session.id}/courts`}
+        />
 
         {courts.length === 0 ? (
           <CourtsSetup

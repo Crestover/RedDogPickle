@@ -193,7 +193,8 @@ export default async function SessionPage({ params }: PageProps) {
 
           {/* Mode toggle: Manual | Courts */}
           <ModeToggle
-            joinCode={group.join_code}
+            mode="manual"
+            manualHref={`/g/${group.join_code}/session/${session.id}`}
             courtsHref={`/g/${group.join_code}/session/${session.id}/courts`}
           />
 

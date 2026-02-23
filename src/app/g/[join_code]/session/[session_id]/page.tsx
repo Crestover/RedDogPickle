@@ -8,6 +8,7 @@ import EndSessionButton from "./EndSessionButton";
 import PairingBalance from "./PairingBalance";
 import RecordGameForm from "./RecordGameForm";
 import SessionStandings from "./SessionStandings";
+import StaleBanner from "./StaleBanner";
 import VoidLastGameButton from "./VoidLastGameButton";
 
 interface PageProps {
@@ -108,14 +109,9 @@ async function getSessionData(joinCode: string, sessionId: string) {
   };
 }
 
-function isActiveSession(session: {
-  ended_at: string | null;
-  started_at: string;
-}): boolean {
-  if (session.ended_at) return false;
-  const startedAt = new Date(session.started_at).getTime();
-  const fourHoursMs = 4 * 60 * 60 * 1000;
-  return Date.now() - startedAt < fourHoursMs;
+/** Session is ACTIVE when ended_at IS NULL. No time-based expiry. */
+function isActiveSession(session: { ended_at: string | null }): boolean {
+  return !session.ended_at;
 }
 
 export default async function SessionPage({ params }: PageProps) {
@@ -126,6 +122,17 @@ export default async function SessionPage({ params }: PageProps) {
 
   const { group, session, attendees, games, standings, pairCounts, ratings } = data;
   const active = isActiveSession(session);
+
+  // Stale detection: active but no non-voided game in 24 hours
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  const lastGameAt = games
+    .filter((g) => !(g as { voided_at?: string | null }).voided_at)
+    .reduce((max, g) => {
+      const t = g.played_at ? new Date(g.played_at).getTime() : 0;
+      return Number.isNaN(t) ? max : Math.max(max, t);
+    }, 0);
+  const staleRef = lastGameAt || new Date(session.started_at).getTime();
+  const isStale = active && Date.now() - staleRef > TWENTY_FOUR_HOURS_MS;
 
   // Build ratings record for SessionStandings (plain object for serialization)
   const ratingsRecord: Record<string, { rating: number; provisional: boolean }> = {};
@@ -191,6 +198,9 @@ export default async function SessionPage({ params }: PageProps) {
 
         {/* Pairing Balance — fewest games together first */}
         <PairingBalance pairs={pairCounts} />
+
+        {/* Stale session banner — UI only, does not block scoring */}
+        <StaleBanner isStale={isStale} sessionId={session.id} joinCode={group.join_code} />
 
         {/* Record Game form — only when session is active */}
         {active && (

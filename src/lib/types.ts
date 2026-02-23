@@ -60,3 +60,30 @@ export interface Session {
   ended_at: string | null;
   closed_reason: string | null;
 }
+
+/** Court row shape from session_courts table. */
+export interface CourtData {
+  id: string;
+  court_number: number;
+  status: "OPEN" | "IN_PROGRESS";
+  team_a_ids: (string | null)[] | null; // null = uninitialized, array may contain nulls for partial fills
+  team_b_ids: (string | null)[] | null;
+  assigned_at: string | null;
+  last_game_id: string | null;
+}
+
+/** Session attendee with active/inactive status (from session_players). */
+export interface AttendeeWithStatus {
+  id: string;
+  display_name: string;
+  code: string;
+  status: "ACTIVE" | "INACTIVE";
+  inactive_effective_after_game: boolean;
+}
+
+/** Standardized RPC result shape. All courts RPCs return this. */
+export interface RpcResult<T = unknown> {
+  ok: boolean;
+  error?: { code: string; message: string };
+  data?: T;
+}

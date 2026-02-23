@@ -17,4 +17,15 @@ export const RPC = {
   RECONCILE_MISSING_RATINGS: "reconcile_missing_ratings",
   VOID_LAST_GAME: "void_last_game",
   RECOMPUTE_SESSION_RATINGS: "recompute_session_ratings",
+
+  // Courts Mode V2
+  INIT_COURTS: "init_courts",
+  ASSIGN_COURTS: "assign_courts",
+  START_COURT_GAME: "start_court_game",
+  RECORD_COURT_GAME: "record_court_game",
+  UPDATE_COURT_ASSIGNMENT: "update_court_assignment",
+  CLEAR_COURT_SLOT: "clear_court_slot",
+  MARK_PLAYER_OUT: "mark_player_out",
+  MAKE_PLAYER_ACTIVE: "make_player_active",
+  UPDATE_COURT_COUNT: "update_court_count",
 } as const;

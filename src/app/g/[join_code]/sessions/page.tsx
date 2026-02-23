@@ -14,10 +14,9 @@ interface PageProps {
   params: Promise<{ join_code: string }>;
 }
 
+/** Active = ended_at IS NULL. No time-based expiry. */
 function isActive(session: Session): boolean {
-  if (session.ended_at) return false;
-  const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
-  return new Date(session.started_at).getTime() > fourHoursAgo;
+  return !session.ended_at;
 }
 
 function formatDate(dateStr: string): string {

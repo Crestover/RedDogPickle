@@ -222,3 +222,30 @@ export function reselectPlayers(
 ): CourtAssignment[] {
   return autoSuggest(games, activePlayerIds, courtCount, pairCounts);
 }
+
+/**
+ * Suggest assignments for specific courts (Courts Mode V2).
+ *
+ * Semantic wrapper around autoSuggest() that maps court numbers
+ * to court indices in the returned assignments.
+ *
+ * @param games            Non-voided games from this session.
+ * @param activePlayerIds  IDs of ACTIVE players not on IN_PROGRESS courts.
+ * @param courtNumbers     Court numbers to fill (1-indexed).
+ * @param pairCounts       Session pair counts.
+ * @returns Array of assignments with courtNumber (1-indexed) instead of courtIndex.
+ */
+export function suggestForCourts(
+  games: GameRecord[],
+  activePlayerIds: string[],
+  courtNumbers: number[],
+  pairCounts: PairCountEntry[]
+): { courtNumber: number; teamA: string[]; teamB: string[] }[] {
+  const assignments = autoSuggest(games, activePlayerIds, courtNumbers.length, pairCounts);
+
+  return assignments.map((a, i) => ({
+    courtNumber: courtNumbers[i],
+    teamA: a.teamA,
+    teamB: a.teamB,
+  }));
+}

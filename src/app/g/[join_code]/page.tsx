@@ -4,13 +4,11 @@ import Link from "next/link";
 /**
  * Group dashboard — Server Component.
  *
- * Active session definition (SPEC §5.1):
- *   ended_at IS NULL AND started_at > now() - 4 hours
+ * Active session definition:
+ *   ended_at IS NULL (no time-based expiry).
  *
- * The most recent such session is shown with "Continue Session".
+ * The most recently started active session is shown with "Continue Session".
  * When none exists, "Start Session" is the primary action.
- *
- * Resolves D-TODO-M2 from docs/decisions.md (now D-017).
  */
 
 interface PageProps {
@@ -37,15 +35,12 @@ async function getGroupAndActiveSession(joinCode: string): Promise<{
 
   if (!group) return { group: null, activeSession: null };
 
-  // Active session: ended_at IS NULL AND started_at within last 4 hours
-  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
-
+  // Active session: ended_at IS NULL (no time-based expiry)
   const { data: session } = await supabase
     .from("sessions")
     .select("id, name, started_at")
     .eq("group_id", group.id)
     .is("ended_at", null)
-    .gte("started_at", fourHoursAgo)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();

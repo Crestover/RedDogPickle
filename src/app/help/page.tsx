@@ -48,7 +48,7 @@ export default function HelpPage() {
             <li>Automatically generates standings</li>
           </ul>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Sessions auto-close after 4 hours, or you can end one manually.
+            Sessions stay active until you end them manually.
           </p>
         </section>
 

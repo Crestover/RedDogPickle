@@ -1,10 +1,11 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
-import type { PairCount, Player, PlayerRating } from "@/lib/types";
+import type { PairCount, PlayerRating, CourtData, AttendeeWithStatus } from "@/lib/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import CourtsManager from "./CourtsManager";
+import CourtsSetup from "./CourtsSetup";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 
 interface PageProps {
@@ -34,22 +35,40 @@ export default async function CourtsPage({ params }: PageProps) {
 
   if (!session) notFound();
 
-  // Check if session is active
-  const isActive = !session.ended_at && (Date.now() - new Date(session.started_at).getTime()) < 4 * 60 * 60 * 1000;
+  // Check if session is active (ended_at only — no time-based expiry)
+  const isActive = !session.ended_at;
   if (!isActive) notFound();
 
-  // Fetch attendees
+  // Fetch session_courts (ordered by court_number)
+  const { data: courtsRaw } = await supabase
+    .from("session_courts")
+    .select("id, court_number, status, team_a_ids, team_b_ids, assigned_at, last_game_id")
+    .eq("session_id", session_id)
+    .order("court_number", { ascending: true });
+
+  const courts: CourtData[] = (courtsRaw ?? []) as CourtData[];
+
+  // Fetch attendees (with player details + status columns)
   const { data: attendeesRaw } = await supabase
     .from("session_players")
-    .select("player_id, players(id, display_name, code)")
+    .select("player_id, status, inactive_effective_after_game, players(id, display_name, code)")
     .eq("session_id", session_id);
 
-  const attendees: Player[] = (attendeesRaw ?? [])
+  const attendees: AttendeeWithStatus[] = (attendeesRaw ?? [])
     .map((row) => {
-      const player = one(row.players) as Player | null;
-      return player;
+      const player = one(
+        (row as { players?: { id: string; display_name: string; code: string } | { id: string; display_name: string; code: string }[] | null }).players
+      ) as { id: string; display_name: string; code: string } | null;
+      if (!player) return null;
+      return {
+        id: player.id,
+        display_name: player.display_name,
+        code: player.code,
+        status: (row as { status: string }).status as "ACTIVE" | "INACTIVE",
+        inactive_effective_after_game: (row as { inactive_effective_after_game: boolean }).inactive_effective_after_game,
+      };
     })
-    .filter((p): p is Player => p !== null)
+    .filter((p): p is AttendeeWithStatus => p !== null)
     .sort((a, b) => a.code.localeCompare(b.code));
 
   // Fetch games (non-voided only, for auto-suggest)
@@ -129,15 +148,23 @@ export default async function CourtsPage({ params }: PageProps) {
           </h1>
         </div>
 
-        <CourtsManager
-          sessionId={session.id}
-          joinCode={group.join_code}
-          attendees={attendees}
-          games={games}
-          pairCounts={pairCounts}
-          gamesPlayedMap={gamesPlayedMap}
-          ratings={ratingsRecord}
-        />
+        {courts.length === 0 ? (
+          <CourtsSetup
+            sessionId={session.id}
+            joinCode={group.join_code}
+            attendeeCount={attendees.length}
+          />
+        ) : (
+          <CourtsManager
+            sessionId={session.id}
+            joinCode={group.join_code}
+            attendees={attendees}
+            courts={courts}
+            pairCounts={pairCounts}
+            gamesPlayedMap={gamesPlayedMap}
+            ratings={ratingsRecord}
+          />
+        )}
       </div>
     </div>
   );

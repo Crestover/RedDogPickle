@@ -70,3 +70,46 @@ export async function endSessionAction(
 
   redirect(`/g/${joinCode}`);
 }
+
+// ─────────────────────────────────────────────────────────────
+// endAndCreateSessionAction
+//
+// Ends an existing session then creates a new one in a single
+// server action (avoids redirect interrupting the flow).
+// On success: redirects to new session page
+// On error:   returns { error: string }
+// ─────────────────────────────────────────────────────────────
+export async function endAndCreateSessionAction(
+  endSessionId: string,
+  joinCode: string,
+  playerIds: string[]
+): Promise<{ error: string } | never> {
+  if (playerIds.length < 4) {
+    return { error: "Please select at least 4 players." };
+  }
+
+  const supabase = getServerClient();
+
+  // 1. End the old session
+  const { error: endError } = await supabase.rpc(RPC.END_SESSION, {
+    p_session_id: endSessionId,
+  });
+
+  if (endError) {
+    console.error("[endAndCreateSessionAction] end RPC error:", endError.message);
+    return { error: endError.message ?? "Failed to end session." };
+  }
+
+  // 2. Create the new session
+  const { data: sessionId, error: createError } = await supabase.rpc(RPC.CREATE_SESSION, {
+    group_join_code: joinCode.trim().toLowerCase(),
+    player_ids: playerIds,
+  });
+
+  if (createError) {
+    console.error("[endAndCreateSessionAction] create RPC error:", createError.message);
+    return { error: createError.message ?? "Failed to start session." };
+  }
+
+  redirect(`/g/${joinCode}/session/${sessionId as string}`);
+}

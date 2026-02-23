@@ -25,7 +25,19 @@ async function getGroupWithPlayers(joinCode: string) {
     .eq("is_active", true)
     .order("display_name");
 
-  return { group, players: players ?? [] };
+  // Fetch active sessions for confirmation modal
+  const { data: activeSessions } = await supabase
+    .from("sessions")
+    .select("id, name, started_at")
+    .eq("group_id", group.id)
+    .is("ended_at", null)
+    .order("started_at", { ascending: false });
+
+  return {
+    group,
+    players: players ?? [],
+    activeSessions: (activeSessions ?? []) as { id: string; name: string; started_at: string }[],
+  };
 }
 
 export default async function StartSessionPage({ params }: PageProps) {
@@ -34,7 +46,7 @@ export default async function StartSessionPage({ params }: PageProps) {
 
   if (!result) notFound();
 
-  const { group, players } = result;
+  const { group, players, activeSessions } = result;
 
   return (
     <div className="flex flex-col px-4 py-8">
@@ -69,7 +81,11 @@ export default async function StartSessionPage({ params }: PageProps) {
             </p>
           </div>
         ) : (
-          <StartSessionForm joinCode={group.join_code} players={players} />
+          <StartSessionForm
+            joinCode={group.join_code}
+            players={players}
+            activeSessions={activeSessions}
+          />
         )}
       </div>
     </div>

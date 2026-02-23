@@ -11,7 +11,7 @@
 - New "All Games" page for browsing the full game log of any session.
 - Pairing dot indicators show how often partners and opponents have been matched this session.
 - Courts Mode waiting pool now uses horizontal scroll chips. Tap a chip to assign a player to an open court slot.
-- Courts Mode controls (court count, Suggest All, Void) now stick to the bottom of the screen on mobile.
+- Courts Mode controls (court count, Suggest All, Void) are pinned above the court cards for quick access.
 - Fairness summary line in Courts Mode shows which players have the fewest and most games.
 
 ### Improved

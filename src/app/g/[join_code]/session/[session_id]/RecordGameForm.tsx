@@ -7,9 +7,10 @@
  * All elements visible simultaneously: team panels, player picker,
  * score inputs, and record button.
  *
- * Active Team Targeting:
- *   Tap a team panel to "activate" it, then tap any player to add.
- *   Auto-switches to other team when active team is full.
+ * Explicit A/B selection:
+ *   Each player row has A and B buttons for direct team assignment.
+ *   One tap to assign, same tap to toggle off.
+ *   Buttons disable when the target team is full.
  *
  * Duplicate handling (M4.1):
  *   If the RPC finds a matching game recorded within the last 15 minutes
@@ -50,7 +51,6 @@ function relativeTime(isoString: string): string {
 
 export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts, games }: Props) {
   // ── State ──────────────────────────────────────────────────────────────────
-  const [activeTeam, setActiveTeam] = useState<"A" | "B">("A");
   const [teamA, setTeamA] = useState<string[]>([]);
   const [teamB, setTeamB] = useState<string[]>([]);
   const [scoreA, setScoreA] = useState("");
@@ -73,28 +73,30 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     return null;
   }
 
-  /** Active team targeting: tap player to add/remove. Auto-switches when full. */
-  function handlePlayerTap(playerId: string) {
+  /** Explicit per-row A/B toggle. Tap A or B to assign; tap again to remove. */
+  function handleAssign(playerId: string, target: "A" | "B") {
     setError("");
     disarmShutout();
     const currentTeam = getTeam(playerId);
 
-    if (currentTeam !== null) {
-      // Toggle off — remove from current team
-      if (currentTeam === "A") setTeamA((p) => p.filter((id) => id !== playerId));
+    if (currentTeam === target) {
+      // Toggle off — remove from this team
+      if (target === "A") setTeamA((p) => p.filter((id) => id !== playerId));
       else setTeamB((p) => p.filter((id) => id !== playerId));
       return;
     }
 
-    // Add to active team (if room)
-    if (activeTeam === "A" && teamA.length < 2) {
-      const next = [...teamA, playerId];
-      setTeamA(next);
-      if (next.length === 2 && teamB.length < 2) setActiveTeam("B");
-    } else if (activeTeam === "B" && teamB.length < 2) {
-      const next = [...teamB, playerId];
-      setTeamB(next);
-      if (next.length === 2 && teamA.length < 2) setActiveTeam("A");
+    // If on the other team, remove first
+    if (currentTeam !== null) {
+      if (currentTeam === "A") setTeamA((p) => p.filter((id) => id !== playerId));
+      else setTeamB((p) => p.filter((id) => id !== playerId));
+    }
+
+    // Add to target team (if room)
+    if (target === "A" && teamA.length < 2) {
+      setTeamA((p) => [...p, playerId]);
+    } else if (target === "B" && teamB.length < 2) {
+      setTeamB((p) => [...p, playerId]);
     }
   }
 
@@ -147,7 +149,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
 
   // ── Reset ──────────────────────────────────────────────────────────────────
   function handleReset() {
-    setActiveTeam("A"); setTeamA([]); setTeamB([]);
+    setTeamA([]); setTeamB([]);
     setScoreA(""); setScoreB(""); setError(""); setPossibleDup(null);
     disarmShutout();
   }
@@ -206,32 +208,23 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
       : null;
   const teamsComplete = teamA.length === 2 && teamB.length === 2;
   const allReady = teamsComplete && !isNaN(scoreANum) && !isNaN(scoreBNum);
+  const teamAFull = teamA.length >= 2;
+  const teamBFull = teamB.length >= 2;
 
   // ══════════════════════════════════════════════════════════════════════════
   // SINGLE-VIEW RENDER
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className={`space-y-3${teamsComplete ? " pb-20" : ""}`}>
-      {/* ── Team Panels (tappable to set active team) ──────────── */}
+      {/* ── Team Panels (read-only summary) ──────────────────── */}
       <div className="flex gap-2">
         {/* Team A panel */}
-        <button
-          type="button"
-          onClick={() => setActiveTeam("A")}
-          className={`flex-1 rounded-lg px-3 py-2 text-left transition-colors ${
-            activeTeam === "A"
-              ? "bg-gray-50 border-2 border-gray-400"
-              : "bg-white border border-gray-200"
-          }`}
-        >
-          <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 mb-0.5">
-            {activeTeam === "A" && (
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
-            )}
+        <div className="flex-1 rounded-lg px-3 py-2 bg-white border border-gray-200">
+          <p className="text-xs font-semibold text-blue-600 mb-0.5">
             Team A ({teamA.length}/2)
           </p>
           {teamA.length === 0
-            ? <p className="text-[10px] text-gray-400">Tap to select</p>
+            ? <p className="text-[10px] text-gray-400">Select below</p>
             : <p className="text-xs font-mono text-gray-700">{teamA.map(playerCode).join(" · ")}</p>
           }
           {teamA.length === 2 && (() => {
@@ -239,30 +232,19 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
             return (
               <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
                 <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
-                Together this session: {count} game{count !== 1 ? "s" : ""}
+                Together: {count}
               </p>
             );
           })()}
-        </button>
+        </div>
 
         {/* Team B panel */}
-        <button
-          type="button"
-          onClick={() => setActiveTeam("B")}
-          className={`flex-1 rounded-lg px-3 py-2 text-left transition-colors ${
-            activeTeam === "B"
-              ? "bg-gray-50 border-2 border-gray-400"
-              : "bg-white border border-gray-200"
-          }`}
-        >
-          <p className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 mb-0.5">
-            {activeTeam === "B" && (
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500" />
-            )}
+        <div className="flex-1 rounded-lg px-3 py-2 bg-white border border-gray-200">
+          <p className="text-xs font-semibold text-orange-600 mb-0.5">
             Team B ({teamB.length}/2)
           </p>
           {teamB.length === 0
-            ? <p className="text-[10px] text-gray-400">Tap to select</p>
+            ? <p className="text-[10px] text-gray-400">Select below</p>
             : <p className="text-xs font-mono text-gray-700">{teamB.map(playerCode).join(" · ")}</p>
           }
           {teamB.length === 2 && (() => {
@@ -270,11 +252,11 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
             return (
               <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
                 <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
-                Together this session: {count} game{count !== 1 ? "s" : ""}
+                Together: {count}
               </p>
             );
           })()}
-        </button>
+        </div>
       </div>
 
       {/* ── Opponent matchup feedback ──────────────────────────── */}
@@ -288,39 +270,61 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         );
       })()}
 
-      {/* ── Player Picker (scrollable) ─────────────────────────── */}
+      {/* ── Player Picker (scrollable, with per-row A/B buttons) ── */}
       <div className="overflow-y-auto rounded-lg" style={{ maxHeight: "45vh" }}>
         <div className="flex flex-col gap-1">
           {attendees.map((player) => {
             const team = getTeam(player.id);
-            const isAssigned = team !== null;
+            const onA = team === "A";
+            const onB = team === "B";
             return (
-              <button
+              <div
                 key={player.id}
-                type="button"
-                onClick={() => handlePlayerTap(player.id)}
-                className={`flex items-center gap-3 rounded-lg px-3 min-h-[44px] text-left transition-colors ${
-                  isAssigned
-                    ? "bg-gray-50 text-gray-400"
-                    : "bg-white border border-gray-200 text-gray-900 active:bg-gray-100"
+                className={`flex items-center gap-2 rounded-lg px-3 min-h-[44px] transition-colors ${
+                  team !== null
+                    ? "bg-gray-50"
+                    : "bg-white border border-gray-200"
                 }`}
               >
                 <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold font-mono ${
-                  team === "A" ? "bg-blue-100 text-blue-700"
-                  : team === "B" ? "bg-orange-100 text-orange-700"
+                  onA ? "bg-blue-100 text-blue-700"
+                  : onB ? "bg-orange-100 text-orange-700"
                   : "bg-gray-100 text-gray-600"
                 }`}>
                   {player.code}
                 </span>
-                <span className={`flex-1 text-sm font-medium ${isAssigned ? "text-gray-400" : "text-gray-900"}`}>
+                <span className={`flex-1 text-sm font-medium truncate ${team !== null ? "text-gray-400" : "text-gray-900"}`}>
                   {player.display_name}
                 </span>
-                {isAssigned && (
-                  <span className="text-[10px] font-semibold text-gray-400">
-                    {team}
-                  </span>
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => handleAssign(player.id, "A")}
+                  disabled={!onA && teamAFull}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-bold transition-colors ${
+                    onA
+                      ? "bg-blue-600 text-white"
+                      : !onA && teamAFull
+                        ? "bg-gray-100 text-gray-300 cursor-not-allowed"
+                        : "bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-200"
+                  }`}
+                >
+                  A
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAssign(player.id, "B")}
+                  disabled={!onB && teamBFull}
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-bold transition-colors ${
+                    onB
+                      ? "bg-orange-600 text-white"
+                      : !onB && teamBFull
+                        ? "bg-gray-100 text-gray-300 cursor-not-allowed"
+                        : "bg-orange-50 text-orange-600 hover:bg-orange-100 active:bg-orange-200"
+                  }`}
+                >
+                  B
+                </button>
+              </div>
             );
           })}
         </div>
@@ -357,7 +361,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
       {/* Winner indicator */}
       {winnerTeam && (
         <p className="text-center text-xs font-semibold text-green-700">
-          Team {winnerTeam} wins {winnerTeam === "A" ? scoreA : scoreB}–{winnerTeam === "A" ? scoreB : scoreA}
+          Team {winnerTeam} wins {winnerTeam === "A" ? scoreA : scoreB}&ndash;{winnerTeam === "A" ? scoreB : scoreA}
         </p>
       )}
 
@@ -396,7 +400,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
               disabled={isPending}
               className="flex-1 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 active:bg-amber-800 transition-colors disabled:opacity-50"
             >
-              {isPending ? "Saving…" : "Record anyway"}
+              {isPending ? "Saving\u2026" : "Record anyway"}
             </button>
           </div>
         </div>
@@ -422,7 +426,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
                 : "bg-gray-200 text-gray-500"
             }`}
           >
-            {isPending ? "Saving…" : shutoutArmed ? "Confirm Shutout" : "Record Game"}
+            {isPending ? "Saving\u2026" : shutoutArmed ? "Confirm Shutout" : "Record Game"}
           </button>
         </div>
       )}

@@ -20,6 +20,14 @@ import { getServerClient } from "@/lib/supabase/server";
 
 const CODE_REGEX = /^[A-Z0-9]+$/;
 
+/** Prevent open redirect — only allow relative paths starting with / */
+function safeRedirect(target: string, fallback: string): string {
+  if (typeof target === "string" && target.startsWith("/") && !target.startsWith("//")) {
+    return target;
+  }
+  return fallback;
+}
+
 export type AddPlayerResult =
   | { error: string; field?: "display_name" | "code" }
   | never;
@@ -73,6 +81,6 @@ export async function addPlayerAction(
     return { error: error.message ?? "Failed to add player." };
   }
 
-  // ── Redirect back ────────────────────────────────────────────────────
-  redirect(redirectTo);
+  // ── Redirect back (sanitised to prevent open redirects) ──────────────
+  redirect(safeRedirect(redirectTo, `/g/${joinCode}`));
 }

@@ -105,3 +105,53 @@ export async function recordGameAction(
   // re-fetches the updated game list
   redirect(`/g/${joinCode}/session/${sessionId}`);
 }
+
+// ─────────────────────────────────────────────────────────────
+// voidLastGameAction
+//
+// Called from the VoidLastGameButton.
+// Delegates to void_last_game RPC (SECURITY DEFINER), then
+// recomputes session-scoped Elo ratings (non-fatal if that fails).
+// On success: redirects to the session page (or courts page).
+// On error:   returns { error: string }
+// ─────────────────────────────────────────────────────────────
+
+export async function voidLastGameAction(
+  sessionId: string,
+  joinCode: string,
+  redirectPath?: string
+): Promise<{ error: string } | never> {
+  const supabase = getServerClient();
+
+  const { data, error } = await supabase.rpc(RPC.VOID_LAST_GAME, {
+    p_session_id: sessionId,
+    p_reason: "voided by user",
+  });
+
+  if (error) {
+    console.error("[voidLastGameAction] RPC error:", error.message);
+    return { error: error.message ?? "Failed to void game." };
+  }
+
+  const result = data as { status: string; game_id?: string; sequence_num?: number };
+
+  if (result.status === "no_game_found") {
+    return { error: "No games to void in this session." };
+  }
+
+  // Recompute session-scoped Elo ratings (awaited but non-fatal).
+  try {
+    const { error: recomputeErr } = await supabase.rpc(
+      RPC.RECOMPUTE_SESSION_RATINGS,
+      { p_session_id: sessionId }
+    );
+    if (recomputeErr) {
+      console.error("[voidLastGameAction] Elo recompute failed (non-fatal):", recomputeErr.message);
+    }
+  } catch (err) {
+    console.error("[voidLastGameAction] Elo recompute exception (non-fatal):", err);
+  }
+
+  const target = redirectPath ?? `/g/${joinCode}/session/${sessionId}`;
+  redirect(target);
+}

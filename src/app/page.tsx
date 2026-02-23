@@ -72,14 +72,13 @@ export default function HomePage() {
           </button>
         </form>
 
-        {/* Version footer */}
-        <p className="text-center text-xs text-gray-400">
-          v{process.env.NEXT_PUBLIC_APP_VERSION}
-          <span className="mx-1">·</span>
-          <Link href="/changelog" className="underline hover:text-gray-600 transition-colors">
-            Changes
-          </Link>
-        </p>
+        {/* Help link */}
+        <Link
+          href="/help"
+          className="block text-center text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          Learn more →
+        </Link>
       </div>
     </main>
   );

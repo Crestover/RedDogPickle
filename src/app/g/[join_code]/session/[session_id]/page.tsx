@@ -8,6 +8,7 @@ import EndSessionButton from "./EndSessionButton";
 import PairingBalance from "./PairingBalance";
 import RecordGameForm from "./RecordGameForm";
 import SessionStandings from "./SessionStandings";
+import VoidLastGameButton from "./VoidLastGameButton";
 
 interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
@@ -61,7 +62,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
   const { data: games } = await supabase
     .from("games")
     .select(
-      "id, sequence_num, team_a_score, team_b_score, played_at, game_players(player_id, team, players(id, display_name, code))"
+      "id, sequence_num, team_a_score, team_b_score, played_at, voided_at, game_players(player_id, team, players(id, display_name, code))"
     )
     .eq("session_id", sessionId)
     .order("sequence_num", { ascending: false });
@@ -202,14 +203,33 @@ export default async function SessionPage({ params }: PageProps) {
           </div>
         )}
 
+        {/* Void Last Game + Courts Mode — only when session is active */}
+        {active && (
+          <div className="flex items-center gap-3">
+            <VoidLastGameButton
+              sessionId={session.id}
+              joinCode={group.join_code}
+            />
+            <Link
+              href={`/g/${group.join_code}/session/${session.id}/courts`}
+              className="flex-1 text-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Courts Mode
+            </Link>
+          </div>
+        )}
+
         {/* Games recorded in this session */}
-        {games.length > 0 && (
+        {games.length > 0 && (() => {
+          const activeGames = games.filter((g) => !(g as { voided_at?: string | null }).voided_at);
+          return (
           <div>
             <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
-              Games ({games.length})
+              Games ({activeGames.length}{activeGames.length !== games.length ? ` / ${games.length} total` : ""})
             </h2>
             <div className="space-y-2">
               {games.map((game) => {
+                const isVoided = !!(game as { voided_at?: string | null }).voided_at;
                 const gamePlayers = Array.isArray(game.game_players)
                   ? game.game_players
                   : [];
@@ -223,11 +243,16 @@ export default async function SessionPage({ params }: PageProps) {
                 return (
                   <div
                     key={game.id}
-                    className="rounded-xl bg-white border border-gray-200 px-4 py-3"
+                    className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-40" : ""}`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold text-gray-400">
                         Game #{game.sequence_num}
+                        {isVoided && (
+                          <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase">
+                            Voided
+                          </span>
+                        )}
                       </span>
                       <span className="text-xs text-gray-400">
                         {new Date(game.played_at).toLocaleTimeString([], {
@@ -239,14 +264,14 @@ export default async function SessionPage({ params }: PageProps) {
                     <div className="grid grid-cols-3 items-center text-center">
                       <div>
                         <p className="text-xs text-blue-600 font-semibold mb-0.5">
-                          Team A {winnerTeam === "A" && "🏆"}
+                          Team A {!isVoided && winnerTeam === "A" && "🏆"}
                         </p>
                         <p className="text-xs text-gray-500 font-mono">
                           {teamAPlayers.join(" ")}
                         </p>
                         <p
                           className={`text-2xl font-bold ${
-                            winnerTeam === "A" ? "text-green-700" : "text-gray-500"
+                            !isVoided && winnerTeam === "A" ? "text-green-700" : "text-gray-500"
                           }`}
                         >
                           {game.team_a_score}
@@ -255,14 +280,14 @@ export default async function SessionPage({ params }: PageProps) {
                       <div className="text-gray-300 text-lg font-bold">vs</div>
                       <div>
                         <p className="text-xs text-orange-600 font-semibold mb-0.5">
-                          Team B {winnerTeam === "B" && "🏆"}
+                          Team B {!isVoided && winnerTeam === "B" && "🏆"}
                         </p>
                         <p className="text-xs text-gray-500 font-mono">
                           {teamBPlayers.join(" ")}
                         </p>
                         <p
                           className={`text-2xl font-bold ${
-                            winnerTeam === "B" ? "text-green-700" : "text-gray-500"
+                            !isVoided && winnerTeam === "B" ? "text-green-700" : "text-gray-500"
                           }`}
                         >
                           {game.team_b_score}
@@ -274,7 +299,8 @@ export default async function SessionPage({ params }: PageProps) {
               })}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Session history link */}
         <div className="pt-2 border-t border-gray-200">

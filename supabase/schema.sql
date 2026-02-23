@@ -78,7 +78,7 @@ CREATE OR REPLACE FUNCTION public.record_game(
   p_session_id uuid, p_team_a_ids uuid[], p_team_b_ids uuid[],
   p_team_a_score integer, p_team_b_score integer, p_force boolean DEFAULT false
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $BODY$
 DECLARE
   v_game_id uuid;

@@ -146,18 +146,21 @@ export default async function SessionPage({ params }: PageProps) {
     .filter((p): p is Player => p !== null)
     .sort((a, b) => a.code.localeCompare(b.code));
 
-  // Compute "Last Result" from most recent non-voided game (codes only, single line)
+  // Compute "Last Result" parts from most recent non-voided game
   const lastGame = games.find((g) => !(g as { voided_at?: string | null }).voided_at);
-  let lastResultLine: string | null = null;
+  let lastScore: string | null = null;
+  let lastTeams: string | null = null;
+  let lastTime: string | null = null;
   if (lastGame) {
     const gp = Array.isArray(lastGame.game_players) ? lastGame.game_players : [];
     const aCodes = teamCodes(gp, "A").join("/");
     const bCodes = teamCodes(gp, "B").join("/");
-    const time = new Date(lastGame.played_at).toLocaleTimeString([], {
+    lastScore = `${lastGame.team_a_score}\u2013${lastGame.team_b_score}`;
+    lastTeams = `${aCodes} vs ${bCodes}`;
+    lastTime = new Date(lastGame.played_at).toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
-    lastResultLine = `Last: ${lastGame.team_a_score}\u2013${lastGame.team_b_score} \u00b7 ${aCodes} vs ${bCodes} \u00b7 ${time}`;
   }
 
   // ── ACTIVE session layout ─────────────────────────────────────
@@ -203,42 +206,46 @@ export default async function SessionPage({ params }: PageProps) {
             games={gameRecords}
           />
 
-          {/* Last Result line — codes only, mono, single line */}
-          {lastResultLine && (
-            <p className="text-xs text-gray-500 font-mono truncate">
-              {lastResultLine}
-            </p>
-          )}
-
-          {/* Control strip */}
-          <div className="flex items-center justify-center gap-3 text-xs text-gray-400">
+          {/* Secondary action buttons row — outline only */}
+          <div className="flex gap-3">
             <VoidLastGameButton
               sessionId={session.id}
               joinCode={group.join_code}
             />
-            <span>&middot;</span>
             <Link
               href={`/g/${group.join_code}/session/${session.id}/courts`}
-              className="hover:text-gray-600 transition-colors"
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
             >
-              Courts Board
-            </Link>
-            <span>&middot;</span>
-            <Link
-              href={`/g/${group.join_code}/leaderboard`}
-              className="hover:text-gray-600 transition-colors"
-            >
-              Standings
+              Courts Mode
             </Link>
           </div>
 
-          {/* Footer */}
-          <div className="pt-2 border-t border-gray-200">
+          {/* Last game status row — live ticker feel */}
+          {lastScore && lastTeams && lastTime && (
+            <div className="flex items-center gap-2 text-xs truncate">
+              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+              <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500 shrink-0">
+                Last
+              </span>
+              <span className="font-semibold text-gray-700 font-mono shrink-0">{lastScore}</span>
+              <span className="text-gray-400 font-mono truncate">{lastTeams}</span>
+              <span className="text-gray-300 shrink-0">{lastTime}</span>
+            </div>
+          )}
+
+          {/* Bottom nav row */}
+          <div className="flex items-center justify-between pt-4">
             <Link
-              href={`/g/${group.join_code}/sessions`}
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              href={`/g/${group.join_code}/session/${session.id}/games`}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
-              All sessions &rarr;
+              All games &rarr;
+            </Link>
+            <Link
+              href={`/g/${group.join_code}/leaderboard`}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Standings &rarr;
             </Link>
           </div>
         </div>
@@ -354,13 +361,19 @@ export default async function SessionPage({ params }: PageProps) {
           );
         })()}
 
-        {/* Session history link */}
-        <div className="pt-2 border-t border-gray-200">
+        {/* Bottom nav row */}
+        <div className="flex items-center justify-between pt-4">
           <Link
-            href={`/g/${group.join_code}/sessions`}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            href={`/g/${group.join_code}/session/${session.id}/games`}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
-            All sessions &rarr;
+            All games &rarr;
+          </Link>
+          <Link
+            href={`/g/${group.join_code}/leaderboard`}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Standings &rarr;
           </Link>
         </div>
       </div>

@@ -6,6 +6,7 @@ import type { GameRecord } from "@/lib/autoSuggest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
+import ModeToggle from "./ModeToggle";
 import RecordGameForm from "./RecordGameForm";
 import StaleBanner from "./StaleBanner";
 import VoidLastGameButton from "./VoidLastGameButton";
@@ -190,6 +191,12 @@ export default async function SessionPage({ params }: PageProps) {
             </p>
           </div>
 
+          {/* Mode toggle: Manual | Courts */}
+          <ModeToggle
+            joinCode={group.join_code}
+            courtsHref={`/g/${group.join_code}/session/${session.id}/courts`}
+          />
+
           {/* Stale session banner — UI only, does not block scoring */}
           <StaleBanner isStale={isStale} sessionId={session.id} joinCode={group.join_code} />
 
@@ -206,19 +213,11 @@ export default async function SessionPage({ params }: PageProps) {
             games={gameRecords}
           />
 
-          {/* Secondary action buttons row — outline only */}
-          <div className="flex gap-3">
-            <VoidLastGameButton
-              sessionId={session.id}
-              joinCode={group.join_code}
-            />
-            <Link
-              href={`/g/${group.join_code}/session/${session.id}/courts`}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
-            >
-              Courts Mode
-            </Link>
-          </div>
+          {/* Void last game — secondary utility */}
+          <VoidLastGameButton
+            sessionId={session.id}
+            joinCode={group.join_code}
+          />
 
           {/* Last game status row — live ticker feel */}
           {lastScore && lastTeams && lastTime && (

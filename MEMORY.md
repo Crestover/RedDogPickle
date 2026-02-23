@@ -1,6 +1,6 @@
 # MEMORY.md — RedDog Pickle
 
-> Last updated: 2026-02-22 (post-M7, all patches on `dev` branch)
+> Last updated: 2026-02-23 — v0.3.1 (main + dev synced at `a0d0c37`)
 
 ---
 
@@ -13,8 +13,9 @@ RedDog Pickle is a **mobile-first pickleball stats tracker** for live courtside 
 - Immutable game history (soft-delete only via voided_at)
 - Cross-device duplicate prevention (SHA-256 fingerprint, 15-min window)
 - Session + group leaderboards with Elo ratings
-- Courts Mode for multi-court auto-assignment
-- Inline pairing feedback shows partner history during team selection
+- Courts Mode for multi-court auto-assignment with fairness algorithm
+- Live Referee Console — zero-scroll scoring with explicit A/B team buttons
+- Inline pairing feedback shows partner/matchup history during team selection
 
 ### Core Tech Stack
 | Layer       | Technology                         |
@@ -28,53 +29,49 @@ RedDog Pickle is a **mobile-first pickleball stats tracker** for live courtside 
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**M7 complete + patches on `dev` branch.** Production (`main`) is still on M6.
+**v0.3.1 deployed. `main` and `dev` are in sync at `a0d0c37`.**
 
-Remaining before merge to main:
-- Manual QA of Void Last Game, Courts Mode, Help page, pairing feedback on dev
-- Verify Elo recompute correctness after void
-- Run M7 SQL migrations on production Supabase (m7.0 → m7.3)
-- Merge `dev` → `main`
+The Live Referee Console, Courts Mode V2, and all UI polish are live. No pending SQL migrations. No pending merges.
 
 ---
 
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `dev` (ahead of `main` by M7+ commits)
-- **Latest commit:** `4749ea6` — feat: changelog route fix, version bump 0.3.0, inline pairing feedback
+- **Branch:** `main` and `dev` synced at `a0d0c37`
+- **Version:** `0.3.1` (package.json, footer, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
-- **Vercel preview:** deploys from `dev` at `red-dog-pickle-git-dev-mamdanis-projects.vercel.app`
+- **Vercel preview:** deploys from `dev`
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | M6 (stable) |
-| Dev/Preview | `dev`         | Dev               | M7 + patches (testing) |
+| Production  | `main`        | Production        | v0.3.1 (live) |
+| Dev/Preview | `dev`         | Dev               | v0.3.1 (synced) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.3.0, deps: next 15.1.11, react 19, @supabase/supabase-js, marked. Scripts: dev/build/start/lint/type-check |
-| `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version |
+| `package.json` | v0.3.1, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3. Scripts: dev/build/start/lint/type-check |
+| `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Standard Next.js config |
 | `postcss.config.mjs` | Tailwind + Autoprefixer |
-| `.env.example` | Template for env vars |
+| `.env.example` | Template: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY |
 | `.env.local` | Actual env vars (git-ignored) |
 
 #### Documentation
 | File | Role |
 |------|------|
 | `SPEC.md` | Functional specification v1.3 |
-| `BUILD_PLAN.md` | 7-milestone roadmap |
+| `BUILD_PLAN.md` | 7-milestone roadmap (complete) |
 | `README.md` | Project overview, quick links, getting started |
 | `CHANGELOG_PUBLIC.md` | User-facing changelog (rendered at /changelog_public) |
-| `MEMORY.md` | This file |
-| `docs/decisions.md` | Architecture decisions |
+| `MEMORY.md` | This file — session migration document |
+| `docs/decisions.md` | Architecture decisions (D-001 through D-058) |
 | `docs/how-to-run.md` | Local dev setup |
 | `docs/how-to-deploy.md` | Vercel deployment |
 | `docs/how-to-update-schema.md` | Supabase SQL migration guide |
@@ -85,45 +82,51 @@ Remaining before merge to main:
 #### `src/app/` — Pages & Layouts
 | File | Type | Role |
 |------|------|------|
-| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<main className="flex-1">` wrapper, global footer (version + /help + /changelog_public) |
+| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<main className="flex-1">`, global footer (`v{version}` · Changes link · Learn more link) |
 | `page.tsx` | Client | Home: group code entry form (no account needed) |
-| `help/page.tsx` | Server | Static Help/FAQ page (sessions, recording, leaderboards, Elo, no-accounts) |
-| `changelog_public/page.tsx` | Server | Renders CHANGELOG_PUBLIC.md as styled HTML via `marked` with XSS escaping |
-| `g/[join_code]/page.tsx` | Server | Group dashboard: active session detection, Start/Continue/Leaderboard buttons |
+| `help/page.tsx` | Server | Static Help/FAQ page |
+| `changelog_public/page.tsx` | Server | Renders CHANGELOG_PUBLIC.md as styled HTML via `marked` |
+| `g/[join_code]/page.tsx` | Server | Group dashboard: active session detection, Start/Continue/Leaderboard/Sessions links |
 | `g/[join_code]/start/page.tsx` | Server | Start session page: wraps StartSessionForm |
 | `g/[join_code]/start/StartSessionForm.tsx` | Client | Player selection with live search, min 4 required |
 | `g/[join_code]/players/new/page.tsx` | Server | Add player page: wraps AddPlayerForm |
 | `g/[join_code]/players/new/AddPlayerForm.tsx` | Client | Name + code input with auto-suggest code from name |
 | `g/[join_code]/sessions/page.tsx` | Server | Session history list with active/ended badges |
 | `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params |
-| `g/[join_code]/session/[session_id]/page.tsx` | Server | Session page: standings, pairing balance, record game form, void button, courts link, game list with voided rendering |
-| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | 3-step wizard: select → scores → confirm. Shutout guard (8s timer), duplicate detection, **inline pairing feedback** in team summary panels |
+| `g/[join_code]/session/[session_id]/page.tsx` | Server | **Live Referee Console**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Ended sessions show simple game log. |
+| `g/[join_code]/session/[session_id]/ModeToggle.tsx` | Client | Segmented Manual/Courts toggle. **Stateless** — `mode` prop from route is source of truth, uses `<Link>`. Renders contextual subtitle ("Select teams directly" / "Manage multi-court rotation"). |
+| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Each player row has dedicated A and B buttons. No active-team targeting. Team panels are read-only summaries. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). |
 | `g/[join_code]/session/[session_id]/EndSessionButton.tsx` | Client | 2-tap confirm (red) for ending session |
 | `g/[join_code]/session/[session_id]/VoidLastGameButton.tsx` | Client | 2-tap confirm (amber) for voiding last game. Accepts `redirectPath` prop |
-| `g/[join_code]/session/[session_id]/SessionStandings.tsx` | Client | Collapsible standings table with Elo ratings |
-| `g/[join_code]/session/[session_id]/PairingBalance.tsx` | Server | Pair game counts sorted fewest first |
-| `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode server wrapper (active session guard). Fetches games, pairCounts, ratings, gamesPlayedMap |
-| `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI: auto-suggest/reshuffle/reselect, slot swap modal, per-court score entry, waiting pool, inactive toggle, court locking, **inline pairing feedback** in court cards |
+| `g/[join_code]/session/[session_id]/StaleBanner.tsx` | Client | Amber banner when session has no games for 24+ hours. Resume / Start New / End options |
+| `g/[join_code]/session/[session_id]/SessionStandings.tsx` | Client | Collapsible standings table (NOT used on live session page — only via Standings → link) |
+| `g/[join_code]/session/[session_id]/PairingBalance.tsx` | Server | Pair game counts sorted fewest first (NOT used on live session page) |
+| `g/[join_code]/session/[session_id]/games/page.tsx` | Server | **Session game log**: First-name display, winner highlighting (emerald-600), voided games (rose badge, muted opacity) |
+| `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode wrapper: LIVE header with "Courts" label, ModeToggle(courts), CourtsManager or CourtsSetup |
+| `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073 lines). Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. |
+| `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection when no courts exist yet |
 
 #### `src/app/actions/` — Server Actions
 | File | Role |
 |------|------|
-| `sessions.ts` | `createSessionAction`, `endSessionAction` |
+| `sessions.ts` | `createSessionAction`, `endSessionAction`, `endAndCreateSessionAction` |
 | `players.ts` | `addPlayerAction` with `safeRedirect()` open-redirect prevention |
 | `games.ts` | `recordGameAction` (fire-and-forget Elo), `voidLastGameAction` (awaited recompute, non-fatal) |
+| `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction`, `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` |
 
 #### `src/lib/` — Shared Utilities
 | File | Role |
 |------|------|
-| `types.ts` | Interfaces: PlayerStats, PairCount, Player, Group, PlayerRating, Session |
+| `types.ts` | Interfaces: PlayerStats, PairCount, Player, Group, PlayerRating, Session, CourtData, AttendeeWithStatus, RpcResult<T> |
 | `env.ts` | Environment variable validation (NEXT_PUBLIC_SUPABASE_URL, _ANON_KEY) |
 | `formatting.ts` | `formatDiff()` — formats numeric with +/- sign |
 | `suggestCode.ts` | `suggestCode()` — derive player code from display name (JD, BOB, etc.) |
-| `autoSuggest.ts` | Court assignment: `autoSuggest()`, `reshuffleTeams()`, `reselectPlayers()`. Types: GameRecord, CourtAssignment, PairCountEntry. Helpers: `pairKey()`, `buildPairMap()`, `teamPenalty()` |
+| `autoSuggest.ts` | Court assignment algorithm: `suggestForCourts()`. Types: GameRecord, CourtAssignment, PairCountEntry. Helpers: `pairKey()`, `buildPairMap()`, `teamPenalty()` |
+| `pairingFeedback.ts` | `matchupKey()`, `getMatchupCount()`, `severityDotClass()`. Shared by RecordGameForm + CourtsManager |
 | `supabase/server.ts` | `getServerClient()` — server-side Supabase client (anon key) |
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
-| `supabase/rpc.ts` | RPC constant registry: 11 named constants |
+| `supabase/rpc.ts` | RPC constant registry: 20 named constants (11 core + 9 courts) |
 | `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, Elo badge) |
 
 #### `src/app/globals.css`
@@ -133,7 +136,7 @@ Remaining before merge to main:
 #### `supabase/` — Database
 | File | Role |
 |------|------|
-| `schema.sql` | Canonical reference (stale at ~M6, M7 functions live in migration files) |
+| `schema.sql` | Canonical reference (**stale at ~M6** — M7+ function bodies live only in migration files) |
 | `migrations/m0_base_tables.sql` | Base DDL: groups, players, sessions, session_players, games, game_players + RLS + void columns |
 | `migrations/m2_rpc_sessions.sql` | create_session, end_session RPCs |
 | `migrations/m4_record_game.sql` | Original record_game RPC |
@@ -143,24 +146,28 @@ Remaining before merge to main:
 | `migrations/m5.2_pairing_balance.sql` | get_session_pair_counts |
 | `migrations/m5.3_indexes.sql` | FK indexes: games_session_id, game_players_game_id, session_players_session_id, game_players_player_id |
 | `migrations/m6_elo_v1.sql` | player_ratings + rating_events tables + RLS, apply_ratings_for_game, reconcile_missing_ratings RPCs |
-| `migrations/m7.0_record_game_for_update.sql` | FOR UPDATE lock (C-1/M-2 race fix), `search_path = public, extensions` |
-| `migrations/m7.1_elo_reconciliation.sql` | vw_games_missing_ratings view, reconcile_missing_ratings RPC update |
+| `migrations/m7.0_record_game_for_update.sql` | FOR UPDATE lock, `search_path = public, extensions` |
+| `migrations/m7.1_elo_reconciliation.sql` | vw_games_missing_ratings view, reconcile_missing_ratings update |
 | `migrations/m7.2_one_active_session.sql` | Partial unique index `idx_one_active_session_per_group`, idempotent create_session |
-| `migrations/m7.3_void_game.sql` | void_last_game RPC, recompute_session_ratings RPC, updated vw_player_game_stats + vw_games_missing_ratings to exclude voided games |
+| `migrations/m7.3_void_game.sql` | void_last_game RPC, recompute_session_ratings RPC, updated views to exclude voided games |
+| `migrations/m8.0_courts_mode.sql` | Courts Mode V2: session_courts table, session_players status column, 9 RPCs (init/assign/start/record/update/clear/mark_out/make_active/update_count) |
+| `migrations/m9.0_remove_session_expiry.sql` | Removes 4-hour session expiry from record_game, create_session, and related functions. Sessions no longer auto-expire. |
 
 ### Fresh Dev DB Setup Order
-1. Run `m0_base_tables.sql` (creates all 6 tables + RLS + void columns)
-2. Run `schema.sql` (creates views, functions 1-6)
+1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
+2. Run `schema.sql` (creates views, base functions)
 3. Run `m6_elo_v1.sql` (creates player_ratings, rating_events, apply_ratings_for_game)
 4. Run `m7.0`, `m7.1`, `m7.2`, `m7.3` in order
+5. Run `m8.0_courts_mode.sql` (session_courts table, Courts Mode RPCs)
+6. Run `m9.0_remove_session_expiry.sql` (removes 4-hour expiry from RPCs)
 
 ---
 
 ## Core Logic (Most Complex Functions)
 
-### record_game RPC (m7.0)
+### record_game RPC (m7.0, updated m9.0)
 1. `FOR UPDATE` lock on session row (serializes concurrent calls)
-2. Validates: session active (4-hour rule), 2+2 players, no overlap, all attendees, scores valid (winner >= 11, margin >= 2)
+2. Validates: session active (no ended_at — **no time-based expiry**), 2+2 players, no overlap, all attendees, scores valid (winner >= 11, margin >= 2)
 3. SHA-256 fingerprint: sorted teams + min:max score (order-invariant, no time bucket)
 4. Duplicate check: same fingerprint within 15 min → returns `{ status: 'possible_duplicate', existing_game_id, existing_created_at }`
 5. Atomic sequence_num increment + INSERT games + 4 game_players
@@ -192,11 +199,24 @@ Remaining before merge to main:
 4. Pick split minimizing repeat-partner penalty (from pairCounts, using canonical pair key)
 5. Assign to courts sequentially
 
-### Pairing Feedback (RecordGameForm + CourtsManager)
-- `getPairCount(a, b)`: Uses canonical key `a < b ? "${a}:${b}" : "${b}:${a}"` to look up pair in pairCounts array
-- Displays "Partners N× this session" when both team slots are filled
-- RecordGameForm: shown in team summary panels (blue/orange)
-- CourtsManager: shown under each court's team slots (blue/orange)
+### Pairing Feedback (pairingFeedback.ts)
+- `matchupKey(teamA, teamB)`: Canonical key for exact team-vs-team matchup (bidirectional, order-insensitive)
+- `getMatchupCount(teamA, teamB, games)`: Count occurrences of this exact pairing in game history
+- `severityDotClass(count)`: N=0 → emerald (fresh), N=1 → gray (normal), N>=2 → amber (caution)
+- Used in RecordGameForm (team summary) and CourtsManager (court cards)
+
+### RecordGameForm A/B Button Logic
+- `handleAssign(playerId, "A" | "B")`: Toggle player on/off team. If already on opposite team, moves them.
+- `teamAFull` / `teamBFull` derived booleans (length >= 2) disable corresponding buttons
+- Player picker uses internal scroll (`max-h-[45vh] overflow-y-auto`) to maintain zero-scroll console
+- Sticky Record button at bottom with `bg-gradient-to-t from-white` fade
+
+### Courts Mode suggestCourtsAction (courts.ts)
+- Hybrid: Fetches data server-side (courts, active players, games, pair counts)
+- Excludes players on IN_PROGRESS courts from available pool
+- Runs `suggestForCourts()` algorithm in TypeScript
+- Persists result via `assign_courts` RPC
+- Returns error if not enough players or no open courts
 
 ---
 
@@ -209,8 +229,8 @@ Remaining before merge to main:
 - Shareable leaderboard link
 - Dark mode (night court)
 - Loading skeleton states / Suspense boundaries
-- Real-time updates (currently requires page refresh)
-- Optimistic UI after recording a game
+- Real-time updates via Supabase Realtime (currently requires page refresh)
+- Optimistic UI after recording a game (currently relies on `redirect()` and re-render)
 
 ### Intelligence Features
 - Elo delta display per game in game history
@@ -218,38 +238,53 @@ Remaining before merge to main:
 - Best teammate stats
 - Streak tracking (win/loss streaks)
 - Rating history graph over time
-- Opponent pairing feedback (not just partners)
+- Opponent pairing feedback (currently only partner counts)
 
 ### Structural Extensions
 - Player join/leave mid-session tracking
 - Player deactivation/archival UI
 - Admin role (currently anyone can do everything)
-- Group creation UI (currently manual in Supabase)
+- Group creation UI (currently manual via Supabase dashboard)
 - PWA / install prompt for courtside use
+- Offline score entry with sync
 
 ---
 
 ## The Technical Debt Confession
 
 ### Database
-- **schema.sql is stale**: Only reflects ~M6 state. M7 function bodies live only in migration files. Should be rewritten to be fully self-contained. (File: `supabase/schema.sql`)
+- **schema.sql is stale**: Only reflects ~M6 state. M7-M9 function bodies live only in migration files. Should be rewritten to be fully self-contained. (File: `supabase/schema.sql`)
 - **No automated SQL tests**: RPC correctness relies on manual QA only
-- **Hardcoded 4-player-per-game**: record_game assumes exactly 2v2 (files: `m7.0_record_game_for_update.sql`, `games.ts`)
+- **Hardcoded 4-player-per-game**: record_game assumes exactly 2v2 (files: `m7.0_record_game_for_update.sql`, `games.ts`, `courts.ts`)
 - **No player_ratings cleanup on void**: If a void causes games_rated to go to 0, the player_ratings row still exists at whatever rating it landed on (file: `m7.3_void_game.sql`)
-- **vw_games_missing_ratings uses `created_at`**: The reconciliation view still uses `rating_events.created_at` for the Elo boundary, while `recompute_session_ratings` correctly uses `played_at`. Minor inconsistency. (File: `supabase/migrations/m7.3_void_game.sql`)
+- **vw_games_missing_ratings uses `created_at`**: The reconciliation view uses `rating_events.created_at` for the Elo boundary, while `recompute_session_ratings` correctly uses `played_at`. Minor inconsistency. (File: `m7.3_void_game.sql`)
 
 ### Frontend
 - **No global error boundary**: RPC failures show raw error strings (all page.tsx files)
-- **No centralized design tokens**: Colors/spacing are ad-hoc Tailwind classes
+- **No centralized design tokens**: Colors/spacing are ad-hoc Tailwind classes scattered across files
 - **Range query param parsing**: Simplistic string match on leaderboard (file: `leaderboard/page.tsx`)
 - **Courts Mode force=true**: Courts Mode skips duplicate detection entirely by passing `force: true` (file: `CourtsManager.tsx`)
 - **No loading states**: Server Components block render; no Suspense boundaries or skeletons
-- **localStorage for court count only**: No persistence of court assignments or inactive players across page refreshes (file: `CourtsManager.tsx`)
-- **Pair lookup is linear scan**: `getPairCount()` / `getPairGames()` use `.find()` on the pairCounts array. Fine for <=20 players (190 pairs) but could be optimized with a Map for very large groups. (Files: `RecordGameForm.tsx`, `CourtsManager.tsx`)
+- **Pair lookup is linear scan**: `getMatchupCount()` iterates all games. `getPairCount()` uses `.find()` on pairCounts array. Fine for ≤20 players but could be Map-based. (Files: `pairingFeedback.ts`, `RecordGameForm.tsx`, `CourtsManager.tsx`)
+- **SessionStandings.tsx and PairingBalance.tsx are orphaned on the live session page**: Still in the codebase but not rendered on the active session view (removed during Live Referee Console refactor). They're only reachable via the Standings → link. Consider cleaning up or explicitly wiring to a /standings route.
+- **CourtsManager.tsx is 1073 lines**: Largest single file. Would benefit from decomposition (court cards, waiting pool, controls as separate components).
 
 ### Server Actions
-- **No rate limiting**: Any client can spam recordGameAction (files: `games.ts`, `sessions.ts`)
-- **Fire-and-forget Elo has no client-side retry**: If apply_ratings_for_game fails, user sees no indication. Reconciliation is the safety net but must be called manually. (File: `games.ts` lines ~99-101)
+- **No rate limiting**: Any client can spam recordGameAction (files: `games.ts`, `sessions.ts`, `courts.ts`)
+- **Fire-and-forget Elo has no client-side retry**: If apply_ratings_for_game fails, user sees no indication. Reconciliation is the safety net but must be called manually. (Files: `games.ts`, `courts.ts`)
+
+### Hardcoded Magic Numbers
+| Value | Where | What |
+|-------|-------|------|
+| `11` | `games.ts:58`, `courts.ts:214`, `RecordGameForm.tsx` | Minimum winning score |
+| `2` | `games.ts:61`, `courts.ts:220` | Minimum winning margin |
+| `4` | `autoSuggest.ts:132,151`, `courts.ts:133` | Players per court |
+| `3` | `autoSuggest.ts:65` | Possible 2v2 splits per court |
+| `24 * 60 * 60 * 1000` | `page.tsx:123` (session) | Stale session threshold (24h) |
+| `15` minutes | `games.ts:16,128` | Duplicate detection window |
+| `1200` | `m6_elo_v1.sql` | Default Elo rating |
+| `40` / `20` | `m6_elo_v1.sql` | K-factor (provisional / established) |
+| `5` | `m6_elo_v1.sql` | Provisional threshold (games_rated) |
 
 ---
 
@@ -264,7 +299,7 @@ Remaining before merge to main:
 ### 2. Supabase `.rpc()` returns PromiseLike (not Promise)
 **Cause:** Supabase JS client returns a PromiseLike that doesn't have `.catch()`.
 **Fix:** Wrap in `Promise.resolve()` before calling `.catch()`.
-**File:** `src/app/actions/games.ts` (line ~99: `void Promise.resolve(supabase.rpc(...))`)
+**Files:** `src/app/actions/games.ts`, `src/app/actions/courts.ts`
 
 ### 3. FK join returns single object OR array depending on Supabase version
 **Cause:** Supabase PostgREST can return `{code: "X"}` or `[{code: "X"}]` for FK joins.
@@ -273,43 +308,34 @@ Remaining before merge to main:
 
 ### 4. ESLint blocks Vercel build on unused variables
 **Cause:** Next.js build runs ESLint in CI; unused vars = build failure.
-**Fix:** Remove unused imports/variables before pushing.
-**Gotcha:** Always run `npm run build` locally before pushing (or at minimum `npm run lint`).
+**Fix:** Remove unused imports/variables before pushing. Always run `npm run build` locally.
+**Recurring:** This happened multiple times — after removing `ratings` prop from CourtsManager, after removing `playerName` from RecordGameForm.
 
-### 5. Open redirect in addPlayerAction
-**Cause:** `redirectTo` param was passed directly to `redirect()` without validation.
-**Fix:** `safeRedirect()` helper that only allows paths starting with `/` (not `//`).
-**File:** `src/app/actions/players.ts`
-
-### 6. Elo recompute was session-scoped (incorrect)
+### 5. Elo recompute was session-scoped (incorrect)
 **Cause:** Original recompute_session_ratings only reversed/replayed within the voided session. Games in later sessions had stale deltas.
 **Fix:** Forward-replay from `t0` across ALL group sessions. Use `played_at` not `created_at` as boundary.
 **File:** `supabase/migrations/m7.3_void_game.sql`
 **Gotcha:** Recompute is group-wide, not session-scoped. This is intentional.
 
-### 7. `/changelog_public` 404
-**Cause:** Footer linked to `/changelog_public` but route directory was named `changelog`.
-**Fix:** `git mv src/app/changelog src/app/changelog_public`
-**Commit:** `4749ea6`
+### 6. ModeToggle localStorage mismatch
+**Cause:** Original ModeToggle used localStorage to persist mode. Navigating to Courts page set localStorage to "courts", then navigating back to Manual page read "courts" on mount before hydration corrected it — causing a flash of wrong state.
+**Fix:** Complete rewrite to be **stateless**: accepts `mode` prop from server component, uses `<Link>` for navigation. Route is the single source of truth. No localStorage, no useState.
+**File:** `src/app/g/[join_code]/session/[session_id]/ModeToggle.tsx`
+**Gotcha:** Never use localStorage for visual state that should be derived from the URL.
+
+### 7. Uncommitted changes not showing on Vercel
+**Cause:** RecordGameForm was rewritten with A/B buttons locally but never committed. Push to Vercel showed old code.
+**Fix:** Always check `git status` before pushing. Files written by Claude Code are not auto-staged.
 
 ---
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Manual QA on dev preview** — Test all M7 features on `red-dog-pickle-git-dev-mamdanis-projects.vercel.app`:
-   - Create session → record games → void last game → verify standings update
-   - Verify inline pairing feedback shows "Partners N× this session" in team summary panels
-   - Open Courts Mode → suggest → verify pairing feedback in court cards → swap → record
-   - Check /help page renders correctly
-   - Verify footer shows `v0.3.0` + "Changes" link goes to /changelog_public (no 404)
-   - Verify voided games show with opacity + VOIDED badge
+1. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status), all 20 RPC function bodies (M7-M9), updated views, indexes. This is the canonical reference for fresh DB setup.
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all M7 function bodies, void columns, updated views, new indexes. This is the canonical reference for fresh DB setup.
+2. **Create a dedicated `/standings` route** — SessionStandings and PairingBalance components are orphaned on the live session page. Wire them to `/g/[join_code]/session/[session_id]/standings` for the "Standings →" footer link. Currently the link exists but may point to a non-existent route.
 
-3. **Merge `dev` → `main` and deploy to production** — After QA passes:
-   - Run M7 SQL migrations on production Supabase (m7.0 → m7.3)
-   - `git checkout main && git merge dev && git push`
-   - Verify production deployment at the Vercel domain
+3. **Decompose CourtsManager.tsx** — At 1073 lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
 
 ---
 
@@ -332,15 +358,19 @@ Remaining before merge to main:
 - Mobile-first layout: `max-w-sm mx-auto`, large tap targets (`min-h-[48px]+`)
 - RPC for all derived stats — no client-side aggregation
 - 2-tap confirmation pattern for destructive actions (End Session, Void Game)
-- Color scheme: green (primary), blue (Team A), orange (Team B), red/amber (destructive), gray (neutral)
+- Color scheme: emerald (primary/active), blue (Team A), orange (Team B), red/amber (destructive), gray (neutral)
 - Root layout owns `<main>` element; pages use `<div>` to avoid nested `<main>` tags
-- Centered pages use `flex-1` for vertical centering; content pages use plain flow
 - `min-h-dvh` on body (not `min-h-screen`) for proper mobile viewport handling
+- Route as source of truth for visual state — never localStorage for UI mode
+- Only Record Game button uses filled green style; all other buttons are outline-only
+- Live session header pattern: back arrow → group name + End pill → LIVE dot indicator → ModeToggle → content
+- First names derived via `displayName.substring(0, displayName.indexOf(" "))` with fallback to full name
+- Winner highlighting: emerald-600 for winning team/score, neutral gray for losing (never red)
 
 ### TypeScript
 - `camelCase` for variables/functions, `PascalCase` for types/components
 - Centralized types in `src/lib/types.ts`
-- RPC names in `src/lib/supabase/rpc.ts` as `const` object
+- RPC names in `src/lib/supabase/rpc.ts` as `const` object (20 constants)
 - Server actions in `src/app/actions/` with `"use server"` directive
 - Path alias: `@/` maps to `src/`
 
@@ -348,10 +378,11 @@ Remaining before merge to main:
 ```
 src/
   app/
-    actions/          # Server actions (sessions.ts, players.ts, games.ts)
+    actions/          # Server actions (sessions.ts, players.ts, games.ts, courts.ts)
     g/[join_code]/    # Group routes (dynamic)
       session/[session_id]/
         courts/       # Courts Mode sub-route
+        games/        # Session game log
       start/          # Start session
       players/new/    # Add player
       sessions/       # Session history
@@ -361,10 +392,10 @@ src/
   lib/
     supabase/         # Supabase clients + helpers + RPC constants
     components/       # Shared presentational components (PlayerStatsRow)
-    *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest)
+    *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest, pairingFeedback)
 supabase/
-  schema.sql          # Canonical DB reference (currently stale at ~M6)
-  migrations/         # Ordered SQL migrations (m0, m2, m4, m4.1, m5, m5.1, m5.2, m5.3, m6, m7.0-m7.3)
+  schema.sql          # Canonical DB reference (STALE at ~M6)
+  migrations/         # Ordered SQL migrations (m0 → m9.0)
 docs/                 # Architecture docs, how-tos, decisions, testing checklist
 ```
 
@@ -385,8 +416,19 @@ npm run build         # Full Next.js production build (catches all errors)
 -- Tables exist with void columns
 SELECT column_name FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'voided_at';
 
--- All RPCs exist
-SELECT proname FROM pg_proc WHERE proname IN ('record_game', 'void_last_game', 'recompute_session_ratings', 'reconcile_missing_ratings', 'create_session', 'end_session', 'apply_ratings_for_game', 'get_session_stats', 'get_group_stats', 'get_last_session_id', 'get_session_pair_counts');
+-- Session courts table exists
+SELECT column_name FROM information_schema.columns WHERE table_name = 'session_courts';
+
+-- All 20 RPCs exist
+SELECT proname FROM pg_proc WHERE proname IN (
+  'record_game', 'void_last_game', 'recompute_session_ratings',
+  'reconcile_missing_ratings', 'create_session', 'end_session',
+  'apply_ratings_for_game', 'get_session_stats', 'get_group_stats',
+  'get_last_session_id', 'get_session_pair_counts',
+  'init_courts', 'assign_courts', 'start_court_game',
+  'record_court_game', 'update_court_assignment', 'clear_court_slot',
+  'mark_player_out', 'make_player_active', 'update_court_count'
+);
 
 -- Partial unique index exists
 SELECT indexname FROM pg_indexes WHERE indexname = 'idx_one_active_session_per_group';
@@ -398,17 +440,21 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 ### Manual QA Checklist
 - [ ] Home page → enter group code → lands on dashboard
 - [ ] Start session with 4+ players → session page renders
-- [ ] Record game → standings update, game appears in list
-- [ ] Team summary panels show "Partners N× this session" when 2 players selected
+- [ ] Live session shows LIVE indicator, ModeToggle ("Select teams directly"), RecordGameForm
+- [ ] Each player row has A and B buttons for direct team assignment
+- [ ] Record game → last-game ticker updates (emerald dot + LAST pill + score + teams)
+- [ ] "All games →" link opens game log with first names and winner highlighting
+- [ ] Voided games show rose badge, muted opacity in game log
 - [ ] Duplicate detection → record same game within 15 min → amber warning
-- [ ] Void last game → game shows VOIDED badge at 40% opacity, standings update
-- [ ] Courts Mode → suggest fills courts with partner count displayed
-- [ ] Courts Mode → swap players → pairing feedback updates
-- [ ] Courts Mode → record from court works
-- [ ] End session → session shows "Ended" badge, form disappears
+- [ ] Void last game → ticker and standings update correctly
+- [ ] ModeToggle → tap Courts → navigates to /courts, shows "Manage multi-court rotation"
+- [ ] Courts Mode → Suggest All fills courts, controls above court cards
+- [ ] Courts Mode → waiting pool chips → tap → slot picker bottom sheet
+- [ ] Courts Mode → record from court → score validation works
+- [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Help page → renders FAQ content
-- [ ] Footer → shows v0.3.0, "Learn more →" links to /help, "Changes" links to /changelog_public
+- [ ] Footer shows `v0.3.1`, "Changes" link goes to /changelog_public
+- [ ] Stale banner appears for sessions with no games in 24+ hours
 
 ---
 
@@ -420,19 +466,23 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 3. **`one()` helper for FK joins** (`src/lib/supabase/helpers.ts`): Supabase returns single objects or arrays depending on version. All FK join access must go through `one()`.
 
-4. **`Promise.resolve()` wrapper around Supabase `.rpc()` for fire-and-forget**: Supabase returns PromiseLike without `.catch()`. The wrapper is required. (File: `games.ts`)
+4. **`Promise.resolve()` wrapper around Supabase `.rpc()` for fire-and-forget**: Supabase returns PromiseLike without `.catch()`. The wrapper is required. (Files: `games.ts`, `courts.ts`)
 
-5. **4-hour active session window**: Checked in record_game RPC, session page, courts page, and group dashboard. All must agree. Changing the window requires updating all 4 locations.
+5. **Immutable game model + soft-delete**: Games are NEVER physically deleted. `voided_at` is the only mechanism. `vw_player_game_stats` and `get_session_pair_counts` filter by `voided_at IS NULL`.
 
-6. **Immutable game model + soft-delete**: Games are NEVER physically deleted. `voided_at` is the only mechanism. `vw_player_game_stats` and `get_session_pair_counts` filter by `voided_at IS NULL`.
+6. **Elo recompute replays from `t0` across ALL group sessions**: Not just the voided session. This is intentional — later games' deltas depend on prior ratings. Scoping to one session would leave stale deltas.
 
-7. **Elo recompute replays from `t0` across ALL group sessions**: Not just the voided session. This is intentional — later games' deltas depend on prior ratings. Scoping to one session would leave stale deltas.
+7. **Leaderboard deterministic ordering**: `win_pct DESC, games_won DESC, point_diff DESC, display_name ASC`. Changing order breaks user expectations.
 
-8. **Leaderboard deterministic ordering**: `win_pct DESC, games_won DESC, point_diff DESC, display_name ASC`. Changing order breaks user expectations.
+8. **Root layout owns `<main>`, pages use `<div>`**: Prevents nested `<main>` elements. Pages that need vertical centering use `flex-1`. Content pages use plain `flex flex-col`.
 
-9. **Root layout owns `<main>`, pages use `<div>`**: Prevents nested `<main>` elements. Pages that need vertical centering use `flex-1`. Content pages use plain `flex flex-col`.
+9. **Pair key canonicalization**: `a < b ? "${a}:${b}" : "${b}:${a}"` — used in autoSuggest.ts, pairingFeedback.ts, RecordGameForm.tsx, and CourtsManager.tsx. Must match for pair lookups to work.
 
-10. **Pair key canonicalization**: `a < b ? "${a}:${b}" : "${b}:${a}"` — used in autoSuggest.ts, RecordGameForm.tsx, and CourtsManager.tsx. Must match for pair lookups to work.
+10. **ModeToggle is stateless — route is source of truth**: The `mode` prop comes from the server component based on which page is rendered. Never introduce client state or localStorage for this. Using `<Link>` for navigation is intentional — it avoids full-page reloads while keeping the URL as the single source of truth.
+
+11. **Session stale detection is UI-only (24h threshold)**: The StaleBanner does NOT auto-end sessions or block scoring. It's a suggestion. The 4-hour server-side session expiry was removed in m9.0. Sessions now stay active indefinitely until manually ended.
+
+12. **RecordGameForm `pb-20` padding**: The `pb-20` on the scroll container prevents the sticky Record button from covering the last player rows. Removing it breaks usability.
 
 ---
 
@@ -441,13 +491,14 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 ### Supabase (PostgreSQL + REST)
 - `NEXT_PUBLIC_SUPABASE_URL` — Project URL (browser-safe)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Anon/public key (browser-safe, subject to RLS)
-- `NEXT_PUBLIC_APP_VERSION` — Auto-injected from package.json, displayed in global footer
+- `NEXT_PUBLIC_APP_VERSION` — Auto-injected from package.json at build time, displayed in global footer
 
 ### Vercel
 - Hosting via Next.js preset
 - Production: deploys from `main` branch
 - Preview: deploys from all other branches (e.g., `dev`)
 - No custom build commands — uses default `npm run build`
+- Branch preview URLs are stable (e.g., `red-dog-pickle-git-dev-mamdanis-projects.vercel.app`)
 
 ### pgcrypto Extension
 - Required for `DIGEST()` / `ENCODE()` in record_game fingerprinting
@@ -458,7 +509,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - `next@15.1.11` — Framework
 - `react@^19.0.0` / `react-dom@^19.0.0` — UI
 - `@supabase/supabase-js@^2.49.1` — Database client
-- `marked@^17.0.3` — Markdown parser for changelog
+- `marked@^17.0.3` — Markdown parser for changelog page
 
 ### No Other External APIs
 - No auth providers
@@ -468,11 +519,12 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 ---
 
-## RPC Function Reference (11 functions)
+## RPC Function Reference (20 functions)
 
+### Core (11 functions)
 | RPC Name | Security | Params | Returns | Purpose |
 |----------|----------|--------|---------|---------|
-| `create_session` | INVOKER | `(group_join_code text, player_ids uuid[])` | `uuid` | Create session + attendance. Idempotent on concurrent calls (M7.2) |
+| `create_session` | INVOKER | `(group_join_code text, player_ids uuid[])` | `uuid` | Create session + attendance. Idempotent on concurrent calls |
 | `end_session` | DEFINER | `(p_session_id uuid)` | `void` | Sets ended_at + closed_reason='manual' |
 | `record_game` | DEFINER | `(p_session_id, p_team_a_ids[], p_team_b_ids[], p_team_a_score, p_team_b_score, p_force)` | `jsonb` | Atomic game recording with dedup. FOR UPDATE lock |
 | `get_session_stats` | INVOKER | `(p_session_id uuid)` | `TABLE(10 cols)` | Session leaderboard |
@@ -484,20 +536,34 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `void_last_game` | DEFINER | `(p_session_id uuid, p_reason text?)` | `jsonb` | Soft-delete most recent non-voided game |
 | `recompute_session_ratings` | DEFINER | `(p_session_id uuid)` | `integer` | Forward-replay Elo from earliest affected game |
 
+### Courts Mode V2 (9 functions)
+| RPC Name | Security | Params | Returns | Purpose |
+|----------|----------|--------|---------|---------|
+| `init_courts` | DEFINER | `(p_session_id, p_join_code, p_court_count)` | `jsonb` | Create initial court slots for session |
+| `assign_courts` | DEFINER | `(p_session_id, p_join_code, p_assignments jsonb)` | `jsonb` | Batch-assign players to courts (from algorithm) |
+| `start_court_game` | DEFINER | `(p_session_id, p_join_code, p_court_number)` | `jsonb` | OPEN → IN_PROGRESS transition |
+| `record_court_game` | DEFINER | `(p_session_id, p_join_code, p_court_number, scores, p_force)` | `jsonb` | Record game from court, reset to OPEN |
+| `update_court_assignment` | DEFINER | `(p_session_id, p_join_code, p_court_number, p_team, p_slot, p_player_id)` | `jsonb` | Assign single player to specific slot |
+| `clear_court_slot` | DEFINER | `(p_session_id, p_join_code, p_court_number, p_team, p_slot)` | `jsonb` | Clear one slot on OPEN court |
+| `mark_player_out` | DEFINER | `(p_session_id, p_join_code, p_player_id, p_mode)` | `jsonb` | Mark inactive (immediate or after_game) |
+| `make_player_active` | DEFINER | `(p_session_id, p_join_code, p_player_id)` | `jsonb` | Restore inactive player |
+| `update_court_count` | DEFINER | `(p_session_id, p_join_code, p_court_count)` | `jsonb` | Add/remove empty courts |
+
 ---
 
-## Database Tables (7 tables)
+## Database Tables (9 tables)
 
 | Table | Key Columns | Notes |
 |-------|-------------|-------|
 | `groups` | id, name, join_code | join_code: lowercase alphanumeric + hyphens, unique |
 | `players` | id, group_id, display_name, code, is_active | code: uppercase, unique per group |
 | `sessions` | id, group_id, name, started_at, ended_at, closed_reason | Partial unique: one active per group |
-| `session_players` | session_id, player_id | Attendance junction |
+| `session_players` | session_id, player_id, **status**, inactive_effective_after_game | Status: ACTIVE or INACTIVE. Added in m8.0 |
 | `games` | id, session_id, sequence_num, scores, dedupe_key, voided_at | Immutable, soft-delete only |
 | `game_players` | game_id, player_id, team ('A'/'B') | 4 rows per game |
 | `player_ratings` | group_id, player_id, rating, games_rated, provisional | Elo state |
 | `rating_events` | game_id, player_id, pre/post_rating, delta, algo_version | Elo audit log, idempotent via UNIQUE |
+| `session_courts` | id, session_id, court_number, status, team_a_ids, team_b_ids | Added in m8.0. Status: OPEN or IN_PROGRESS |
 
 ---
 
@@ -511,8 +577,10 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | M4 | (early) | Record game with duplicate detection |
 | M5 | `66cbf9e`→`70c9b28` | Leaderboards, pairing balance, indexes, maintainability |
 | M6 | `bba8440` | Elo v1, shutout guard, version/changelog |
-| M7 | `ab55473` | Void Last Game, Courts Mode, Help page, data integrity (FOR UPDATE, one-active-session) |
-| Patches | `2b2caff`→`4749ea6` | ESLint fixes, Elo recompute correction, pgcrypto search_path, footer overhaul, changelog route fix, version bump 0.3.0, inline pairing feedback |
+| M7 | `ab55473` | Void Last Game, Courts Mode v1, Help page, data integrity |
+| M8+M9 | `3dfb433` | Courts Mode V2 (full rewrite), remove 4-hour session expiry |
+| v0.3.0 patches | `2b2caff`→`4749ea6` | ESLint fixes, Elo recompute, pgcrypto, footer, changelog route, inline pairing feedback |
+| v0.3.1 — Live Referee Console | `3de91e4`→`a0d0c37` | Session page restructure, explicit A/B buttons, ModeToggle, last-game ticker, games page, courts controls reorder, minimalism audit, version bump |
 
 ---
 

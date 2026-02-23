@@ -130,6 +130,18 @@ export default function CourtsManager({
     return attendees.find((p) => p.id === id)?.code ?? "?";
   }
 
+  /** Look up how many times two players have partnered this session. */
+  function getPairGames(a: string, b: string): number {
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    const entry = pairCounts.find((p) => {
+      const pk = p.player_a_id < p.player_b_id
+        ? `${p.player_a_id}:${p.player_b_id}`
+        : `${p.player_b_id}:${p.player_a_id}`;
+      return pk === key;
+    });
+    return entry?.games_together ?? 0;
+  }
+
   function hasAnyAssignments(): boolean {
     return activeCourts.some((c) => getCourtPlayerIds(c).length > 0);
   }
@@ -432,6 +444,11 @@ export default function CourtsManager({
                     )}
                   </button>
                 ))}
+                {court.teamA[0] && court.teamA[1] && (
+                  <p className="text-[10px] text-blue-500 mt-0.5">
+                    Partners {getPairGames(court.teamA[0], court.teamA[1])}&times; this session
+                  </p>
+                )}
               </div>
 
               {/* Team B */}
@@ -459,6 +476,11 @@ export default function CourtsManager({
                     )}
                   </button>
                 ))}
+                {court.teamB[0] && court.teamB[1] && (
+                  <p className="text-[10px] text-orange-500 mt-0.5">
+                    Partners {getPairGames(court.teamB[0], court.teamB[1])}&times; this session
+                  </p>
+                )}
               </div>
             </div>
 

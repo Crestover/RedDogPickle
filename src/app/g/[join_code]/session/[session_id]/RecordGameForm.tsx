@@ -18,11 +18,13 @@
 import { useState, useRef, useEffect, useTransition } from "react";
 import { recordGameAction } from "@/app/actions/games";
 import type { Player } from "@/lib/types";
+import type { PairCountEntry } from "@/lib/autoSuggest";
 
 interface Props {
   sessionId: string;
   joinCode: string;
   attendees: Player[];
+  pairCounts?: PairCountEntry[];
 }
 
 type Step = "select" | "scores" | "confirm";
@@ -42,7 +44,7 @@ function relativeTime(isoString: string): string {
   return `${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`;
 }
 
-export default function RecordGameForm({ sessionId, joinCode, attendees }: Props) {
+export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts }: Props) {
   // ── State ──────────────────────────────────────────────────────────────────
   const [step, setStep] = useState<Step>("select");
   const [teamA, setTeamA] = useState<string[]>([]);
@@ -89,6 +91,19 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
 
   function playerName(id: string) { return attendees.find((p) => p.id === id)?.display_name ?? id; }
   function playerCode(id: string) { return attendees.find((p) => p.id === id)?.code ?? "?"; }
+
+  /** Look up how many times two players have partnered this session. */
+  function getPairCount(a: string, b: string): number {
+    if (!pairCounts) return 0;
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+    const entry = pairCounts.find((p) => {
+      const pk = p.player_a_id < p.player_b_id
+        ? `${p.player_a_id}:${p.player_b_id}`
+        : `${p.player_b_id}:${p.player_a_id}`;
+      return pk === key;
+    });
+    return entry?.games_together ?? 0;
+  }
 
   /** True when one team scored 0 and the other scored ≥ 11 */
   function isShutout(): boolean {
@@ -285,11 +300,21 @@ export default function RecordGameForm({ sessionId, joinCode, attendees }: Props
             <p className="font-semibold text-blue-700 mb-1">Team A ({teamA.length}/2)</p>
             {teamA.length === 0 ? <p className="text-blue-400">None selected</p>
               : teamA.map((id) => <p key={id} className="text-blue-800 font-mono">{playerCode(id)} {playerName(id)}</p>)}
+            {teamA.length === 2 && (
+              <p className="text-[10px] text-blue-500 mt-1">
+                Partners {getPairCount(teamA[0], teamA[1])}&times; this session
+              </p>
+            )}
           </div>
           <div className="flex-1 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
             <p className="font-semibold text-orange-700 mb-1">Team B ({teamB.length}/2)</p>
             {teamB.length === 0 ? <p className="text-orange-400">None selected</p>
               : teamB.map((id) => <p key={id} className="text-orange-800 font-mono">{playerCode(id)} {playerName(id)}</p>)}
+            {teamB.length === 2 && (
+              <p className="text-[10px] text-orange-500 mt-1">
+                Partners {getPairCount(teamB[0], teamB[1])}&times; this session
+              </p>
+            )}
           </div>
         </div>
 

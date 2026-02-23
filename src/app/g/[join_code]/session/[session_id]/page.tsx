@@ -199,6 +199,11 @@ export default async function SessionPage({ params }: PageProps) {
               sessionId={session.id}
               joinCode={group.join_code}
               attendees={players}
+              pairCounts={pairCounts.map((p) => ({
+                player_a_id: p.player_a_id,
+                player_b_id: p.player_b_id,
+                games_together: p.games_together,
+              }))}
             />
           </div>
         )}

@@ -19,7 +19,7 @@ export default function RootLayout({
         <footer className="py-4 text-center text-xs text-gray-400">
           v{process.env.NEXT_PUBLIC_APP_VERSION}
           <span className="mx-1">·</span>
-          <Link href="/changelog" className="underline hover:text-gray-600 transition-colors">Changes</Link>
+          <Link href="/changelog_public" className="underline hover:text-gray-600 transition-colors">Changes</Link>
         </footer>
       </body>
     </html>

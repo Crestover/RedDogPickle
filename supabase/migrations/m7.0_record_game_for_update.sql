@@ -25,7 +25,7 @@ CREATE OR REPLACE FUNCTION public.record_game(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_session          record;

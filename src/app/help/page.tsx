@@ -1,8 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Help — RedDog Pickle",
+  title: "Help — Red Dog",
 };
 
 export default function HelpPage() {
@@ -14,25 +15,32 @@ export default function HelpPage() {
           href="/"
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
-          ← Home
+          &larr; Home
         </Link>
 
         {/* Title */}
-        <div className="text-center">
-          <div className="text-4xl mb-2">🏓</div>
-          <h1 className="text-2xl font-bold">How RedDog Pickle Works</h1>
+        <div className="flex flex-col items-center text-center">
+          <Image
+            src="/PlayRedDog_Logo_Transparent_MarkOnly.png"
+            alt="Red Dog mark"
+            width={32}
+            height={32}
+            className="opacity-90 mb-3"
+            priority
+          />
+          <h1 className="text-2xl font-bold">How Red Dog Works</h1>
         </div>
 
         {/* The Idea */}
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-gray-900">The Idea</h2>
           <p className="text-sm text-gray-600 leading-relaxed">
-            RedDog Pickle is a fast, mobile-first score tracker for doubles
-            pickleball. It&apos;s built for live sessions — record games in
-            seconds, see who&apos;s hot, and track stats over time.
+            Red Dog is a fast, mobile-first score tracker built for doubles
+            pickleball. It&apos;s made for real court sessions &mdash; record
+            games in seconds, see who&apos;s hot, and track stats over time.
           </p>
           <p className="text-sm text-gray-600 leading-relaxed">
-            No login. No accounts. Just your group and your games.
+            No logins. No passwords. No drama.
           </p>
         </section>
 
@@ -40,15 +48,17 @@ export default function HelpPage() {
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-gray-900">Sessions</h2>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Each meetup is a session. A session:
+            Each meetup is a <strong>session</strong>. A session:
           </p>
           <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
             <li>Tracks who attended</li>
-            <li>Records games in chronological order</li>
-            <li>Automatically generates standings</li>
+            <li>Records games in order</li>
+            <li>Generates standings automatically</li>
+            <li>Uses the scoring rules you choose (11 / 15 / 21, win by 1 or 2)</li>
           </ul>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Sessions stay active until you end them manually.
+            Sessions stay active until you end them manually. No
+            auto-expiration.
           </p>
         </section>
 
@@ -60,14 +70,16 @@ export default function HelpPage() {
           <p className="text-sm text-gray-600 leading-relaxed">
             Recording a game takes three steps:
           </p>
-          <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+          <ol className="text-sm text-gray-600 space-y-1 list-decimal pl-5">
             <li>Pick four players</li>
             <li>Assign teams</li>
             <li>Enter the score</li>
-          </ul>
+          </ol>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Duplicate protection prevents accidental double entries across
-            devices. Games are immutable once recorded.
+            Duplicate protection helps prevent accidental double entries across
+            devices. Games are <strong>locked in</strong> once recorded. If
+            something was entered incorrectly, you can void the most recent
+            game.
           </p>
         </section>
 
@@ -94,23 +106,66 @@ export default function HelpPage() {
             <li>Points for / against</li>
             <li>Point differential</li>
             <li>Average point differential</li>
-            <li>Elo rating (after rated games begin)</li>
+            <li><strong>RDR rating</strong></li>
           </ul>
+          <p className="text-sm text-gray-600 leading-relaxed mt-2">
+            Clean. Simple. Always up to date.
+          </p>
         </section>
 
-        {/* Elo Ratings */}
+        {/* RDR */}
         <section className="space-y-2">
-          <h2 className="text-base font-semibold text-gray-900">Elo Ratings</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            RDR &mdash; Red Dog Rating
+          </h2>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Elo is a skill rating system that adjusts after every game.
+            RDR is a modern rating system built specifically for doubles
+            pickleball. Everyone starts at <strong>1200</strong>. After each
+            game, winners go up and losers go down &mdash; how much depends on
+            the matchup.
+          </p>
+
+          <h3 className="text-sm font-semibold text-gray-900 pt-1">
+            What affects the rating?
+          </h3>
+
+          <p className="text-sm text-gray-600 leading-relaxed">
+            <strong>Who you beat</strong><br />
+            Beat stronger opponents &rarr; bigger boost. Lose to weaker
+            opponents &rarr; bigger drop.
+          </p>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            <strong>How you won (with limits)</strong><br />
+            Winning by a solid margin matters. But blowouts don&apos;t let
+            ratings run wild.
+          </p>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            <strong>Doubles balance</strong><br />
+            If a very strong player teams with a much weaker partner, rating
+            swings are slightly dampened. This keeps mixed-skill games fair.
+          </p>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            <strong>New player ramp</strong><br />
+            New players move faster early on. After enough games, ratings
+            stabilize.
+          </p>
+        </section>
+
+        {/* Voids */}
+        <section className="space-y-2">
+          <h2 className="text-base font-semibold text-gray-900">
+            Voids &amp; Rating Integrity
+          </h2>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            If the most recent game is voided:
           </p>
           <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
-            <li>New players start at 1200</li>
-            <li>Provisional players adjust faster</li>
-            <li>Established players adjust more gradually</li>
+            <li>The game is marked voided (never deleted)</li>
+            <li>The rating changes from that game are reversed automatically</li>
+            <li>Leaderboards update immediately</li>
           </ul>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Ratings update automatically after each new game going forward.
+            Older games can&apos;t be edited or selectively changed.
           </p>
         </section>
 
@@ -120,8 +175,7 @@ export default function HelpPage() {
             No Accounts?
           </h2>
           <p className="text-sm text-gray-600 leading-relaxed">
-            Correct. RedDog Pickle is trust-based. Anyone with the group link
-            can:
+            Correct. Red Dog is trust-based. Anyone with the group link can:
           </p>
           <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
             <li>Start sessions</li>
@@ -129,8 +183,8 @@ export default function HelpPage() {
             <li>Record games</li>
           </ul>
           <p className="text-sm text-gray-600 leading-relaxed">
-            It&apos;s designed for real-life friend groups — not tournaments or
-            public leagues.
+            It&apos;s built for real-life friend groups &mdash; not tournaments
+            or public leagues.
           </p>
         </section>
 
@@ -144,15 +198,17 @@ export default function HelpPage() {
             </h3>
             <p className="text-sm text-gray-600">
               No. Games are immutable to keep stats clean and prevent disputes.
+              If needed, the most recent game can be voided.
             </p>
           </div>
 
           <div className="space-y-1">
             <h3 className="text-sm font-semibold text-gray-900">
-              Can we play to 15 instead of 11?
+              Can we play to 15 or 21 instead of 11?
             </h3>
             <p className="text-sm text-gray-600">
-              Yes. The app doesn&apos;t lock scoring rules.
+              Yes. Each session can choose 11, 15, or 21 points &mdash; win by
+              1 or win by 2.
             </p>
           </div>
 
@@ -161,7 +217,8 @@ export default function HelpPage() {
               Can multiple people record games?
             </h3>
             <p className="text-sm text-gray-600">
-              Yes. Duplicate detection prevents double entries across devices.
+              Yes. Duplicate detection helps prevent double entries across
+              devices.
             </p>
           </div>
 
@@ -171,6 +228,7 @@ export default function HelpPage() {
             </h3>
             <p className="text-sm text-gray-600">
               No. Ratings apply going forward from when they&apos;re introduced.
+              There is no retroactive recalculation.
             </p>
           </div>
 
@@ -180,9 +238,8 @@ export default function HelpPage() {
             </h3>
             <p className="text-sm text-gray-600">
               Group codes are shared by someone in your playing group. If you
-              don&apos;t have one, ask the person who sent you the link. RedDog
-              Pickle is designed for real-life friend groups — not public
-              signups.
+              don&apos;t have one, ask the person who sent you the link. Red Dog
+              is designed for real-life friend groups &mdash; not public signups.
             </p>
           </div>
         </section>

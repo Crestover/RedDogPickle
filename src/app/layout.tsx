@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 
-const siteUrl = "https://playreddog.com";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
 
 export const metadata: Metadata = {
   title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
   description:
     "Mobile-first pickleball scoring for real friend groups. Fast. Courtside. No login required.",
   metadataBase: new URL(siteUrl),
+  alternates: {
+    canonical: siteUrl,
+  },
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
@@ -24,7 +28,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/PlayRedDog_ProperRecord_1200x630px.png",
+        url: new URL(
+          "/PlayRedDog_ProperRecord_1200x630px.png",
+          siteUrl
+        ).toString(),
         width: 1200,
         height: 630,
         alt: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
@@ -35,7 +42,9 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
     description: "Mobile-first pickleball scoring for real friend groups.",
-    images: ["/PlayRedDog_ProperRecord_1200x630px.png"],
+    images: [
+      new URL("/PlayRedDog_ProperRecord_1200x630px.png", siteUrl).toString(),
+    ],
   },
 };
 

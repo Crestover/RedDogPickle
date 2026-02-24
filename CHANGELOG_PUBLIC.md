@@ -2,6 +2,14 @@
 
 ---
 
+## v0.4.1 — Polish
+
+### Improved
+- Group dashboard now shows the horizontal Red Dog logo instead of plain text.
+- iMessage and social share previews now reliably display the Open Graph image.
+
+---
+
 ## v0.4.0 — Red Dog Rating + Rebrand
 
 ### Added

@@ -85,18 +85,18 @@ export default async function GroupPage({ params }: PageProps) {
 
         {/* Header */}
         <div>
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Red Dog
-            </h1>
-            <p className="text-sm text-gray-500 mt-1 tracking-wide">
-              Play. Track. Repeat.
-            </p>
-          </div>
           <p className="text-xs font-medium uppercase tracking-widest text-gray-400 mb-1">
             Group
           </p>
-          <p className="text-3xl font-bold leading-tight">{group.name}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Red Dog
+          </h1>
+          <p className="text-sm text-gray-500 mt-1 tracking-wide">
+            Play. Track. Repeat.
+          </p>
+          <p className="text-sm text-gray-500 mt-3">
+            {group.name}
+          </p>
           <p className="mt-1 text-sm text-gray-400 font-mono">{group.join_code}</p>
         </div>
 

@@ -1,6 +1,6 @@
 # MEMORY.md — RedDog Pickle
 
-> Last updated: 2026-02-23 — v0.3.1 (main + dev synced at `a0d0c37`)
+> Last updated: 2026-02-23 — v0.4.0
 
 ---
 
@@ -12,7 +12,7 @@ RedDog Pickle is a **mobile-first pickleball stats tracker** for live courtside 
 - No login required (trust-based group access via join_code)
 - Immutable game history (soft-delete only via voided_at)
 - Cross-device duplicate prevention (SHA-256 fingerprint, 15-min window)
-- Session + group leaderboards with Elo ratings
+- Session + group leaderboards with RDR (Red Dog Rating) — MOV + partner gap dampener
 - Courts Mode for multi-court auto-assignment with fairness algorithm
 - Live Referee Console — zero-scroll scoring with explicit A/B team buttons
 - Inline pairing feedback shows partner/matchup history during team selection
@@ -29,9 +29,9 @@ RedDog Pickle is a **mobile-first pickleball stats tracker** for live courtside 
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.3.1 deployed. `main` and `dev` are in sync at `a0d0c37`.**
+**v0.4.0 — RDR v1 + Session Rules implemented. Pending: deploy migration `m10.0_rdr_v1.sql` to Supabase, then deploy to Vercel.**
 
-The Live Referee Console, Courts Mode V2, and all UI polish are live. No pending SQL migrations. No pending merges.
+New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR.
 
 ---
 
@@ -111,7 +111,7 @@ The Live Referee Console, Courts Mode V2, and all UI polish are live. No pending
 |------|------|
 | `sessions.ts` | `createSessionAction`, `endSessionAction`, `endAndCreateSessionAction` |
 | `players.ts` | `addPlayerAction` with `safeRedirect()` open-redirect prevention |
-| `games.ts` | `recordGameAction` (fire-and-forget Elo), `voidLastGameAction` (awaited recompute, non-fatal) |
+| `games.ts` | `recordGameAction` (returns success+deltas, no redirect), `voidLastGameAction` (atomic delta reversal) |
 | `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction`, `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` |
 
 #### `src/lib/` — Shared Utilities
@@ -127,7 +127,7 @@ The Live Referee Console, Courts Mode V2, and all UI polish are live. No pending
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
 | `supabase/rpc.ts` | RPC constant registry: 20 named constants (11 core + 9 courts) |
-| `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, Elo badge) |
+| `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier) |
 
 #### `src/app/globals.css`
 - Tailwind directives only (`@tailwind base/components/utilities`)
@@ -167,30 +167,56 @@ The Live Referee Console, Courts Mode V2, and all UI polish are live. No pending
 
 ### record_game RPC (m7.0, updated m9.0)
 1. `FOR UPDATE` lock on session row (serializes concurrent calls)
-2. Validates: session active (no ended_at — **no time-based expiry**), 2+2 players, no overlap, all attendees, scores valid (winner >= 11, margin >= 2)
-3. SHA-256 fingerprint: sorted teams + min:max score (order-invariant, no time bucket)
-4. Duplicate check: same fingerprint within 15 min → returns `{ status: 'possible_duplicate', existing_game_id, existing_created_at }`
-5. Atomic sequence_num increment + INSERT games + 4 game_players
-6. `search_path = public, extensions` (pgcrypto DIGEST lives in `extensions` schema on Supabase)
+2. Validates: session active (no ended_at — **no time-based expiry**), 2+2 players, no overlap, all attendees, scores valid (winner >= target_points, margin >= win_by)
+3. Resolves rules from session defaults when `p_target_points IS NULL`: `v_target_points := COALESCE(p_target_points, session.target_points_default)`, `v_win_by := session.win_by_default`
+4. SHA-256 fingerprint: sorted teams + min:max score + target_points + win_by (order-invariant, no time bucket)
+5. Duplicate check: same fingerprint within 15 min → returns `{ status: 'possible_duplicate', existing_game_id, existing_created_at }`
+6. Atomic sequence_num increment + INSERT games (with target_points, win_by) + 4 game_players
+7. **RDR math** (inline, atomic):
+   - Team avg = (p1_rating + p2_rating) / 2
+   - Expected = 1 / (1 + 10^((opponent_avg - team_avg) / 400))
+   - MOV: d_norm = LEAST(abs_diff / target_points, 0.75), mov = LN(d_norm * 10 + 1)
+   - Partner gap dampener: <50→1.00, <100→0.85, <200→0.70, ≥200→0.55
+   - K = 60 provisional (<20 games), 22 established
+   - raw_delta = K * (actual - expected) * (1 + mov) * gap_mult
+   - Clamped: ±40 provisional, ±25 established
+8. Persist to `game_rdr_deltas` (4 rows: game_id, player_id, delta, rdr_before, rdr_after, games_before, games_after)
+9. `search_path = public, extensions` (pgcrypto DIGEST lives in `extensions` schema on Supabase)
+10. Returns `{ status, game_id, target_points, win_by, deltas: [{player_id, delta, rdr_after}] }`
 
-### apply_ratings_for_game (m6)
-1. Idempotency check: existing rating_events for `(game_id, 'elo_v1')` → early return
-2. Upsert default 1200 rating for new players
-3. Team avg = (p1_rating + p2_rating) / 2
-4. Expected = 1 / (1 + 10^((opponent_avg - team_avg) / 400))
-5. K = 40 if provisional (games_rated < 5), else 20 — per-player independent
-6. delta = round(K * (actual - expected)), actual = 1 for win, 0 for loss
-7. Same delta for both teammates; no margin-of-victory factor
-8. Update player_ratings + insert rating_events (UNIQUE constraint = idempotency)
+### void_last_game (m10.0 — rating-correct LIFO)
+1. Lock session row FOR UPDATE (concurrency safety)
+2. Find most recent non-voided game
+3. Verify exactly 4 un-voided delta rows in `game_rdr_deltas`
+4. Reverse ratings per player: `rating -= delta`, `games_rated = games_before`, `provisional = (games_before < 20)`
+5. Mark game `voided_at = now()` + mark delta rows `voided_at = now()`
+6. Return `{ status: 'voided', voided_game_id }`
 
-### recompute_session_ratings (m7.3)
-1. Find Elo introduction boundary: `MIN(played_at)` of any rated game in group
-2. Find rewind point `t0`: earliest game in affected session within rated era
-3. **Reverse** ALL rating_events for the GROUP from `t0` onward (undo deltas)
-4. **Delete** those rating_events
-5. **Replay** ALL non-voided games from `t0` onward across ALL group sessions (ordered by played_at, sequence_num)
-6. Return count of replayed games
-7. **Critical**: replays beyond just the voided session because later games' deltas depend on prior ratings
+### Session Rules
+- **Session-level defaults**: `sessions.target_points_default` (11/15/21), `sessions.win_by_default` (1/2)
+- **Per-game resolved rules**: `games.target_points`, `games.win_by` — immutable truth for each game
+- **set_session_rules RPC**: Hardened SECURITY DEFINER. Validates session exists + active + real group. Updates session defaults.
+- **UI**: Rules Chip (tappable, shows "15 · win by 1") with inline picker presets. Shared in RecordGameForm + CourtsManager.
+- **Rule override semantics (v1)**: `p_target_points` override uses `session.win_by_default` for win_by. Future v2 can add `p_win_by`.
+
+### RDR Tier System (cosmetic, UI-only)
+- <1100: Pup (gray)
+- 1100-1199: Scrapper (blue)
+- 1200-1299: Tracker (green)
+- 1300-1399: Top Dog (yellow)
+- ≥1400: Alpha (red)
+- Thresholds based on `Math.round(rating)` to avoid edge-case confusion
+
+### Rating Storage
+- `player_ratings.rating` is `numeric(7,2)` — stored with full precision
+- UI displays `Math.round(rating)` everywhere (leaderboard, PlayerStatsRow, tier input)
+- Deltas stored in `game_rdr_deltas` with full precision
+
+### Legacy Rating System (m6, superseded by RDR in m10.0)
+- `apply_ratings_for_game` still exists but is no longer called (fire-and-forget removed)
+- `recompute_session_ratings` still exists but is no longer called (void uses LIFO reversal)
+- `rating_events` table still exists (not modified, no DELETE); cold start reset player_ratings only
+- K=40/20, no MOV, no partner gap — replaced by K=60/22 + MOV + gap dampener
 
 ### autoSuggest algorithm (autoSuggest.ts)
 1. Sort players by (games_played ASC, lastPlayedAt ASC)

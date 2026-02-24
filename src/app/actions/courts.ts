@@ -195,7 +195,7 @@ export async function startCourtGameAction(
   return data as RpcResult;
 }
 
-/** Record a game from an IN_PROGRESS court. Resets court to OPEN. Fire-and-forget Elo. */
+/** Record a game from an IN_PROGRESS court. Resets court to OPEN. RDR computed atomically in RPC. */
 export async function recordCourtGameAction(
   sessionId: string,
   joinCode: string,
@@ -203,31 +203,41 @@ export async function recordCourtGameAction(
   teamAScore: number,
   teamBScore: number,
   force = false
-): Promise<RpcResult<{ game_id: string }>> {
-  // Pre-flight score validation (also enforced in record_game RPC)
+): Promise<RpcResult<{ game_id: string; target_points: number; win_by: number; deltas: { player_id: string; delta: number; rdr_after: number }[] }>> {
+  // Pre-flight score validation against session rules
+  const supabase = getServerClient();
+
+  const { data: sessionData } = await supabase
+    .from("sessions")
+    .select("target_points_default, win_by_default")
+    .eq("id", sessionId)
+    .single();
+
+  const targetPoints = (sessionData as { target_points_default: number } | null)?.target_points_default ?? 11;
+  const winBy = (sessionData as { win_by_default: number } | null)?.win_by_default ?? 2;
+
   const winner = Math.max(teamAScore, teamBScore);
   const loser = Math.min(teamAScore, teamBScore);
 
   if (teamAScore === teamBScore) {
     return { ok: false, error: { code: "INVALID_SCORE", message: "Scores cannot be equal." } };
   }
-  if (winner < 11) {
+  if (winner < targetPoints) {
     return {
       ok: false,
-      error: { code: "INVALID_SCORE", message: `Winning score must be at least 11 (got ${winner}).` },
+      error: { code: "INVALID_SCORE", message: `Winning score must be at least ${targetPoints} (got ${winner}).` },
     };
   }
-  if (winner - loser < 2) {
+  if (winner - loser < winBy) {
     return {
       ok: false,
       error: {
         code: "INVALID_SCORE",
-        message: `Winning margin must be at least 2 (got ${winner - loser}).`,
+        message: `Winning margin must be at least ${winBy} (got ${winner - loser}).`,
       },
     };
   }
 
-  const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.RECORD_COURT_GAME, {
     p_session_id: sessionId,
     p_join_code: joinCode,
@@ -235,26 +245,12 @@ export async function recordCourtGameAction(
     p_team_a_score: teamAScore,
     p_team_b_score: teamBScore,
     p_force: force,
+    p_target_points: null, // use session defaults
   });
 
   if (error) return rpcError(error.message);
 
-  const result = data as RpcResult<{ game_id: string }>;
-
-  // Fire-and-forget: apply Elo ratings
-  if (result.ok && result.data?.game_id) {
-    void Promise.resolve(
-      supabase.rpc(RPC.APPLY_RATINGS_FOR_GAME, { p_game_id: result.data.game_id })
-    )
-      .then(({ error: eloErr }) => {
-        if (eloErr) console.error("[recordCourtGameAction] Elo RPC failed (non-blocking):", eloErr);
-      })
-      .catch((err) =>
-        console.error("[recordCourtGameAction] Elo RPC failed (non-blocking):", err)
-      );
-  }
-
-  return result;
+  return data as RpcResult<{ game_id: string; target_points: number; win_by: number; deltas: { player_id: string; delta: number; rdr_after: number }[] }>;
 }
 
 /** Assign a single player to a slot on an OPEN court. */

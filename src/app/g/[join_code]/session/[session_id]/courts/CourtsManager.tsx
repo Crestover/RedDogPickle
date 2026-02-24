@@ -16,6 +16,7 @@ import {
   makePlayerActiveAction,
   updateCourtCountAction,
 } from "@/app/actions/courts";
+import { setSessionRulesAction } from "@/app/actions/sessions";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -39,7 +40,15 @@ interface Props {
   pairCounts: PairCountEntry[];
   gamesPlayedMap: Record<string, number>;
   games: GameRecord[];
+  sessionRules: { targetPoints: number; winBy: number };
 }
+
+/** Rule presets for the picker. */
+const RULE_PRESETS: { targetPoints: number; winBy: number; label: string }[] = [
+  { targetPoints: 11, winBy: 2, label: "11 · W2" },
+  { targetPoints: 15, winBy: 1, label: "15 · W1" },
+  { targetPoints: 21, winBy: 2, label: "21 · W2" },
+];
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -103,6 +112,7 @@ export default function CourtsManager({
   pairCounts,
   gamesPlayedMap,
   games,
+  sessionRules,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -117,6 +127,11 @@ export default function CourtsManager({
   const [courtErrors, setCourtErrors] = useState<Record<number, string>>({});
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [optimisticClearedCourts, setOptimisticClearedCourts] = useState<Set<number>>(new Set());
+  const [rules, setRules] = useState(sessionRules);
+  const [showRulePicker, setShowRulePicker] = useState(false);
+
+  // Sync rules from server props
+  useEffect(() => { setRules(sessionRules); }, [sessionRules]);
 
   // ── Deterministic optimistic clear resolution ─────────────
   useEffect(() => {
@@ -535,7 +550,59 @@ export default function CourtsManager({
           />
         </div>
 
-        {/* Row 2: Suggest All (full width, primary green) */}
+        {/* Row 2: Rules Chip */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowRulePicker(!showRulePicker)}
+            className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          >
+            {rules.targetPoints} &middot; win by {rules.winBy}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-400">
+              <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <p className="text-xs text-gray-400 leading-tight mt-1">
+            Set points + win-by rules for this session.
+          </p>
+          {showRulePicker && (
+            <div className="mt-2 flex gap-2">
+              {RULE_PRESETS.map((preset) => {
+                const isActive = preset.targetPoints === rules.targetPoints && preset.winBy === rules.winBy;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      setShowRulePicker(false);
+                      if (preset.targetPoints === rules.targetPoints && preset.winBy === rules.winBy) return;
+                      setRules({ targetPoints: preset.targetPoints, winBy: preset.winBy });
+                      startTransition(async () => {
+                        const result = await setSessionRulesAction(sessionId, preset.targetPoints, preset.winBy);
+                        if ("error" in result) {
+                          setGlobalError(result.error);
+                          setRules(sessionRules);
+                        } else {
+                          router.refresh();
+                        }
+                      });
+                    }}
+                    disabled={isPending}
+                    className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                      isActive
+                        ? "bg-gray-900 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300"
+                    } disabled:opacity-50`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Row 3: Suggest All (full width, primary green) */}
         <button
           type="button"
           onClick={() => handleSuggest()}

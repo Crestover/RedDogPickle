@@ -7,6 +7,7 @@
 
 import type { PlayerStats } from "@/lib/types";
 import { formatDiff } from "@/lib/formatting";
+import { getTier, tierColor } from "@/lib/rdr";
 
 interface PlayerStatsRowProps {
   rank: number;
@@ -51,11 +52,19 @@ export default function PlayerStatsRow({ rank, player, rating, provisional }: Pl
             {formatDiff(player.point_diff)}
           </p>
           <p className="text-xs text-gray-400">pt diff</p>
-          {rating != null && (
-            <p className="text-xs text-gray-400 mt-0.5">
-              {Math.round(rating)}{provisional ? "*" : ""} Elo
-            </p>
-          )}
+          {rating != null && (() => {
+            const tier = getTier(rating);
+            return (
+              <div className="mt-0.5 flex items-center gap-1.5 justify-end">
+                <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${tierColor(tier)}`}>
+                  {tier}
+                </span>
+                <span className="text-xs text-gray-400">
+                  {Math.round(rating)}{provisional ? "*" : ""} RDR
+                </span>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

@@ -46,7 +46,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
   // Fetch the session (must belong to this group)
   const { data: session } = await supabase
     .from("sessions")
-    .select("id, name, started_at, ended_at, closed_reason")
+    .select("id, name, started_at, ended_at, closed_reason, target_points_default, win_by_default")
     .eq("id", sessionId)
     .eq("group_id", group.id)
     .maybeSingle();
@@ -212,6 +212,10 @@ export default async function SessionPage({ params }: PageProps) {
               games_together: p.games_together,
             }))}
             games={gameRecords}
+            sessionRules={{
+              targetPoints: (session as unknown as { target_points_default: number }).target_points_default ?? 11,
+              winBy: (session as unknown as { win_by_default: number }).win_by_default ?? 2,
+            }}
           />
 
           {/* Void last game — secondary utility */}

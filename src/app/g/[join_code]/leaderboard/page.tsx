@@ -11,6 +11,9 @@ import { notFound } from "next/navigation";
  * Three toggle pills: All-time (default) | Last 30 Days | Last Session.
  * Stats computed from raw games via get_group_stats / get_session_stats RPCs.
  * Toggle via ?range=30d | ?range=last query param (no Client Component needed).
+ *
+ * All-time and 30-day modes sort by RDR (server-side via p_sort_by: 'rdr').
+ * Last Session mode uses existing win% sorting.
  */
 
 interface PageProps {
@@ -30,11 +33,12 @@ async function getGroup(joinCode: string) {
   return group;
 }
 
-async function getGroupStats(joinCode: string, days: number | null) {
+async function getGroupStats(joinCode: string, days: number | null, sortBy: string = "rdr") {
   const supabase = getServerClient();
   const { data: stats, error } = await supabase.rpc(RPC.GET_GROUP_STATS, {
     p_join_code: joinCode,
     p_days: days,
+    p_sort_by: sortBy,
   });
   if (error) {
     console.error("get_group_stats error:", error);
@@ -122,14 +126,19 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
 
   // Fetch stats based on selected range
   let stats: PlayerStats[];
+  let useRdrFromStats = false;
+
   if (mode === "last") {
     stats = await getLastSessionStats(joinCode);
   } else {
+    // All-time and 30-day: sort by RDR server-side
     const days = mode === "30d" ? 30 : null;
-    stats = await getGroupStats(joinCode, days);
+    stats = await getGroupStats(joinCode, days, "rdr");
+    useRdrFromStats = true;
   }
 
-  // Fetch Elo ratings for display
+  // Fetch player ratings for display (needed for last-session mode which
+  // doesn't return rdr column, and for provisional flag)
   const ratingsMap = await getGroupRatings(group.id);
 
   return (
@@ -141,7 +150,7 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
             href={`/g/${group.join_code}`}
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
-            ← {group.name}
+            &larr; {group.name}
           </Link>
           <h1 className="mt-3 text-2xl font-bold">Leaderboard</h1>
         </div>
@@ -195,12 +204,16 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           <div className="space-y-2">
             {stats.map((player, index) => {
               const pr = ratingsMap.get(player.player_id);
+              // Use rdr from stats if available (all-time/30-day), otherwise from ratings table
+              const rating = useRdrFromStats && player.rdr != null
+                ? Number(player.rdr)
+                : (pr?.rating ?? null);
               return (
                 <PlayerStatsRow
                   key={player.player_id}
                   rank={index + 1}
                   player={player}
-                  rating={pr?.rating ?? null}
+                  rating={rating}
                   provisional={pr?.provisional ?? false}
                 />
               );

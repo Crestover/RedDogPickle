@@ -3,32 +3,31 @@
 import { redirect } from "next/navigation";
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
+import type { RdrDelta } from "@/lib/types";
 
 /**
  * Server Action: recordGameAction
  *
  * Delegates to the record_game Postgres RPC (SECURITY DEFINER), which:
  *   1. Validates session is active
- *   2. Validates player counts, no overlap, all attendees
- *   3. Validates scores (winner >= 11, winner - loser >= 2, not equal)
- *   4. Computes a deterministic fingerprint (SHA-256, order-insensitive
- *      within and across teams) — NO time bucket
- *   5. If force=false: checks for a matching game created within 15 min
- *      — returns possible_duplicate if found (no insert)
- *   6. If force=true or no recent match: inserts games + game_players
- *      atomically, returns inserted
+ *   2. Resolves rules from session defaults (target_points, win_by)
+ *   3. Validates player counts, no overlap, all attendees
+ *   4. Validates scores using resolved rules
+ *   5. Computes a deterministic fingerprint (includes rules)
+ *   6. Duplicate check (15-min window)
+ *   7. Inserts game + game_players atomically
+ *   8. Computes RDR atomically (inline) + persists to game_rdr_deltas
  *
  * Return shapes:
- *   - redirect (Next.js throw)      — game inserted successfully
+ *   - { success: true, gameId, deltas, targetPoints, winBy } — game inserted
  *   - { possibleDuplicate: true, existingGameId, existingCreatedAt }
- *                                   — warn UI to show confirm prompt
- *   - { error: string }             — validation or unexpected error
+ *   - { error: string } — validation or unexpected error
  */
 
 export type RecordGameResult =
   | { error: string }
   | { possibleDuplicate: true; existingGameId: string; existingCreatedAt: string }
-  | never; // redirect
+  | { success: true; gameId: string; deltas: RdrDelta[]; targetPoints: number; winBy: number };
 
 export async function recordGameAction(
   sessionId: string,
@@ -55,14 +54,28 @@ export async function recordGameAction(
   if (teamAScore === teamBScore) {
     return { error: "Scores cannot be equal." };
   }
-  if (winner < 11) {
-    return { error: `Winning score must be at least 11 (got ${winner}).` };
-  }
-  if (winner - loser < 2) {
-    return { error: `Winning margin must be at least 2 (got ${winner - loser}).` };
+
+  // Read session rules for pre-flight validation
+  const supabase = getServerClient();
+  const { data: sessionData, error: sessionErr } = await supabase
+    .from("sessions")
+    .select("target_points_default, win_by_default")
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionErr || !sessionData) {
+    return { error: "Could not read session rules." };
   }
 
-  const supabase = getServerClient();
+  const targetPoints = (sessionData as { target_points_default: number }).target_points_default;
+  const winBy = (sessionData as { win_by_default: number }).win_by_default;
+
+  if (winner < targetPoints) {
+    return { error: `Winning score must be at least ${targetPoints} (got ${winner}).` };
+  }
+  if (winner - loser < winBy) {
+    return { error: `Winning margin must be at least ${winBy} (got ${winner - loser}).` };
+  }
 
   const { data, error } = await supabase.rpc(RPC.RECORD_GAME, {
     p_session_id:   sessionId,
@@ -71,6 +84,7 @@ export async function recordGameAction(
     p_team_a_score: teamAScore,
     p_team_b_score: teamBScore,
     p_force:        force,
+    p_target_points: null, // use session defaults
   });
 
   if (error) {
@@ -82,6 +96,9 @@ export async function recordGameAction(
   const result = data as {
     status: "inserted" | "possible_duplicate";
     game_id?: string;
+    target_points?: number;
+    win_by?: number;
+    deltas?: { player_id: string; delta: number; rdr_after: number }[];
     existing_game_id?: string;
     existing_created_at?: string;
   };
@@ -94,24 +111,22 @@ export async function recordGameAction(
     };
   }
 
-  // Fire-and-forget: apply Elo ratings. If this fails the game is still saved.
-  if (result.game_id) {
-    void Promise.resolve(supabase.rpc(RPC.APPLY_RATINGS_FOR_GAME, { p_game_id: result.game_id }))
-      .then(({ error: eloErr }) => { if (eloErr) console.error("[recordGameAction] Elo RPC failed (non-blocking):", eloErr); })
-      .catch((err) => console.error("[recordGameAction] Elo RPC failed (non-blocking):", err));
-  }
-
-  // status === "inserted" — redirect to session page so Server Component
-  // re-fetches the updated game list
-  redirect(`/g/${joinCode}/session/${sessionId}`);
+  // status === "inserted" — return success with deltas (no redirect)
+  return {
+    success: true,
+    gameId: result.game_id!,
+    deltas: (result.deltas ?? []) as RdrDelta[],
+    targetPoints: result.target_points ?? targetPoints,
+    winBy: result.win_by ?? winBy,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────
 // voidLastGameAction
 //
 // Called from the VoidLastGameButton.
-// Delegates to void_last_game RPC (SECURITY DEFINER), then
-// recomputes session-scoped Elo ratings (non-fatal if that fails).
+// Delegates to void_last_game RPC (SECURITY DEFINER) which
+// atomically reverses RDR deltas via game_rdr_deltas (LIFO).
 // On success: redirects to the session page (or courts page).
 // On error:   returns { error: string }
 // ─────────────────────────────────────────────────────────────
@@ -125,7 +140,6 @@ export async function voidLastGameAction(
 
   const { data, error } = await supabase.rpc(RPC.VOID_LAST_GAME, {
     p_session_id: sessionId,
-    p_reason: "voided by user",
   });
 
   if (error) {
@@ -133,23 +147,10 @@ export async function voidLastGameAction(
     return { error: error.message ?? "Failed to void game." };
   }
 
-  const result = data as { status: string; game_id?: string; sequence_num?: number };
+  const result = data as { status: string; voided_game_id?: string; sequence_num?: number };
 
   if (result.status === "no_game_found") {
     return { error: "No games to void in this session." };
-  }
-
-  // Recompute session-scoped Elo ratings (awaited but non-fatal).
-  try {
-    const { error: recomputeErr } = await supabase.rpc(
-      RPC.RECOMPUTE_SESSION_RATINGS,
-      { p_session_id: sessionId }
-    );
-    if (recomputeErr) {
-      console.error("[voidLastGameAction] Elo recompute failed (non-fatal):", recomputeErr.message);
-    }
-  } catch (err) {
-    console.error("[voidLastGameAction] Elo recompute exception (non-fatal):", err);
   }
 
   const target = redirectPath ?? `/g/${joinCode}/session/${sessionId}`;

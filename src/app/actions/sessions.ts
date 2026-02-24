@@ -113,3 +113,35 @@ export async function endAndCreateSessionAction(
 
   redirect(`/g/${joinCode}/session/${sessionId as string}`);
 }
+
+// ─────────────────────────────────────────────────────────────
+// setSessionRulesAction
+//
+// Updates session-level game rules (target_points + win_by).
+// Called from the Rules Chip picker.
+// Returns { success, targetPoints, winBy } or { error }.
+// ─────────────────────────────────────────────────────────────
+export async function setSessionRulesAction(
+  sessionId: string,
+  targetPoints: number,
+  winBy: number
+): Promise<{ success: true; targetPoints: number; winBy: number } | { error: string }> {
+  const supabase = getServerClient();
+  const { data, error } = await supabase.rpc(RPC.SET_SESSION_RULES, {
+    p_session_id: sessionId,
+    p_target_points: targetPoints,
+    p_win_by: winBy,
+  });
+
+  if (error) {
+    console.error("[setSessionRulesAction] RPC error:", error.message);
+    return { error: error.message ?? "Failed to update session rules." };
+  }
+
+  const result = data as { status: string; target_points: number; win_by: number };
+  return {
+    success: true,
+    targetPoints: result.target_points,
+    winBy: result.win_by,
+  };
+}

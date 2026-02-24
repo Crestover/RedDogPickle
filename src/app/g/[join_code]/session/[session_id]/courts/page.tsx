@@ -29,7 +29,7 @@ export default async function CourtsPage({ params }: PageProps) {
   // Fetch session (must belong to this group and be active)
   const { data: session } = await supabase
     .from("sessions")
-    .select("id, name, started_at, ended_at, closed_reason")
+    .select("id, name, started_at, ended_at, closed_reason, target_points_default, win_by_default")
     .eq("id", session_id)
     .eq("group_id", group.id)
     .maybeSingle();
@@ -156,6 +156,10 @@ export default async function CourtsPage({ params }: PageProps) {
             pairCounts={pairCounts}
             gamesPlayedMap={gamesPlayedMap}
             games={games}
+            sessionRules={{
+              targetPoints: (session as unknown as { target_points_default: number }).target_points_default ?? 11,
+              winBy: (session as unknown as { win_by_default: number }).win_by_default ?? 2,
+            }}
           />
         )}
       </div>

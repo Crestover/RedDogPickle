@@ -13,10 +13,8 @@ export const RPC = {
   GET_GROUP_STATS: "get_group_stats",
   GET_LAST_SESSION_ID: "get_last_session_id",
   GET_SESSION_PAIR_COUNTS: "get_session_pair_counts",
-  APPLY_RATINGS_FOR_GAME: "apply_ratings_for_game",
-  RECONCILE_MISSING_RATINGS: "reconcile_missing_ratings",
   VOID_LAST_GAME: "void_last_game",
-  RECOMPUTE_SESSION_RATINGS: "recompute_session_ratings",
+  SET_SESSION_RULES: "set_session_rules",
 
   // Courts Mode V2
   INIT_COURTS: "init_courts",

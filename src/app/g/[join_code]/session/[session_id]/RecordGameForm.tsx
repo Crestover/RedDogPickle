@@ -7,10 +7,12 @@
  * All elements visible simultaneously: team panels, player picker,
  * score inputs, and record button.
  *
- * Explicit A/B selection:
- *   Each player row has A and B buttons for direct team assignment.
- *   One tap to assign, same tap to toggle off.
- *   Buttons disable when the target team is full.
+ * Rules Chip: session-level rules (target_points + win_by) displayed
+ * as a tappable chip. Tapping opens an inline picker with presets.
+ * Rules persist across games (no per-game reset).
+ *
+ * Delta flash: after successful recording, RDR deltas are shown
+ * briefly (~2s) before resetting the form and refreshing.
  *
  * Duplicate handling (M4.1):
  *   If the RPC finds a matching game recorded within the last 15 minutes
@@ -20,8 +22,10 @@
  */
 
 import { useState, useRef, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { recordGameAction } from "@/app/actions/games";
-import type { Player } from "@/lib/types";
+import { setSessionRulesAction } from "@/app/actions/sessions";
+import type { Player, RdrDelta } from "@/lib/types";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
 
@@ -31,6 +35,7 @@ interface Props {
   attendees: Player[];
   pairCounts?: PairCountEntry[];
   games?: GameRecord[];
+  sessionRules: { targetPoints: number; winBy: number };
 }
 
 type Team = "A" | "B" | null;
@@ -39,6 +44,13 @@ interface PossibleDuplicate {
   existingGameId: string;
   existingCreatedAt: string;
 }
+
+/** Rule presets for the picker. */
+const RULE_PRESETS: { targetPoints: number; winBy: number; label: string }[] = [
+  { targetPoints: 11, winBy: 2, label: "11 · W2" },
+  { targetPoints: 15, winBy: 1, label: "15 · W1" },
+  { targetPoints: 21, winBy: 2, label: "21 · W2" },
+];
 
 /** Returns a human-readable relative time string, e.g. "2 minutes ago" */
 function relativeTime(isoString: string): string {
@@ -49,7 +61,9 @@ function relativeTime(isoString: string): string {
   return `${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`;
 }
 
-export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts, games }: Props) {
+export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts, games, sessionRules }: Props) {
+  const router = useRouter();
+
   // ── State ──────────────────────────────────────────────────────────────────
   const [teamA, setTeamA] = useState<string[]>([]);
   const [teamB, setTeamB] = useState<string[]>([]);
@@ -60,10 +74,20 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   const [isPending, startTransition] = useTransition();
   const [shutoutArmed, setShutoutArmed] = useState(false);
   const shutoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [rules, setRules] = useState(sessionRules);
+  const [showRulePicker, setShowRulePicker] = useState(false);
+  const [deltas, setDeltas] = useState<RdrDelta[] | null>(null);
+  const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clean up shutout timer on unmount
+  // Sync rules from server props (e.g. after router.refresh())
+  useEffect(() => {
+    setRules(sessionRules);
+  }, [sessionRules]);
+
+  // Clean up timers on unmount
   useEffect(() => () => {
     if (shutoutTimerRef.current) clearTimeout(shutoutTimerRef.current);
+    if (deltaTimerRef.current) clearTimeout(deltaTimerRef.current);
   }, []);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -115,16 +139,35 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     return entry?.games_together ?? 0;
   }
 
-  /** True when one team scored 0 and the other scored ≥ 11 */
+  /** True when one team scored 0 and the other scored >= target_points */
   function isShutout(): boolean {
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
-    return Math.min(a, b) === 0 && Math.max(a, b) >= 11;
+    return Math.min(a, b) === 0 && Math.max(a, b) >= rules.targetPoints;
   }
 
   function disarmShutout() {
     setShutoutArmed(false);
     if (shutoutTimerRef.current) { clearTimeout(shutoutTimerRef.current); shutoutTimerRef.current = null; }
+  }
+
+  // ── Rules Chip handler ──────────────────────────────────────────────────────
+  function handleRuleSelect(targetPoints: number, winBy: number) {
+    setShowRulePicker(false);
+    if (targetPoints === rules.targetPoints && winBy === rules.winBy) return;
+
+    // Optimistic update
+    setRules({ targetPoints, winBy });
+
+    startTransition(async () => {
+      const result = await setSessionRulesAction(sessionId, targetPoints, winBy);
+      if ("error" in result) {
+        setError(result.error);
+        setRules(sessionRules); // revert
+      } else {
+        router.refresh();
+      }
+    });
   }
 
   // ── Validation ─────────────────────────────────────────────────────────────
@@ -142,8 +185,8 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     if (a === b) return "Scores cannot be equal.";
     const w = Math.max(a, b);
     const l = Math.min(a, b);
-    if (w < 11) return `Winning score must be at least 11 (got ${w}).`;
-    if (w - l < 2) return `Winning margin must be at least 2 (got ${w - l}).`;
+    if (w < rules.targetPoints) return `Winning score must be at least ${rules.targetPoints} (got ${w}).`;
+    if (w - l < rules.winBy) return `Winning margin must be at least ${rules.winBy} (got ${w - l}).`;
     return null;
   }
 
@@ -151,6 +194,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   function handleReset() {
     setTeamA([]); setTeamB([]);
     setScoreA(""); setScoreB(""); setError(""); setPossibleDup(null);
+    setDeltas(null);
     disarmShutout();
   }
 
@@ -183,7 +227,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         force
       );
 
-      if (!result) return; // redirect — no further handling
+      if (!result) return;
 
       if ("possibleDuplicate" in result && result.possibleDuplicate) {
         setPossibleDup({
@@ -195,6 +239,19 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
 
       if ("error" in result) {
         setError(result.error);
+        return;
+      }
+
+      // Success — show delta flash, then reset and refresh
+      if ("success" in result) {
+        setDeltas(result.deltas);
+        deltaTimerRef.current = setTimeout(() => {
+          setDeltas(null);
+          setTeamA([]); setTeamB([]);
+          setScoreA(""); setScoreB("");
+          setError(""); setPossibleDup(null);
+          router.refresh();
+        }, 2000);
       }
     });
   }
@@ -216,6 +273,68 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className={`space-y-3${teamsComplete ? " pb-20" : ""}`}>
+      {/* ── Rules Chip ──────────────────────────────────────── */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowRulePicker(!showRulePicker)}
+          className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        >
+          {rules.targetPoints} &middot; win by {rules.winBy}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-400">
+            <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+          </svg>
+        </button>
+        <p className="text-xs text-gray-400 leading-tight mt-1">
+          Set points + win-by rules for this session.
+        </p>
+
+        {/* Rule picker dropdown */}
+        {showRulePicker && (
+          <div className="mt-2 flex gap-2">
+            {RULE_PRESETS.map((preset) => {
+              const isActive = preset.targetPoints === rules.targetPoints && preset.winBy === rules.winBy;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => handleRuleSelect(preset.targetPoints, preset.winBy)}
+                  disabled={isPending}
+                  className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                    isActive
+                      ? "bg-gray-900 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300"
+                  } disabled:opacity-50`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Delta Flash ─────────────────────────────────────── */}
+      {deltas && deltas.length > 0 && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 space-y-1">
+          <p className="text-xs font-semibold text-green-800">Game recorded! RDR updates:</p>
+          <div className="flex flex-wrap gap-2">
+            {deltas.map((d) => {
+              const code = playerCode(d.player_id);
+              const sign = d.delta >= 0 ? "+" : "";
+              return (
+                <span key={d.player_id} className="inline-flex items-center gap-1 text-xs font-mono">
+                  <span className="font-bold text-gray-700">{code}</span>
+                  <span className={d.delta >= 0 ? "text-green-700" : "text-red-600"}>
+                    {sign}{Math.round(d.delta * 10) / 10}
+                  </span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Team Panels (read-only summary) ──────────────────── */}
       <div className="flex gap-2">
         {/* Team A panel */}
@@ -414,7 +533,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
       )}
 
       {/* ── Record Button (sticky when teams complete) ─────────── */}
-      {!possibleDup && (
+      {!possibleDup && !deltas && (
         <div className={teamsComplete ? "sticky bottom-0 z-10 pt-2 -mx-1 px-1 bg-gradient-to-t from-white via-white to-transparent" : ""}>
           <button
             type="button"

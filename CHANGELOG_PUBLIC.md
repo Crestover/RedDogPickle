@@ -2,6 +2,22 @@
 
 ---
 
+## v0.4.0 — Red Dog Rating (RDR) + Session Rules
+
+### Added
+- New **Red Dog Rating (RDR)** system replaces the old Elo ratings. RDR accounts for margin of victory and partner skill gaps for more accurate player rankings.
+- Cosmetic **tier badges** on the leaderboard: Pup, Scrapper, Tracker, Top Dog, and Alpha.
+- **Session-level game rules**: set target points (11, 15, or 21) and win-by (1 or 2) for the entire session via a tappable Rules Chip. No more toggling per game.
+- **RDR delta flash** after recording a game briefly shows each player's rating change.
+- **Rating-correct void**: voiding a game now cleanly reverses each player's rating change.
+
+### Improved
+- Leaderboard all-time and 30-day views now sort by RDR (server-side) for consistent rankings.
+- Score validation uses the session's active rules instead of hardcoded 11/win-by-2.
+- Rules Chip appears in both Manual and Courts modes with the same controls.
+
+---
+
 ## v0.3.1 — Live Referee Console
 
 ### Added

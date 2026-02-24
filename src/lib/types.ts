@@ -17,6 +17,7 @@ export interface PlayerStats {
   points_against: number;
   point_diff: number;
   avg_point_diff: number;
+  rdr?: number | null;
 }
 
 /** Returned by get_session_pair_counts RPC. */
@@ -42,13 +43,26 @@ export interface Group {
   join_code: string;
 }
 
-/** Player Elo rating from player_ratings table. */
+/** Player rating from player_ratings table. */
 export interface PlayerRating {
   group_id: string;
   player_id: string;
   rating: number;
   games_rated: number;
   provisional: boolean;
+}
+
+/** RDR delta returned by record_game / record_court_game. */
+export interface RdrDelta {
+  player_id: string;
+  delta: number;
+  rdr_after: number;
+}
+
+/** Session-level game rules. */
+export interface SessionRules {
+  target_points: number;
+  win_by: number;
 }
 
 /** Session row shape from sessions table. */
@@ -59,6 +73,8 @@ export interface Session {
   started_at: string;
   ended_at: string | null;
   closed_reason: string | null;
+  target_points_default: number;
+  win_by_default: number;
 }
 
 /** Court row shape from session_courts table. */

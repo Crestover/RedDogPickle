@@ -489,6 +489,206 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [Milestone 7] — Void Last Game, Courts Mode v1, Help Page, Data Integrity (2026-02-22)
+
+### Added
+- `supabase/migrations/m7.0_record_game_for_update.sql` — `FOR UPDATE` lock on session row
+  in `record_game` to serialize concurrent game recordings; `SET search_path = public, extensions`
+  for pgcrypto compatibility on Supabase
+- `supabase/migrations/m7.1_elo_reconciliation.sql` — `vw_games_missing_ratings` view +
+  updated `reconcile_missing_ratings` RPC for backfilling missed Elo calculations
+- `supabase/migrations/m7.2_one_active_session.sql` — partial unique index
+  `idx_one_active_session_per_group` (one active session per group); idempotent `create_session`
+- `supabase/migrations/m7.3_void_game.sql`:
+  - `void_last_game(p_session_id, p_reason)` RPC — soft-deletes most recent non-voided game
+    via `voided_at` timestamp (immutable game model preserved)
+  - `recompute_session_ratings(p_session_id)` RPC — forward-replays Elo from earliest affected
+    game across ALL group sessions (not just the voided session) to ensure correct deltas
+  - Updated `vw_player_game_stats` and `get_session_pair_counts` to exclude voided games
+- `supabase/migrations/m0_base_tables.sql` — base DDL extracted for reproducible fresh DB setup
+- `src/app/g/[join_code]/session/[session_id]/VoidLastGameButton.tsx` — Client Component:
+  2-tap confirmation (amber), calls `voidLastGameAction`, awaits Elo recompute (non-fatal)
+- `src/app/g/[join_code]/session/[session_id]/courts/page.tsx` — Courts Mode page wrapper
+- `src/app/g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` — Courts Mode v1
+  (680 lines): auto-suggest algorithm, slot assignment, per-court score entry
+- `src/lib/autoSuggest.ts` — `suggestForCourts()` algorithm: sort by games played then
+  recency, select top N×4 players, enumerate 2v2 splits, minimize repeat-partner penalty
+- `src/app/help/page.tsx` — Static Help/FAQ page
+- `src/app/actions/games.ts` — `voidLastGameAction` with awaited `recompute_session_ratings`
+- `src/app/actions/players.ts` — `safeRedirect()` to prevent open redirects in `addPlayerAction`
+
+### Changed
+- `src/app/layout.tsx` — global footer with version number + "Changes" link + "Learn more" link
+- `src/app/page.tsx` — version footer moved to global layout
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — added VoidLastGameButton, Courts
+  Mode navigation link
+- `src/lib/supabase/rpc.ts` — added `VOID_LAST_GAME`, `RECOMPUTE_SESSION_RATINGS`,
+  `RECONCILE_MISSING_RATINGS` constants
+
+### No docs/decisions.md updates for M7
+- Architecture decisions were not formally recorded for M7. Key rationales are captured in
+  MEMORY.md (Logic Guardrails section and Resolved Regressions section).
+
+---
+
+## [Milestone 8+9] — Courts Mode V2 + Remove Session Expiry (2026-02-23)
+
+### Added
+- `supabase/migrations/m8.0_courts_mode.sql` — Courts Mode V2:
+  - `session_courts` table (id, session_id, court_number, status OPEN/IN_PROGRESS, team_a_ids,
+    team_b_ids)
+  - `status` column on `session_players` (ACTIVE/INACTIVE) with `inactive_effective_after_game`
+  - 9 new RPCs: `init_courts`, `assign_courts`, `start_court_game`, `record_court_game`,
+    `update_court_assignment`, `clear_court_slot`, `mark_player_out`, `make_player_active`,
+    `update_court_count`
+  - RLS policies on `session_courts` (SELECT + INSERT for anon)
+- `supabase/migrations/m9.0_remove_session_expiry.sql`:
+  - Removes 4-hour session expiry from `record_game`, `create_session`, and related functions
+  - Sessions now stay active indefinitely until manually ended
+- `src/app/actions/courts.ts` — 9 server actions wrapping Courts Mode RPCs
+- `src/app/actions/sessions.ts` — `endAndCreateSessionAction` for atomic end + create flow
+- `src/app/g/[join_code]/session/[session_id]/StaleBanner.tsx` — Client Component: amber
+  banner when session has no games for 24+ hours (UI-only, does not auto-end). Offers
+  Resume / Start New / End options
+- `src/app/g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` — initial court count
+  selection when no courts exist yet
+- `src/lib/types.ts` — added `CourtData`, `AttendeeWithStatus`, `RpcResult<T>` interfaces
+
+### Changed
+- `src/app/g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` — complete V2 rewrite
+  (680 → 1073 lines): server-persisted court state, horizontal-scroll waiting pool chips with
+  slot picker bottom sheet, on-court list, inactive list, fairness summary, inline pairing
+  feedback in court cards
+- `src/app/g/[join_code]/session/[session_id]/courts/page.tsx` — loads court data + attendees
+  from Supabase, renders CourtsSetup or CourtsManager
+- `src/app/g/[join_code]/start/StartSessionForm.tsx` — confirmation dialog when starting new
+  session while another is active
+- `src/app/g/[join_code]/page.tsx` — active session detection improvements
+- `src/app/help/page.tsx` — updated text for Courts Mode V2
+- `src/lib/autoSuggest.ts` — added helper types and exports for V2 integration
+- `src/lib/supabase/rpc.ts` — added 9 Courts Mode RPC constants
+
+---
+
+## [v0.3.0] — Courts Mode + Game Voids (2026-02-22)
+
+### Added
+- `CHANGELOG_PUBLIC.md` — user-facing changelog (rendered at `/changelog_public`)
+- Inline pairing feedback in `RecordGameForm` team summary panels: "Partners N× this session"
+- Inline partner count display in `CourtsManager` court cards
+
+### Changed
+- `package.json` — version bumped to `0.3.0`
+- `src/app/changelog/page.tsx` → `src/app/changelog_public/page.tsx` — renamed route to fix
+  footer 404 (footer links to `/changelog_public`)
+
+### Fixed
+- ESLint errors blocking Vercel build (unused variables after refactoring)
+- `recompute_session_ratings` scope corrected: replays from `t0` across ALL group sessions,
+  not just the voided session
+- `search_path = public, extensions` added to `m7.0` record_game for pgcrypto `DIGEST()`
+- Global footer visible without scrolling on short pages
+- Footer "Changes" link corrected to `/changelog_public`
+
+---
+
+## [v0.3.1] — Live Referee Console (2026-02-23)
+
+### Added
+- `src/lib/pairingFeedback.ts` — shared module: `matchupKey()` for canonical team-vs-team
+  matchup key, `getMatchupCount()` for exact pairing occurrence count, `severityDotClass()`
+  for dot-indicator color (emerald=fresh, gray=normal, amber=caution)
+- `src/app/g/[join_code]/session/[session_id]/games/page.tsx` — session game log page:
+  first-name display, winner highlighting (emerald-600), voided games (rose badge, muted opacity)
+- `src/app/g/[join_code]/session/[session_id]/ModeToggle.tsx` — segmented Manual/Courts
+  toggle. Stateless: `mode` prop from server component is source of truth, uses `<Link>` for
+  navigation. Contextual subtitle ("Select teams directly" / "Manage multi-court rotation")
+- Last-game ticker on live session page: emerald dot + LAST pill + score + team codes + time
+
+### Changed
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — restructured as Live Referee
+  Console: LIVE header, ModeToggle, StaleBanner, RecordGameForm, VoidLastGame, last-game
+  ticker, "All games →" / "Standings →" footer nav. Ended sessions show simple game log
+  instead of full analytics
+- `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx` — replaced active-team
+  targeting with explicit per-row A/B buttons. Each player row has dedicated A and B buttons;
+  no active-team concept. Team panels are read-only summaries. Internal scroll
+  (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail.
+  Inline pairing feedback via dot indicators
+- `src/app/g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` — global controls
+  (Courts ±count, Suggest All, Void) moved above court cards. Inline pairing feedback in
+  court cards via dot indicators
+- `src/app/g/[join_code]/session/[session_id]/courts/page.tsx` — added ModeToggle with
+  `mode="courts"`
+- `src/app/g/[join_code]/session/[session_id]/ModeToggle.tsx` — rewritten to be fully
+  stateless (no localStorage, no useState); route is single source of truth
+
+### Design changes
+- Only the Record Game button uses filled green style; all other buttons are outline-only
+- SessionStandings and PairingBalance removed from live session view (accessible via
+  "Standings →" link)
+- Ended sessions show a simple game log instead of analytics
+- `package.json` — version bumped to `0.3.1`
+- `CHANGELOG_PUBLIC.md` — added v0.3.1 entry
+
+### Fixed
+- ModeToggle localStorage mismatch: eliminated client state entirely; route is now the
+  single source of truth, preventing flash of wrong state on navigation
+
+---
+
+## [v0.4.0] — Red Dog Rating (RDR) + Session Rules (2026-02-23)
+
+### Added
+- `supabase/migrations/m10.0_rdr_v1.sql` — Full migration: session rule columns, game rule
+  columns, `game_rdr_deltas` table, `set_session_rules` RPC, `record_game` with inline RDR
+  math, `record_court_game` with rule pass-through, `void_last_game` with LIFO delta reversal,
+  `get_group_stats` with server-side RDR sort
+- `src/lib/rdr.ts` — Tier utility: `getTier(rdr)` returns Pup/Scrapper/Tracker/Top Dog/Alpha;
+  `tierColor(tier)` returns Tailwind classes for tier badge styling
+- `src/app/actions/sessions.ts` — `setSessionRulesAction()` for updating session-level game
+  rules (target_points + win_by) via `set_session_rules` RPC
+- `src/lib/types.ts` — `RdrDelta`, `SessionRules` interfaces; `rdr` field on `PlayerStats`;
+  `target_points_default`, `win_by_default` on `Session`
+- Rules Chip UI in `RecordGameForm` and `CourtsManager`: tappable chip showing current session
+  rules (e.g. "15 · win by 1"), inline picker with presets (11/W2, 15/W1, 21/W2)
+- Delta flash in `RecordGameForm`: after successful game record, briefly shows each player's
+  RDR change before resetting the form
+- `sessions.target_points_default` + `sessions.win_by_default` columns (session-level defaults)
+- `games.target_points` + `games.win_by` columns (immutable per-game resolved rules)
+- `game_rdr_deltas` table: stores per-player deltas per game for reversible voids (v1.5)
+- Tier badges on `PlayerStatsRow`: colored pills showing cosmetic rank tier
+
+### Changed
+- `record_game` RPC: inline RDR math (MOV, partner gap dampener, per-player K, clamped deltas),
+  resolves rules from session defaults when `p_target_points IS NULL`, fingerprint includes
+  target_points and win_by
+- `record_court_game` RPC: passes `p_target_points` through to `record_game`
+- `void_last_game` RPC: FOR UPDATE lock on session, reads stored deltas from `game_rdr_deltas`,
+  reverses ratings atomically, marks game + deltas as voided
+- `get_group_stats` RPC: added `p_sort_by` parameter (`'rdr'` or `'win_pct'`), LEFT JOINs
+  `player_ratings`, `rdr` column appended to return table
+- `src/app/actions/games.ts` — `recordGameAction` no longer redirects; returns
+  `{ success, gameId, deltas, targetPoints, winBy }`. Pre-flight validation uses session rules.
+  Removed fire-and-forget `apply_ratings_for_game` call
+- `src/app/actions/games.ts` — `voidLastGameAction` simplified: no `recompute_session_ratings`;
+  void_last_game handles rating reversal atomically
+- `src/app/actions/courts.ts` — `recordCourtGameAction` validates against session rules,
+  removed fire-and-forget Elo call
+- `src/lib/supabase/rpc.ts` — Removed `APPLY_RATINGS_FOR_GAME`, `RECOMPUTE_SESSION_RATINGS`,
+  `RECONCILE_MISSING_RATINGS`; added `SET_SESSION_RULES`
+- `src/lib/components/PlayerStatsRow.tsx` — "Elo" → "RDR" label + cosmetic tier badge
+- `src/app/g/[join_code]/leaderboard/page.tsx` — All-time and 30-day modes call
+  `get_group_stats` with `p_sort_by: 'rdr'` for server-side sorting
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — Fetches session rules, passes to
+  RecordGameForm as `sessionRules` prop
+- `src/app/g/[join_code]/session/[session_id]/courts/page.tsx` — Fetches session rules, passes
+  to CourtsManager
+- Cold start: all `player_ratings` reset to 1200/0 games/provisional (no replay/backfill)
+- `package.json` — version bumped to `0.4.0`
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

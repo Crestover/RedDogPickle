@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-02-24 — v0.4.0
+> Last updated: 2026-02-24 — v0.4.1
 
 ---
 
@@ -29,18 +29,19 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.4.0 — RDR v1 + Session Rules + Rebrand complete. Migrations `m10.0_rdr_v1.sql` + `m10.1_fix_leaderboard_sorting.sql` deployed. Pending: merge dev → main for Vercel prod deploy.**
+**v0.4.1 — Polish patch deployed. Horizontal logo on group dashboard, env-based absolute OG image URLs, tier rename, copy updates.**
 
-New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR (all 3 views). Full rebrand: product renamed to "Red Dog", logo + favicon + help page rewrite.
+v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR (all 3 views). Full rebrand: product renamed to "Red Dog", logo + favicon + help page rewrite.
+v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_SITE_URL`), tier rename (Observer/Practitioner/Strategist/Authority/Architect), homepage + group subtitle copy updates.
 
 ---
 
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `dev` is ahead of `main` (v0.4.0 changes); `main` at v0.3.1
+- **Branch:** `dev` is ahead of `main` (v0.4.1 changes); `main` at v0.3.1
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.4.0` (package.json, footer, changelog)
+- **Version:** `0.4.1` (package.json, footer, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
@@ -49,19 +50,19 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
 | Production  | `main`        | Production        | v0.3.1 (live, migrations run, pending merge) |
-| Dev/Preview | `dev`         | Dev               | v0.4.0 (deployed) |
+| Dev/Preview | `dev`         | Dev               | v0.4.1 (deployed) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.4.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3. Scripts: dev/build/start/lint/type-check |
+| `package.json` | v0.4.1, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3. Scripts: dev/build/start/lint/type-check |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Standard Next.js config |
 | `postcss.config.mjs` | Tailwind + Autoprefixer |
-| `.env.example` | Template: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY |
+| `.env.example` | Template: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SITE_URL |
 | `.env.local` | Actual env vars (git-ignored) |
 
 #### Documentation
@@ -83,11 +84,11 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 #### `src/app/` — Pages & Layouts
 | File | Type | Role |
 |------|------|------|
-| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<main className="flex-1">`, global footer. Metadata: title "Red Dog", icons (SVG + ICO + Apple) |
-| `page.tsx` | Client | Home: Red Dog logo (623px source at 160px), tagline "Keep score. Keep bragging rights.", group code entry form |
+| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<main className="flex-1">`, global footer. Metadata: title "Red Dog", icons (SVG + ICO + Apple). `siteUrl` from `NEXT_PUBLIC_SITE_URL` env var. OG/Twitter with explicitly absolute image URLs via `new URL()`. `alternates.canonical`. |
+| `page.tsx` | Client | Home: Red Dog logo (623px source at 160px), tagline "A proper record for a plastic ball.", group code entry form |
 | `help/page.tsx` | Server | Help page: Red Dog mark, RDR explainer, Manual vs Courts, Voids & Rating Integrity, FAQ |
 | `changelog_public/page.tsx` | Server | Renders CHANGELOG_PUBLIC.md as styled HTML via `marked` |
-| `g/[join_code]/page.tsx` | Server | Group dashboard: "Red Dog / Play. Track. Repeat." brand header, GROUP eyebrow + join_code, active session detection, Start/Continue/Leaderboard/Sessions links |
+| `g/[join_code]/page.tsx` | Server | Group dashboard: horizontal Red Dog logo (125px), subtitle "Statistically unnecessary. Socially unavoidable.", GROUP eyebrow + join_code, active session detection, Start/Continue/Leaderboard/Sessions links |
 | `g/[join_code]/start/page.tsx` | Server | Start session page: wraps StartSessionForm |
 | `g/[join_code]/start/StartSessionForm.tsx` | Client | Player selection with live search, min 4 required |
 | `g/[join_code]/players/new/page.tsx` | Server | Add player page: wraps AddPlayerForm |
@@ -615,6 +616,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.3.0 patches | `2b2caff`→`4749ea6` | ESLint fixes, Elo recompute, pgcrypto, footer, changelog route, inline pairing feedback |
 | v0.3.1 — Live Referee Console | `3de91e4`→`a0d0c37` | Session page restructure, explicit A/B buttons, ModeToggle, last-game ticker, games page, courts controls reorder, minimalism audit, version bump |
 | v0.4.0 — RDR + Rebrand | `70a1362`→`ba16970` | RDR v1 (atomic ratings, MOV, partner gap, LIFO void), session-level game rules, tier badges, leaderboard sorting fix (all 3 views), full rebrand (Red Dog, logo, favicon, help page rewrite) |
+| v0.4.1 — Polish | `1ac8aeb`→`2807d75` | Horizontal logo on group dashboard, env-based absolute OG image URLs (`NEXT_PUBLIC_SITE_URL`), tier rename, homepage + group subtitle copy updates |
 
 ---
 

@@ -724,6 +724,25 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [v0.4.1] — Polish (2026-02-24)
+
+### Changed
+- Group dashboard: "Red Dog" text replaced with horizontal logo image (125px)
+- Homepage tagline: "A proper record for a plastic ball."
+- Group dashboard subtitle: "Statistically unnecessary. Socially unavoidable."
+- `layout.tsx` OG metadata: `siteUrl` now reads from `NEXT_PUBLIC_SITE_URL` env var, OG image
+  URLs are explicitly absolute via `new URL()`, added `alternates.canonical`
+- Tier names: Pup→Observer, Scrapper→Practitioner, Tracker→Strategist, Top Dog→Authority,
+  Alpha→Architect
+- `package.json` — version bumped to `0.4.1`
+
+### Added
+- `NEXT_PUBLIC_SITE_URL` environment variable for per-environment OG URL resolution
+- `public/PlayRedDog_Logo_Horizontal_Transparent_125px.png` — horizontal logo for group dashboard
+- `public/PlayRedDog_ProperRecord_1200x630px.png` — 1200×630 OG share image
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

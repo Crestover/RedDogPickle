@@ -89,7 +89,7 @@ export default async function GroupPage({ params }: PageProps) {
             Red Dog
           </h1>
           <p className="text-sm text-gray-500 mt-1 tracking-wide">
-            Play. Track. Repeat.
+            Statistically unnecessary. Socially unavoidable.
           </p>
           <p className="text-xs font-medium uppercase tracking-widest text-gray-400 mt-4 mb-1">
             Group

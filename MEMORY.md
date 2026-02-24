@@ -1,13 +1,13 @@
-# MEMORY.md — RedDog Pickle
+# MEMORY.md — Red Dog
 
-> Last updated: 2026-02-23 — v0.4.0
+> Last updated: 2026-02-24 — v0.4.0
 
 ---
 
 ## Current Project DNA
 
 ### App Purpose
-RedDog Pickle is a **mobile-first pickleball stats tracker** for live courtside scoring.
+Red Dog is a **mobile-first pickleball stats tracker** for live courtside scoring.
 - Record doubles games in <12 seconds
 - No login required (trust-based group access via join_code)
 - Immutable game history (soft-delete only via voided_at)
@@ -29,17 +29,18 @@ RedDog Pickle is a **mobile-first pickleball stats tracker** for live courtside 
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.4.0 — RDR v1 + Session Rules implemented. Pending: deploy migration `m10.0_rdr_v1.sql` to Supabase, then deploy to Vercel.**
+**v0.4.0 — RDR v1 + Session Rules + Rebrand complete. Migrations `m10.0_rdr_v1.sql` + `m10.1_fix_leaderboard_sorting.sql` deployed. Pending: merge dev → main for Vercel prod deploy.**
 
-New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR.
+New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR (all 3 views). Full rebrand: product renamed to "Red Dog", logo + favicon + help page rewrite.
 
 ---
 
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `main` and `dev` synced at `a0d0c37`
-- **Version:** `0.3.1` (package.json, footer, changelog)
+- **Branch:** `dev` is ahead of `main` (v0.4.0 changes); `main` at v0.3.1
+- **Tag:** `v0.4.0-rc1` on dev as rollback point
+- **Version:** `0.4.0` (package.json, footer, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
@@ -47,15 +48,15 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | v0.3.1 (live) |
-| Dev/Preview | `dev`         | Dev               | v0.3.1 (synced) |
+| Production  | `main`        | Production        | v0.3.1 (live, migrations run, pending merge) |
+| Dev/Preview | `dev`         | Dev               | v0.4.0 (deployed) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.3.1, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3. Scripts: dev/build/start/lint/type-check |
+| `package.json` | v0.4.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3. Scripts: dev/build/start/lint/type-check |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Standard Next.js config |
@@ -82,11 +83,11 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 #### `src/app/` — Pages & Layouts
 | File | Type | Role |
 |------|------|------|
-| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<main className="flex-1">`, global footer (`v{version}` · Changes link · Learn more link) |
-| `page.tsx` | Client | Home: group code entry form (no account needed) |
-| `help/page.tsx` | Server | Static Help/FAQ page |
+| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<main className="flex-1">`, global footer. Metadata: title "Red Dog", icons (SVG + ICO + Apple) |
+| `page.tsx` | Client | Home: Red Dog logo (623px source at 160px), tagline "Keep score. Keep bragging rights.", group code entry form |
+| `help/page.tsx` | Server | Help page: Red Dog mark, RDR explainer, Manual vs Courts, Voids & Rating Integrity, FAQ |
 | `changelog_public/page.tsx` | Server | Renders CHANGELOG_PUBLIC.md as styled HTML via `marked` |
-| `g/[join_code]/page.tsx` | Server | Group dashboard: active session detection, Start/Continue/Leaderboard/Sessions links |
+| `g/[join_code]/page.tsx` | Server | Group dashboard: "Red Dog / Play. Track. Repeat." brand header, GROUP eyebrow + join_code, active session detection, Start/Continue/Leaderboard/Sessions links |
 | `g/[join_code]/start/page.tsx` | Server | Start session page: wraps StartSessionForm |
 | `g/[join_code]/start/StartSessionForm.tsx` | Client | Player selection with live search, min 4 required |
 | `g/[join_code]/players/new/page.tsx` | Server | Add player page: wraps AddPlayerForm |
@@ -126,7 +127,8 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 | `supabase/server.ts` | `getServerClient()` — server-side Supabase client (anon key) |
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
-| `supabase/rpc.ts` | RPC constant registry: 20 named constants (11 core + 9 courts) |
+| `supabase/rpc.ts` | RPC constant registry: 21 named constants (12 core + 9 courts) |
+| `rdr.ts` | Tier utility: `getTier(rdr)` → Observer/Practitioner/Strategist/Authority/Architect; `tierColor(tier)` → Tailwind classes |
 | `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier) |
 
 #### `src/app/globals.css`
@@ -136,7 +138,7 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 #### `supabase/` — Database
 | File | Role |
 |------|------|
-| `schema.sql` | Canonical reference (**stale at ~M6** — M7+ function bodies live only in migration files) |
+| `schema.sql` | Canonical reference (**stale at ~M6 for most functions** — M7+ function bodies live only in migration files; `get_session_stats` and `get_group_stats` updated to match m10.1) |
 | `migrations/m0_base_tables.sql` | Base DDL: groups, players, sessions, session_players, games, game_players + RLS + void columns |
 | `migrations/m2_rpc_sessions.sql` | create_session, end_session RPCs |
 | `migrations/m4_record_game.sql` | Original record_game RPC |
@@ -152,6 +154,8 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 | `migrations/m7.3_void_game.sql` | void_last_game RPC, recompute_session_ratings RPC, updated views to exclude voided games |
 | `migrations/m8.0_courts_mode.sql` | Courts Mode V2: session_courts table, session_players status column, 9 RPCs (init/assign/start/record/update/clear/mark_out/make_active/update_count) |
 | `migrations/m9.0_remove_session_expiry.sql` | Removes 4-hour session expiry from record_game, create_session, and related functions. Sessions no longer auto-expire. |
+| `migrations/m10.0_rdr_v1.sql` | RDR v1 + session rules: session rule columns, game rule columns, game_rdr_deltas table, set_session_rules, record_game with inline RDR math, record_court_game with rule pass-through, void_last_game with LIFO delta reversal, get_group_stats with p_sort_by + rdr column. Cold start resets player_ratings to 1200. |
+| `migrations/m10.1_fix_leaderboard_sorting.sql` | Fix leaderboard sorting: get_session_stats gains rdr column + correct ORDER BY (win_pct → point_diff → rdr → name). get_group_stats fixed ORDER BY for rdr mode (rdr → win_pct → point_diff → name). |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -160,6 +164,8 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 4. Run `m7.0`, `m7.1`, `m7.2`, `m7.3` in order
 5. Run `m8.0_courts_mode.sql` (session_courts table, Courts Mode RPCs)
 6. Run `m9.0_remove_session_expiry.sql` (removes 4-hour expiry from RPCs)
+7. Run `m10.0_rdr_v1.sql` (RDR v1 + session rules, cold start reset)
+8. Run `m10.1_fix_leaderboard_sorting.sql` (leaderboard sorting fix)
 
 ---
 
@@ -200,11 +206,11 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 - **Rule override semantics (v1)**: `p_target_points` override uses `session.win_by_default` for win_by. Future v2 can add `p_win_by`.
 
 ### RDR Tier System (cosmetic, UI-only)
-- <1100: Pup (gray)
-- 1100-1199: Scrapper (blue)
-- 1200-1299: Tracker (green)
-- 1300-1399: Top Dog (yellow)
-- ≥1400: Alpha (red)
+- <1100: Observer (gray)
+- 1100-1199: Practitioner (blue)
+- 1200-1299: Strategist (green)
+- 1300-1399: Authority (yellow)
+- ≥1400: Architect (red)
 - Thresholds based on `Math.round(rating)` to avoid edge-case confusion
 
 ### Rating Storage
@@ -297,7 +303,6 @@ New: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-
 
 ### Server Actions
 - **No rate limiting**: Any client can spam recordGameAction (files: `games.ts`, `sessions.ts`, `courts.ts`)
-- **Fire-and-forget Elo has no client-side retry**: If apply_ratings_for_game fails, user sees no indication. Reconciliation is the safety net but must be called manually. (Files: `games.ts`, `courts.ts`)
 
 ### Hardcoded Magic Numbers
 | Value | Where | What |
@@ -421,7 +426,7 @@ src/
     *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest, pairingFeedback)
 supabase/
   schema.sql          # Canonical DB reference (STALE at ~M6)
-  migrations/         # Ordered SQL migrations (m0 → m9.0)
+  migrations/         # Ordered SQL migrations (m0 → m10.1)
 docs/                 # Architecture docs, how-tos, decisions, testing checklist
 ```
 
@@ -479,7 +484,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.3.1`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.4.0`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 
 ---
@@ -498,7 +503,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 6. **Elo recompute replays from `t0` across ALL group sessions**: Not just the voided session. This is intentional — later games' deltas depend on prior ratings. Scoping to one session would leave stale deltas.
 
-7. **Leaderboard deterministic ordering**: `win_pct DESC, games_won DESC, point_diff DESC, display_name ASC`. Changing order breaks user expectations.
+7. **Leaderboard deterministic ordering**: Last Session: `win_pct DESC, point_diff DESC, rdr DESC NULLS LAST, display_name ASC`. All-Time/30-Day (rdr mode): `rdr DESC NULLS LAST, win_pct DESC, point_diff DESC, display_name ASC`. Server-side only — no client re-sorting.
 
 8. **Root layout owns `<main>`, pages use `<div>`**: Prevents nested `<main>` elements. Pages that need vertical centering use `flex-1`. Content pages use plain `flex flex-col`.
 
@@ -545,22 +550,23 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 ---
 
-## RPC Function Reference (20 functions)
+## RPC Function Reference (21 functions)
 
-### Core (11 functions)
+### Core (12 functions)
 | RPC Name | Security | Params | Returns | Purpose |
 |----------|----------|--------|---------|---------|
 | `create_session` | INVOKER | `(group_join_code text, player_ids uuid[])` | `uuid` | Create session + attendance. Idempotent on concurrent calls |
 | `end_session` | DEFINER | `(p_session_id uuid)` | `void` | Sets ended_at + closed_reason='manual' |
 | `record_game` | DEFINER | `(p_session_id, p_team_a_ids[], p_team_b_ids[], p_team_a_score, p_team_b_score, p_force)` | `jsonb` | Atomic game recording with dedup. FOR UPDATE lock |
-| `get_session_stats` | INVOKER | `(p_session_id uuid)` | `TABLE(10 cols)` | Session leaderboard |
-| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?)` | `TABLE(10 cols)` | Group leaderboard with optional day filter |
+| `get_session_stats` | INVOKER | `(p_session_id uuid)` | `TABLE(11 cols incl rdr)` | Session leaderboard. Sorted: win_pct → point_diff → rdr → name |
+| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?, p_sort_by text?)` | `TABLE(11 cols incl rdr)` | Group leaderboard. p_sort_by='rdr': rdr → win_pct → point_diff → name |
 | `get_last_session_id` | INVOKER | `(p_join_code text)` | `uuid` | Most recently ended session |
 | `get_session_pair_counts` | INVOKER | `(p_session_id uuid)` | `TABLE(5 cols)` | All attendee pairs + partner count |
 | `apply_ratings_for_game` | DEFINER | `(p_game_id uuid)` | `void` | Idempotent Elo update for one game |
 | `reconcile_missing_ratings` | DEFINER | `()` | `integer` | Backfill missing Elo ratings across all groups |
-| `void_last_game` | DEFINER | `(p_session_id uuid, p_reason text?)` | `jsonb` | Soft-delete most recent non-voided game |
-| `recompute_session_ratings` | DEFINER | `(p_session_id uuid)` | `integer` | Forward-replay Elo from earliest affected game |
+| `set_session_rules` | DEFINER | `(p_session_id uuid, p_target_points int, p_win_by int)` | `jsonb` | Update session-level game rule defaults |
+| `void_last_game` | DEFINER | `(p_session_id uuid)` | `jsonb` | Soft-delete most recent game + LIFO rating reversal via game_rdr_deltas |
+| `recompute_session_ratings` | DEFINER | `(p_session_id uuid)` | `integer` | Forward-replay Elo from earliest affected game (legacy, not called) |
 
 ### Courts Mode V2 (9 functions)
 | RPC Name | Security | Params | Returns | Purpose |
@@ -577,7 +583,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 ---
 
-## Database Tables (9 tables)
+## Database Tables (10 tables)
 
 | Table | Key Columns | Notes |
 |-------|-------------|-------|
@@ -590,6 +596,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `player_ratings` | group_id, player_id, rating, games_rated, provisional | Elo state |
 | `rating_events` | game_id, player_id, pre/post_rating, delta, algo_version | Elo audit log, idempotent via UNIQUE |
 | `session_courts` | id, session_id, court_number, status, team_a_ids, team_b_ids | Added in m8.0. Status: OPEN or IN_PROGRESS |
+| `game_rdr_deltas` | game_id, player_id, group_id, delta, rdr_before, rdr_after, games_before, games_after, voided_at | Added in m10.0. Audit trail for rating-correct LIFO void |
 
 ---
 
@@ -607,6 +614,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | M8+M9 | `3dfb433` | Courts Mode V2 (full rewrite), remove 4-hour session expiry |
 | v0.3.0 patches | `2b2caff`→`4749ea6` | ESLint fixes, Elo recompute, pgcrypto, footer, changelog route, inline pairing feedback |
 | v0.3.1 — Live Referee Console | `3de91e4`→`a0d0c37` | Session page restructure, explicit A/B buttons, ModeToggle, last-game ticker, games page, courts controls reorder, minimalism audit, version bump |
+| v0.4.0 — RDR + Rebrand | `70a1362`→`ba16970` | RDR v1 (atomic ratings, MOV, partner gap, LIFO void), session-level game rules, tier badges, leaderboard sorting fix (all 3 views), full rebrand (Red Dog, logo, favicon, help page rewrite) |
 
 ---
 

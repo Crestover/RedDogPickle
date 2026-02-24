@@ -37,7 +37,7 @@ export default function HomePage() {
             />
           </div>
           <h1 className="text-xl font-medium text-gray-900 tracking-wide mb-2">
-            Keep score. Keep bragging rights.
+            A proper record for a plastic ball.
           </h1>
           <p className="text-gray-500 mb-8">
             Enter your group code to get started.

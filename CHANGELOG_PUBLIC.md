@@ -6,7 +6,7 @@
 
 ### Added
 - New **Red Dog Rating (RDR)** system replaces the old Elo ratings. RDR accounts for margin of victory and partner skill gaps for more accurate player rankings.
-- Cosmetic **tier badges** on the leaderboard: Pup, Scrapper, Tracker, Top Dog, and Alpha.
+- Cosmetic **tier badges** on the leaderboard: Observer, Practitioner, Strategist, Authority, and Architect.
 - **Session-level game rules**: set target points (11, 15, or 21) and win-by (1 or 2) for the entire session via a tappable Rules Chip. No more toggling per game.
 - **RDR delta flash** after recording a game briefly shows each player's rating change.
 - **Rating-correct void**: voiding a game now cleanly reverses each player's rating change.

@@ -2,15 +2,40 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 
+const siteUrl = "https://playreddog.com";
+
 export const metadata: Metadata = {
-  title: "Red Dog",
-  description: "Keep score. Keep bragging rights.",
+  title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+  description:
+    "Mobile-first pickleball scoring for real friend groups. Fast. Courtside. No login required.",
+  metadataBase: new URL(siteUrl),
   icons: {
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/favicon.ico" },
     ],
     apple: "/apple-icon.png",
+  },
+  openGraph: {
+    title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+    description: "Mobile-first pickleball scoring for real friend groups.",
+    url: siteUrl,
+    siteName: "Red Dog",
+    type: "website",
+    images: [
+      {
+        url: "/PlayRedDog_ProperRecord_1200x630px.png",
+        width: 1200,
+        height: 630,
+        alt: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+    description: "Mobile-first pickleball scoring for real friend groups.",
+    images: ["/PlayRedDog_ProperRecord_1200x630px.png"],
   },
 };
 

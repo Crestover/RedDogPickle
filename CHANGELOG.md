@@ -644,7 +644,7 @@ No functional changes (refactor + docs only).
   columns, `game_rdr_deltas` table, `set_session_rules` RPC, `record_game` with inline RDR
   math, `record_court_game` with rule pass-through, `void_last_game` with LIFO delta reversal,
   `get_group_stats` with server-side RDR sort
-- `src/lib/rdr.ts` — Tier utility: `getTier(rdr)` returns Pup/Scrapper/Tracker/Top Dog/Alpha;
+- `src/lib/rdr.ts` — Tier utility: `getTier(rdr)` returns Observer/Practitioner/Strategist/Authority/Architect;
   `tierColor(tier)` returns Tailwind classes for tier badge styling
 - `src/app/actions/sessions.ts` — `setSessionRulesAction()` for updating session-level game
   rules (target_points + win_by) via `set_session_rules` RPC
@@ -686,6 +686,41 @@ No functional changes (refactor + docs only).
   to CourtsManager
 - Cold start: all `player_ratings` reset to 1200/0 games/provisional (no replay/backfill)
 - `package.json` — version bumped to `0.4.0`
+
+### Fixed
+- `get_session_stats` RPC: added `rdr` column (LEFT JOIN `player_ratings`), fixed ORDER BY to
+  `win_pct DESC, point_diff DESC, pr.rating DESC NULLS LAST, display_name ASC` — resolves
+  tie-breaking bug where same win% + same point diff players were not sorted by RDR
+- `get_group_stats` RPC: fixed ORDER BY for `p_sort_by='rdr'` mode — CASE WHEN logic was
+  producing NULL for secondary/tertiary sorts. Now properly cascades:
+  rdr mode → `rdr DESC, win_pct DESC, point_diff DESC, name ASC`;
+  win_pct mode → `win_pct DESC, point_diff DESC, rdr DESC, name ASC`
+- Leaderboard page: all three modes now use `rdr` from their respective RPCs (removed
+  `useRdrFromStats` flag); no client-side re-sorting
+
+### Branding
+- Product renamed: "RedDog Pickle" → "Red Dog" across all visible surfaces
+- Home screen: paddle emoji replaced with Red Dog logo (623px source rendered at 160px for
+  retina crispness), tagline "Keep score. Keep bragging rights."
+- Favicon suite: `icon.svg` (modern browsers), `favicon.ico` (fallback), `apple-icon.png` (iOS),
+  configured via App Router `metadata.icons`
+- Root layout metadata: title "Red Dog", description "Keep score. Keep bragging rights."
+- Group dashboard header: "Red Dog / Play. Track. Repeat." brand block with GROUP eyebrow +
+  join_code as secondary metadata (group.name line removed)
+- Help page: full rewrite — RDR explainer (who you beat, MOV, doubles balance, new player ramp),
+  Manual vs Courts guide, Voids & Rating Integrity section, updated FAQ, Red Dog mark icon above
+  heading
+
+### New files
+- `supabase/migrations/m10.1_fix_leaderboard_sorting.sql` — DROP+CREATE `get_session_stats`
+  (adds rdr column + fixed ORDER BY), CREATE OR REPLACE `get_group_stats` (fixed ORDER BY)
+- `src/lib/rdr.ts` — Tier utility (getTier, tierColor)
+- `public/PlayRedDog_Logo_Transparent_623px.png` — High-res logo for home screen
+- `public/PlayRedDog_Logo_Transparent_160px.png` — Original logo (kept, not referenced)
+- `public/PlayRedDog_Logo_Transparent_MarkOnly.png` — Small mark for help page
+- `public/favicon.ico` — ICO favicon (renamed from favicon.ico.png)
+- `public/icon.svg` — SVG icon for modern browsers
+- `public/apple-icon.png` — Apple touch icon
 
 ---
 

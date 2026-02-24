@@ -27,10 +27,11 @@ export default function HomePage() {
         <div className="text-center">
           <div className="flex justify-center mb-6">
             <Image
-              src="/PlayRedDog_Logo_Transparent_160px.png"
+              src="/PlayRedDog_Logo_Transparent_623px.png"
               alt="Red Dog"
-              width={160}
-              height={160}
+              width={623}
+              height={623}
+              sizes="160px"
               className="w-[160px] h-auto"
               priority
             />

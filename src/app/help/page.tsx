@@ -83,6 +83,52 @@ export default function HelpPage() {
           </p>
         </section>
 
+        {/* Manual vs Courts */}
+        <section className="space-y-2">
+          <h2 className="text-base font-semibold text-gray-900">
+            Manual vs Courts
+          </h2>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Red Dog has two ways to run a session. Pick what matches your vibe.
+          </p>
+
+          <h3 className="text-sm font-semibold text-gray-900 pt-1">
+            Manual Mode
+          </h3>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Use this when you want full control.
+          </p>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+            <li>Select the four players</li>
+            <li>Set the teams</li>
+            <li>Enter the score</li>
+          </ul>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Best for one court, casual games, or when you&apos;re keeping it
+            simple.
+          </p>
+
+          <h3 className="text-sm font-semibold text-gray-900 pt-1">
+            Courts Mode
+          </h3>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Use this when you&apos;re managing multiple courts and rotating
+            people in.
+          </p>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+            <li>Set your number of courts</li>
+            <li>Fill courts faster (with smart suggestions if you want)</li>
+            <li>Keep the rotation moving across courts</li>
+          </ul>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Best for bigger groups, multiple courts, and &ldquo;next four
+            up&rdquo; nights.
+          </p>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            You can switch between Manual and Courts anytime during a session.
+          </p>
+        </section>
+
         {/* Leaderboards */}
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-gray-900">

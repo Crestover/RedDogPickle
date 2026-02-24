@@ -3,8 +3,15 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RedDog Pickle",
-  description: "Pickleball stats tracker",
+  title: "Red Dog",
+  description: "Keep score. Keep bragging rights.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({

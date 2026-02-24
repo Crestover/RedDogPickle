@@ -86,7 +86,11 @@ export default async function GroupPage({ params }: PageProps) {
         {/* Header */}
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            Red Dog
+            <img
+              src="/PlayRedDog_Logo_Horizontal_Transparent_125px.png"
+              alt="Red Dog"
+              width={125}
+            />
           </h1>
           <p className="text-sm text-gray-500 mt-1 tracking-wide">
             Statistically unnecessary. Socially unavoidable.

@@ -126,13 +126,21 @@ RETURNS TABLE (
     points_for     bigint,
     points_against bigint,
     point_diff     bigint,
-    avg_point_diff numeric(5,1)
+    avg_point_diff numeric(5,1),
+    rdr            numeric
 )
 LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = public
 AS $func$
+DECLARE
+  v_group_id uuid;
 BEGIN
+    -- Resolve group_id from session for player_ratings join
+    SELECT s.group_id INTO v_group_id
+      FROM public.sessions s
+     WHERE s.id = p_session_id;
+
     RETURN QUERY
     SELECT
         agg.player_id,
@@ -144,7 +152,8 @@ BEGIN
         agg.points_for,
         agg.points_against,
         agg.point_diff,
-        agg.avg_point_diff
+        agg.avg_point_diff,
+        pr.rating AS rdr
     FROM (
         SELECT
             v.player_id,
@@ -170,17 +179,25 @@ BEGIN
         HAVING COUNT(*) FILTER (WHERE v.is_valid) > 0
     ) agg
     INNER JOIN public.players p ON p.id = agg.player_id
-    ORDER BY agg.win_pct DESC, agg.games_won DESC, agg.point_diff DESC, p.display_name ASC;
+    LEFT JOIN public.player_ratings pr
+      ON pr.group_id = v_group_id AND pr.player_id = agg.player_id
+    ORDER BY
+      agg.win_pct DESC,
+      agg.point_diff DESC,
+      pr.rating DESC NULLS LAST,
+      p.display_name ASC;
 END;
 $func$;
 
--- 4. Get Group Stats (M5)
+-- 4. Get Group Stats (M5 / M10.0 / M10.1)
 --    Day-anchored cutoff: CURRENT_DATE - p_days (stable within day)
 --    INNER JOIN players AFTER aggregation
 --    HAVING games_played > 0
+--    p_sort_by: 'rdr' → RDR primary; 'win_pct' → win% primary
 CREATE OR REPLACE FUNCTION public.get_group_stats(
   p_join_code text,
-  p_days      integer DEFAULT NULL
+  p_days      integer DEFAULT NULL,
+  p_sort_by   text    DEFAULT 'win_pct'
 )
 RETURNS TABLE (
   player_id      uuid,
@@ -192,7 +209,8 @@ RETURNS TABLE (
   points_for     bigint,
   points_against bigint,
   point_diff     bigint,
-  avg_point_diff numeric(5,1)
+  avg_point_diff numeric(5,1),
+  rdr            numeric
 )
 LANGUAGE plpgsql
 SECURITY INVOKER
@@ -221,7 +239,8 @@ BEGIN
     agg.points_for,
     agg.points_against,
     agg.point_diff,
-    agg.avg_point_diff
+    agg.avg_point_diff,
+    pr.rating AS rdr
   FROM (
     SELECT
       v.player_id,
@@ -250,7 +269,13 @@ BEGIN
     HAVING COUNT(*) FILTER (WHERE v.is_valid) > 0
   ) agg
   INNER JOIN public.players p ON p.id = agg.player_id
-  ORDER BY agg.win_pct DESC, agg.games_won DESC, agg.point_diff DESC, p.display_name ASC;
+  LEFT JOIN public.player_ratings pr
+    ON pr.group_id = v_group_id AND pr.player_id = agg.player_id
+  ORDER BY
+    CASE WHEN p_sort_by = 'rdr' THEN pr.rating   ELSE agg.win_pct  END DESC NULLS LAST,
+    CASE WHEN p_sort_by = 'rdr' THEN agg.win_pct ELSE agg.point_diff END DESC NULLS LAST,
+    CASE WHEN p_sort_by = 'rdr' THEN agg.point_diff ELSE pr.rating END DESC NULLS LAST,
+    p.display_name ASC;
 END;
 $func$;
 

@@ -125,8 +125,9 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
   if (!group) notFound();
 
   // Fetch stats based on selected range
+  // All modes now return rdr from their respective RPCs and are
+  // sorted server-side — no client re-sorting.
   let stats: PlayerStats[];
-  let useRdrFromStats = false;
 
   if (mode === "last") {
     stats = await getLastSessionStats(joinCode);
@@ -134,7 +135,6 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
     // All-time and 30-day: sort by RDR server-side
     const days = mode === "30d" ? 30 : null;
     stats = await getGroupStats(joinCode, days, "rdr");
-    useRdrFromStats = true;
   }
 
   // Fetch player ratings for display (needed for last-session mode which
@@ -204,8 +204,8 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           <div className="space-y-2">
             {stats.map((player, index) => {
               const pr = ratingsMap.get(player.player_id);
-              // Use rdr from stats if available (all-time/30-day), otherwise from ratings table
-              const rating = useRdrFromStats && player.rdr != null
+              // All RPCs now return rdr; fall back to ratings table if null
+              const rating = player.rdr != null
                 ? Number(player.rdr)
                 : (pr?.rating ?? null);
               return (

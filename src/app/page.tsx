@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function HomePage() {
   const router = useRouter();
@@ -22,11 +23,22 @@ export default function HomePage() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm space-y-8">
-        {/* Logo / title */}
+        {/* Logo / tagline */}
         <div className="text-center">
-          <div className="text-5xl mb-3">🏓</div>
-          <h1 className="text-3xl font-bold tracking-tight">RedDog Pickle</h1>
-          <p className="mt-2 text-gray-500 text-sm">
+          <div className="flex justify-center mb-6">
+            <Image
+              src="/PlayRedDog_Logo_Transparent_160px.png"
+              alt="Red Dog"
+              width={160}
+              height={160}
+              className="w-[160px] h-auto"
+              priority
+            />
+          </div>
+          <h1 className="text-xl font-medium text-gray-900 tracking-wide mb-2">
+            Keep score. Keep bragging rights.
+          </h1>
+          <p className="text-gray-500 mb-8">
             Enter your group code to get started.
           </p>
         </div>

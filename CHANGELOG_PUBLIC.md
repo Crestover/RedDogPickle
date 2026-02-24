@@ -2,7 +2,7 @@
 
 ---
 
-## v0.4.0 — Red Dog Rating (RDR) + Session Rules
+## v0.4.0 — Red Dog Rating + Rebrand
 
 ### Added
 - New **Red Dog Rating (RDR)** system replaces the old Elo ratings. RDR accounts for margin of victory and partner skill gaps for more accurate player rankings.
@@ -10,11 +10,15 @@
 - **Session-level game rules**: set target points (11, 15, or 21) and win-by (1 or 2) for the entire session via a tappable Rules Chip. No more toggling per game.
 - **RDR delta flash** after recording a game briefly shows each player's rating change.
 - **Rating-correct void**: voiding a game now cleanly reverses each player's rating change.
+- New **Red Dog logo** on the home screen and brand mark on the help page.
+- New **favicon, Apple touch icon, and SVG icon** for browser tabs and home screen bookmarks.
+- Rewritten **Learn More** page with RDR explainer, Manual vs Courts guide, and updated FAQ.
 
 ### Improved
-- Leaderboard all-time and 30-day views now sort by RDR (server-side) for consistent rankings.
+- Leaderboard sorting is now fully server-side across all three views. Last Session breaks ties by point differential then RDR. All-Time and 30-Day sort by RDR first.
 - Score validation uses the session's active rules instead of hardcoded 11/win-by-2.
 - Rules Chip appears in both Manual and Courts modes with the same controls.
+- Product renamed to **Red Dog** throughout the app — home screen, group dashboard, help page, and browser tab title.
 
 ---
 

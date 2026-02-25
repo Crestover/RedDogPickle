@@ -869,6 +869,20 @@ No functional changes (refactor + docs only).
 - `package.json` — version bumped to `0.4.3`
 - `CHANGELOG_PUBLIC.md` — added v0.4.3 entry
 
+### Security fix — `join_code` removed from view-only pages
+- `src/app/v/[view_code]/page.tsx` — Removed `join_code` from `.select()` query. Replaced
+  header block ("GROUP" eyebrow + `{group.join_code}` + "This is a view-only link") with
+  `{group.name || "Red Dog Group"}` + "View-only link" label. Prevents spectators from
+  copying join_code to gain write access via `/g/{join_code}`
+- `src/app/v/[view_code]/sessions/page.tsx` — Removed `join_code` from `.select()`
+- `src/app/v/[view_code]/session/[session_id]/page.tsx` — Removed `join_code` from `.select()`
+- `src/app/v/[view_code]/session/[session_id]/games/page.tsx` — Removed `join_code` from `.select()`
+- `src/app/v/[view_code]/leaderboard/page.tsx` — `join_code` kept in `.select()` (required
+  for `GET_GROUP_STATS` and `GET_LAST_SESSION_ID` RPCs). Added inline comment:
+  `// join_code used server-side only for RPC params; must never be rendered in /v`
+- Verified via grep: zero `/g/` link leaks in `/v/` files; `join_code` only in leaderboard
+  RPC params + comments
+
 ### Route hygiene (verified via grep)
 - Zero action imports in any `/v/` file
 - Zero write component imports in any `/v/` file

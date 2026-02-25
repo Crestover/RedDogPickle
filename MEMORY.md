@@ -35,14 +35,14 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_SITE_URL`), tier rename (Observer/Practitioner/Strategist/Authority/Architect), homepage + group subtitle copy updates.
 M10.2: 8-second undo window (server-enforced via `undo_expires_at`), hide voided games by default (client-side toggle), undo snackbar with countdown, debounced refresh.
 v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central timezone formatter (`src/lib/datetime.ts`) pins all displayed times to America/Chicago.
-v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 pages), `ensure_view_code` RPC, auto-generate on dashboard load, "Copy view-only link" button. Defense-in-depth `AccessMode` guard on all write actions. Vercel Analytics `<Analytics />` in root layout.
+v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 pages), `ensure_view_code` RPC, auto-generate on dashboard load, "Copy view-only link" button. Defense-in-depth `AccessMode` guard on all write actions. Vercel Analytics `<Analytics />` in root layout. Security fix: removed `join_code` exposure from all `/v/` pages — dashboard header shows `group.name` instead, `join_code` pruned from `.select()` in 4 of 5 files (kept server-only in leaderboard for RPCs).
 
 ---
 
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `dev` is ahead of `main` (v0.4.3 changes); `main` at v0.3.1
+- **Branch:** `main` and `dev` both at v0.4.3 (including join_code security fix)
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
 - **Version:** `0.4.3` (package.json, footer, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
@@ -52,7 +52,7 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | v0.3.1 (live, migrations run, pending merge) |
+| Production  | `main`        | Production        | v0.4.3 (deployed, including join_code security fix) |
 | Dev/Preview | `dev`         | Dev               | v0.4.3 (deployed) |
 
 ### Complete File Map
@@ -91,7 +91,7 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 | `page.tsx` | Client | Home: Red Dog logo (623px source at 160px), tagline "A proper record for a plastic ball.", group code entry form |
 | `help/page.tsx` | Server | Help page: Red Dog mark, RDR explainer, Manual vs Courts, Voids & Rating Integrity, FAQ |
 | `changelog_public/page.tsx` | Server | Renders CHANGELOG_PUBLIC.md as styled HTML via `marked` |
-| `g/[join_code]/page.tsx` | Server | Group dashboard: horizontal Red Dog logo (125px), subtitle "Statistically unnecessary. Socially unavoidable.", GROUP eyebrow + join_code, active session detection, Start/Continue/Leaderboard/Sessions links. Auto-generates `view_code` via `ensure_view_code` RPC on first load. Falls back to view_code redirect if join_code not found. Includes `<CopyViewLink>` in secondary nav. |
+| `g/[join_code]/page.tsx` | Server | Group dashboard: horizontal Red Dog logo (125px), subtitle "Statistically unnecessary. Socially unavoidable.", group name + join_code display, active session detection, Start/Continue/Leaderboard/Sessions links. Auto-generates `view_code` via `ensure_view_code` RPC on first load. Falls back to view_code redirect if join_code not found. Includes `<CopyViewLink>` in secondary nav. |
 | `g/[join_code]/CopyViewLink.tsx` | Client | Copies `{NEXT_PUBLIC_SITE_URL}/v/{viewCode}` to clipboard. Shows "📋 Copy view-only link" / "Copied!" with 1.5s timeout. |
 | `g/[join_code]/start/page.tsx` | Server | Start session page: wraps StartSessionForm |
 | `g/[join_code]/start/StartSessionForm.tsx` | Client | Player selection with live search, min 4 required |
@@ -113,11 +113,11 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 | `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode wrapper: LIVE header with "Courts" label, ModeToggle(courts), CourtsManager or CourtsSetup |
 | `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073 lines). Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. |
 | `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection when no courts exist yet |
-| `v/[view_code]/page.tsx` | Server | **View-only dashboard**: Red Dog logo, GROUP eyebrow + join_code (read-only), "This is a view-only link" badge, active session banner, View Session + Leaderboard links, Session history link. No write CTAs. |
-| `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. No "Start a Session" CTA. |
-| `v/[view_code]/sessions/page.tsx` | Server | **View-only session history**: Session list with active/ended badges. Links to `/v/` session detail. No "Start First Session" CTA. |
-| `v/[view_code]/session/[session_id]/page.tsx` | Server | **View-only session detail**: Active (LIVE badge + "View-only" + last-game ticker + `EndedSessionGames`) and ended layouts. Mismatch protection: verifies session belongs to group. No write components. |
-| `v/[view_code]/session/[session_id]/games/page.tsx` | Server | **View-only games list**: Wraps `<GamesList>` (already read-only). Back link to `/v/` session. |
+| `v/[view_code]/page.tsx` | Server | **View-only dashboard**: Red Dog logo, group name display (with "Red Dog Group" fallback), "View-only link" label, active session banner, View Session + Leaderboard links, Session history link. No write CTAs. `join_code` pruned from `.select()` — never fetched or rendered. |
+| `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. No "Start a Session" CTA. `join_code` kept in `.select()` for server-only RPC params (never rendered in JSX). |
+| `v/[view_code]/sessions/page.tsx` | Server | **View-only session history**: Session list with active/ended badges. Links to `/v/` session detail. No "Start First Session" CTA. `join_code` pruned from `.select()`. |
+| `v/[view_code]/session/[session_id]/page.tsx` | Server | **View-only session detail**: Active (LIVE badge + "View-only" + last-game ticker + `EndedSessionGames`) and ended layouts. Mismatch protection: verifies session belongs to group. No write components. `join_code` pruned from `.select()`. |
+| `v/[view_code]/session/[session_id]/games/page.tsx` | Server | **View-only games list**: Wraps `<GamesList>` (already read-only). Back link to `/v/` session. `join_code` pruned from `.select()`. |
 
 #### `src/app/actions/` — Server Actions
 | File | Role |
@@ -390,7 +390,7 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Deploy v0.4.3 to production** — Merge `dev` into `main`, push. Verify Vercel builds clean. Run m10.2 + m11.0 migrations on production Supabase.
+1. ~~**Deploy v0.4.3 to production**~~ ✅ Done. `main` pushed with join_code security fix (`2ec10b1`). Still need to run m10.2 + m11.0 migrations on production Supabase if not already done.
 
 2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code), all 23 RPC function bodies (M7-M11.0), updated views, indexes.
 
@@ -528,7 +528,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Group dashboard shows "📋 Copy view-only link" in secondary nav
 - [ ] Copy view-only link copies correct URL to clipboard
 - [ ] Enter view_code on home page → redirects to `/v/{view_code}`
-- [ ] `/v/` dashboard: logo, group code, "This is a view-only link", leaderboard + sessions links
+- [ ] `/v/` dashboard: logo, group name (not join_code), "View-only link", leaderboard + sessions links
 - [ ] `/v/` leaderboard: all 3 range modes work, no write CTAs
 - [ ] `/v/` sessions: list renders, links go to `/v/` session detail
 - [ ] `/v/` session detail: active (LIVE + view-only badge) and ended layouts correct
@@ -673,7 +673,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.4.1 — Polish | `1ac8aeb`→`2807d75` | Horizontal logo on group dashboard, env-based absolute OG image URLs (`NEXT_PUBLIC_SITE_URL`), tier rename, homepage + group subtitle copy updates |
 | M10.2 — Undo Window | `9d5b8ca` | 8-second server-enforced undo window, hide voided games toggle, undo snackbar with countdown, debounced refresh, pre-submit confirmation summary |
 | v0.4.2 — Preview + TZ | `7d5060c`→`3cf44e8` | Winner/loser preview chips (emerald/amber), central timezone formatter (`datetime.ts`) pinned to America/Chicago, all `toLocale*` calls eliminated |
-| v0.4.3 — View-Only Sharing | `3642fb7`→`fa40aeb` | View-only access codes (`/v/[view_code]` route tree, 5 pages), `ensure_view_code` RPC (m11.0), `AccessMode` guard on all write actions, "Copy view-only link" button, home page view_code redirect, Vercel Analytics `<Analytics />` |
+| v0.4.3 — View-Only Sharing | `3642fb7`→`2ec10b1` | View-only access codes (`/v/[view_code]` route tree, 5 pages), `ensure_view_code` RPC (m11.0), `AccessMode` guard on all write actions, "Copy view-only link" button, home page view_code redirect, Vercel Analytics `<Analytics />`. Security fix (`2ec10b1`): removed `join_code` from all `/v/` pages — dashboard shows `group.name`, `.select()` pruned in 4 files, leaderboard keeps `join_code` server-only for RPCs |
 
 ---
 

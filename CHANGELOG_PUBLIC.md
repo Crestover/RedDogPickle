@@ -10,6 +10,7 @@
 
 ### Improved
 - Added analytics to help us understand which pages are used most and improve the experience over time.
+- View-only pages now display the group name instead of internal codes, keeping your group's access credentials private.
 
 ---
 

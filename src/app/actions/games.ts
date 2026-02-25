@@ -27,7 +27,7 @@ import type { RdrDelta } from "@/lib/types";
 export type RecordGameResult =
   | { error: string }
   | { possibleDuplicate: true; existingGameId: string; existingCreatedAt: string }
-  | { success: true; gameId: string; deltas: RdrDelta[]; targetPoints: number; winBy: number };
+  | { success: true; gameId: string; deltas: RdrDelta[]; targetPoints: number; winBy: number; undoExpiresAt: string };
 
 export async function recordGameAction(
   sessionId: string,
@@ -99,6 +99,7 @@ export async function recordGameAction(
     target_points?: number;
     win_by?: number;
     deltas?: { player_id: string; delta: number; rdr_after: number }[];
+    undo_expires_at?: string;
     existing_game_id?: string;
     existing_created_at?: string;
   };
@@ -111,13 +112,14 @@ export async function recordGameAction(
     };
   }
 
-  // status === "inserted" — return success with deltas (no redirect)
+  // status === "inserted" — return success with deltas + undo expiration
   return {
     success: true,
     gameId: result.game_id!,
     deltas: (result.deltas ?? []) as RdrDelta[],
     targetPoints: result.target_points ?? targetPoints,
     winBy: result.win_by ?? winBy,
+    undoExpiresAt: result.undo_expires_at!,
   };
 }
 
@@ -155,4 +157,40 @@ export async function voidLastGameAction(
 
   const target = redirectPath ?? `/g/${joinCode}/session/${sessionId}`;
   redirect(target);
+}
+
+// ─────────────────────────────────────────────────────────────
+// undoGameAction
+//
+// Called from the undo snackbar in RecordGameForm.
+// Delegates to undo_game RPC (SECURITY DEFINER) which:
+//   1. Locks game row FOR UPDATE
+//   2. Validates undo window + not already voided + session active
+//   3. Reverses all RDR deltas atomically
+//   4. Marks game + deltas as voided (void_reason = 'undo')
+//
+// Idempotent-safe: concurrent calls serialized via row lock.
+// ─────────────────────────────────────────────────────────────
+
+export async function undoGameAction(
+  gameId: string
+): Promise<{ error: string } | { success: true }> {
+  const supabase = getServerClient();
+
+  const { data, error } = await supabase.rpc(RPC.UNDO_GAME, {
+    p_game_id: gameId,
+  });
+
+  if (error) {
+    console.error("[undoGameAction] RPC error:", error.message);
+    return { error: error.message ?? "Failed to undo game." };
+  }
+
+  const result = data as { status: string; game_id?: string };
+
+  if (result.status !== "undone") {
+    return { error: "Unexpected undo result." };
+  }
+
+  return { success: true };
 }

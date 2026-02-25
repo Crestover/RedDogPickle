@@ -5,14 +5,16 @@
  *
  * Single-view game recording form. No multi-step wizard.
  * All elements visible simultaneously: team panels, player picker,
- * score inputs, and record button.
+ * score inputs, confirmation summary, and record button.
+ *
+ * M10.2 additions:
+ *   - 8-second undo snackbar after successful game recording
+ *   - Live pre-submit confirmation summary above Record button
+ *   - Debounced router.refresh() — never blocks scoring flow
  *
  * Rules Chip: session-level rules (target_points + win_by) displayed
  * as a tappable chip. Tapping opens an inline picker with presets.
  * Rules persist across games (no per-game reset).
- *
- * Delta flash: after successful recording, RDR deltas are shown
- * briefly (~2s) before resetting the form and refreshing.
  *
  * Duplicate handling (M4.1):
  *   If the RPC finds a matching game recorded within the last 15 minutes
@@ -21,11 +23,11 @@
  *   Cancel (reset form) / Record anyway (force=true).
  */
 
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { recordGameAction } from "@/app/actions/games";
+import { recordGameAction, undoGameAction } from "@/app/actions/games";
 import { setSessionRulesAction } from "@/app/actions/sessions";
-import type { Player, RdrDelta } from "@/lib/types";
+import type { Player } from "@/lib/types";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
 
@@ -45,11 +47,16 @@ interface PossibleDuplicate {
   existingCreatedAt: string;
 }
 
+interface UndoEntry {
+  gameId: string;
+  expiresAt: number; // timestamp ms — countdown derived from expiresAt - now
+}
+
 /** Rule presets for the picker. */
 const RULE_PRESETS: { targetPoints: number; winBy: number; label: string }[] = [
-  { targetPoints: 11, winBy: 2, label: "11 · W2" },
-  { targetPoints: 15, winBy: 1, label: "15 · W1" },
-  { targetPoints: 21, winBy: 2, label: "21 · W2" },
+  { targetPoints: 11, winBy: 2, label: "11 \u00B7 W2" },
+  { targetPoints: 15, winBy: 1, label: "15 \u00B7 W1" },
+  { targetPoints: 21, winBy: 2, label: "21 \u00B7 W2" },
 ];
 
 /** Returns a human-readable relative time string, e.g. "2 minutes ago" */
@@ -59,6 +66,12 @@ function relativeTime(isoString: string): string {
   if (diffSec < 60) return `${diffSec} second${diffSec !== 1 ? "s" : ""} ago`;
   const diffMin = Math.floor(diffSec / 60);
   return `${diffMin} minute${diffMin !== 1 ? "s" : ""} ago`;
+}
+
+/** Extract first name from display_name: "Joe Smith" → "Joe" */
+function firstName(displayName: string): string {
+  const space = displayName.indexOf(" ");
+  return space > 0 ? displayName.substring(0, space) : displayName;
 }
 
 export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts, games, sessionRules }: Props) {
@@ -76,18 +89,44 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   const shutoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rules, setRules] = useState(sessionRules);
   const [showRulePicker, setShowRulePicker] = useState(false);
-  const [deltas, setDeltas] = useState<RdrDelta[] | null>(null);
-  const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Undo queue (M10.2) ─────────────────────────────────────────────────────
+  const [undoQueue, setUndoQueue] = useState<UndoEntry[]>([]);
+  const [undoTick, setUndoTick] = useState(0); // forces re-render for countdown
+  const [undoMessage, setUndoMessage] = useState<string | null>(null);
+  const undoMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Debounced refresh ──────────────────────────────────────────────────────
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      router.refresh();
+      refreshTimerRef.current = null;
+    }, 1000);
+  }, [router]);
 
   // Sync rules from server props (e.g. after router.refresh())
   useEffect(() => {
     setRules(sessionRules);
   }, [sessionRules]);
 
+  // Undo countdown tick — 1s interval when queue is non-empty
+  useEffect(() => {
+    if (undoQueue.length === 0) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setUndoQueue((q) => q.filter((e) => e.expiresAt > now));
+      setUndoTick((t) => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [undoQueue.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Clean up timers on unmount
   useEffect(() => () => {
     if (shutoutTimerRef.current) clearTimeout(shutoutTimerRef.current);
-    if (deltaTimerRef.current) clearTimeout(deltaTimerRef.current);
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    if (undoMessageTimerRef.current) clearTimeout(undoMessageTimerRef.current);
   }, []);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -125,6 +164,11 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   }
 
   function playerCode(id: string) { return attendees.find((p) => p.id === id)?.code ?? "?"; }
+
+  function playerFirstName(id: string): string {
+    const player = attendees.find((p) => p.id === id);
+    return player ? firstName(player.display_name) : "?";
+  }
 
   /** Look up how many times two players have partnered this session. */
   function getPairCount(a: string, b: string): number {
@@ -194,8 +238,29 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   function handleReset() {
     setTeamA([]); setTeamB([]);
     setScoreA(""); setScoreB(""); setError(""); setPossibleDup(null);
-    setDeltas(null);
     disarmShutout();
+  }
+
+  // ── Undo handler ───────────────────────────────────────────────────────────
+  function handleUndo(gameId: string) {
+    startTransition(async () => {
+      const result = await undoGameAction(gameId);
+
+      // Remove from queue regardless of outcome
+      setUndoQueue((q) => q.filter((e) => e.gameId !== gameId));
+
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+
+      // Show brief confirmation
+      setUndoMessage("Game undone.");
+      if (undoMessageTimerRef.current) clearTimeout(undoMessageTimerRef.current);
+      undoMessageTimerRef.current = setTimeout(() => setUndoMessage(null), 2000);
+
+      scheduleRefresh();
+    });
   }
 
   // ── Submit ─────────────────────────────────────────────────────────────────
@@ -242,16 +307,19 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         return;
       }
 
-      // Success — show delta flash, then reset and refresh
+      // Success — reset form instantly, push to undo queue, debounced refresh
       if ("success" in result) {
-        setDeltas(result.deltas);
-        deltaTimerRef.current = setTimeout(() => {
-          setDeltas(null);
-          setTeamA([]); setTeamB([]);
-          setScoreA(""); setScoreB("");
-          setError(""); setPossibleDup(null);
-          router.refresh();
-        }, 2000);
+        // Instant form reset (non-blocking — allows next entry immediately)
+        setTeamA([]); setTeamB([]);
+        setScoreA(""); setScoreB("");
+        setError(""); setPossibleDup(null);
+
+        // Push undo entry with server-provided expiration
+        const expiresAt = new Date(result.undoExpiresAt).getTime();
+        setUndoQueue((q) => [...q, { gameId: result.gameId, expiresAt }]);
+
+        // Debounced refresh — does not block scoring flow
+        scheduleRefresh();
       }
     });
   }
@@ -267,6 +335,48 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   const allReady = teamsComplete && !isNaN(scoreANum) && !isNaN(scoreBNum);
   const teamAFull = teamA.length >= 2;
   const teamBFull = teamB.length >= 2;
+
+  // Latest undoable game for snackbar display
+  const latestUndo = undoQueue.length > 0 ? undoQueue[undoQueue.length - 1] : null;
+  const undoCountdown = latestUndo ? Math.max(0, Math.ceil((latestUndo.expiresAt - Date.now()) / 1000)) : 0;
+  // Suppress unused var lint — undoTick forces re-render for countdown
+  void undoTick;
+
+  // ── Confirmation Summary ───────────────────────────────────────────────────
+  function renderConfirmationSummary() {
+    if (!teamsComplete) {
+      return (
+        <p className="text-xs text-gray-400 text-center px-3 py-2">
+          Select both teams to preview result
+        </p>
+      );
+    }
+
+    const aNames = teamA.map(playerFirstName).join(" / ");
+    const bNames = teamB.map(playerFirstName).join(" / ");
+    const aScore = isNaN(scoreANum) ? "\u2013" : scoreA;
+    const bScore = isNaN(scoreBNum) ? "\u2013" : scoreB;
+
+    // Winner determinable: both scores present + not tied
+    if (winnerTeam) {
+      const winNames = winnerTeam === "A" ? aNames : bNames;
+      const winScore = winnerTeam === "A" ? aScore : bScore;
+      const loseNames = winnerTeam === "A" ? bNames : aNames;
+      const loseScore = winnerTeam === "A" ? bScore : aScore;
+      return (
+        <p className="text-sm font-semibold text-gray-900 text-center truncate px-3 py-2">
+          {winNames} {winScore} <span className="text-gray-400 font-normal">def.</span> {loseNames} {loseScore}
+        </p>
+      );
+    }
+
+    // Neutral format: incomplete or tied
+    return (
+      <p className="text-sm font-semibold text-gray-900 text-center truncate px-3 py-2">
+        {aNames} {aScore} <span className="text-gray-400 font-normal">&ndash;</span> {bNames} {bScore}
+      </p>
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // SINGLE-VIEW RENDER
@@ -314,25 +424,11 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         )}
       </div>
 
-      {/* ── Delta Flash ─────────────────────────────────────── */}
-      {deltas && deltas.length > 0 && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 space-y-1">
-          <p className="text-xs font-semibold text-green-800">Game recorded! RDR updates:</p>
-          <div className="flex flex-wrap gap-2">
-            {deltas.map((d) => {
-              const code = playerCode(d.player_id);
-              const sign = d.delta >= 0 ? "+" : "";
-              return (
-                <span key={d.player_id} className="inline-flex items-center gap-1 text-xs font-mono">
-                  <span className="font-bold text-gray-700">{code}</span>
-                  <span className={d.delta >= 0 ? "text-green-700" : "text-red-600"}>
-                    {sign}{Math.round(d.delta * 10) / 10}
-                  </span>
-                </span>
-              );
-            })}
-          </div>
-        </div>
+      {/* ── Undo confirmation message ─────────────────────────── */}
+      {undoMessage && (
+        <p className="text-xs font-semibold text-green-800 rounded-lg bg-green-50 border border-green-200 px-3 py-2" role="status">
+          {undoMessage}
+        </p>
       )}
 
       {/* ── Team Panels (read-only summary) ──────────────────── */}
@@ -344,7 +440,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
           </p>
           {teamA.length === 0
             ? <p className="text-[10px] text-gray-400">Select below</p>
-            : <p className="text-xs font-mono text-gray-700">{teamA.map(playerCode).join(" · ")}</p>
+            : <p className="text-xs font-mono text-gray-700">{teamA.map(playerCode).join(" \u00B7 ")}</p>
           }
           {teamA.length === 2 && (() => {
             const count = getPairCount(teamA[0], teamA[1]);
@@ -364,7 +460,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
           </p>
           {teamB.length === 0
             ? <p className="text-[10px] text-gray-400">Select below</p>
-            : <p className="text-xs font-mono text-gray-700">{teamB.map(playerCode).join(" · ")}</p>
+            : <p className="text-xs font-mono text-gray-700">{teamB.map(playerCode).join(" \u00B7 ")}</p>
           }
           {teamB.length === 2 && (() => {
             const count = getPairCount(teamB[0], teamB[1]);
@@ -477,13 +573,6 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         </div>
       </div>
 
-      {/* Winner indicator */}
-      {winnerTeam && (
-        <p className="text-center text-xs font-semibold text-green-700">
-          Team {winnerTeam} wins {winnerTeam === "A" ? scoreA : scoreB}&ndash;{winnerTeam === "A" ? scoreB : scoreA}
-        </p>
-      )}
-
       {/* ── Shutout confirmation banner ────────────────────────── */}
       {shutoutArmed && !possibleDup && (
         <p
@@ -532,8 +621,15 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         </p>
       )}
 
+      {/* ── Confirmation Summary (M10.2) ──────────────────────── */}
+      {!possibleDup && (
+        <div className="rounded-lg bg-gray-50">
+          {renderConfirmationSummary()}
+        </div>
+      )}
+
       {/* ── Record Button (sticky when teams complete) ─────────── */}
-      {!possibleDup && !deltas && (
+      {!possibleDup && (
         <div className={teamsComplete ? "sticky bottom-0 z-10 pt-2 -mx-1 px-1 bg-gradient-to-t from-white via-white to-transparent" : ""}>
           <button
             type="button"
@@ -546,6 +642,21 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
             }`}
           >
             {isPending ? "Saving\u2026" : shutoutArmed ? "Confirm Shutout" : "Record Game"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Undo Snackbar (M10.2) ─────────────────────────────── */}
+      {latestUndo && undoCountdown > 0 && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 flex items-center justify-between rounded-xl bg-gray-900 px-4 py-3 shadow-lg max-w-sm mx-auto">
+          <span className="text-sm font-medium text-white">Game recorded.</span>
+          <button
+            type="button"
+            onClick={() => handleUndo(latestUndo.gameId)}
+            disabled={isPending}
+            className="rounded-lg bg-white/20 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/30 active:bg-white/40 transition-colors disabled:opacity-50"
+          >
+            Undo ({undoCountdown})
           </button>
         </div>
       )}

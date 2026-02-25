@@ -14,6 +14,7 @@ export const RPC = {
   GET_LAST_SESSION_ID: "get_last_session_id",
   GET_SESSION_PAIR_COUNTS: "get_session_pair_counts",
   VOID_LAST_GAME: "void_last_game",
+  UNDO_GAME: "undo_game",
   SET_SESSION_RULES: "set_session_rules",
 
   // Courts Mode V2

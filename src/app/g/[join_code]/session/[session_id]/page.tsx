@@ -10,6 +10,7 @@ import ModeToggle from "./ModeToggle";
 import RecordGameForm from "./RecordGameForm";
 import StaleBanner from "./StaleBanner";
 import VoidLastGameButton from "./VoidLastGameButton";
+import EndedSessionGames from "./EndedSessionGames";
 
 interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
@@ -282,88 +283,12 @@ export default async function SessionPage({ params }: PageProps) {
           </h1>
         </div>
 
-        {/* Games recorded in this session */}
-        {games.length > 0 && (() => {
-          const activeGames = games.filter((g) => !(g as { voided_at?: string | null }).voided_at);
-          return (
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
-              Games ({activeGames.length}{activeGames.length !== games.length ? ` / ${games.length} total` : ""})
-            </h2>
-            <div className="space-y-2">
-              {games.map((game) => {
-                const isVoided = !!(game as { voided_at?: string | null }).voided_at;
-                const gamePlayers = Array.isArray(game.game_players)
-                  ? game.game_players
-                  : [];
-
-                const teamAPlayers = teamCodes(gamePlayers, "A");
-                const teamBPlayers = teamCodes(gamePlayers, "B");
-
-                const winnerTeam =
-                  game.team_a_score > game.team_b_score ? "A" : "B";
-
-                return (
-                  <div
-                    key={game.id}
-                    className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-40" : ""}`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-gray-400">
-                        Game #{game.sequence_num}
-                        {isVoided && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase">
-                            Voided
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {new Date(game.played_at).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-3 items-center text-center">
-                      <div>
-                        <p className="text-xs text-blue-600 font-semibold mb-0.5">
-                          Team A {!isVoided && winnerTeam === "A" && "\u{1F3C6}"}
-                        </p>
-                        <p className="text-xs text-gray-500 font-mono">
-                          {teamAPlayers.join(" ")}
-                        </p>
-                        <p
-                          className={`text-2xl font-bold ${
-                            !isVoided && winnerTeam === "A" ? "text-green-700" : "text-gray-500"
-                          }`}
-                        >
-                          {game.team_a_score}
-                        </p>
-                      </div>
-                      <div className="text-gray-300 text-lg font-bold">vs</div>
-                      <div>
-                        <p className="text-xs text-orange-600 font-semibold mb-0.5">
-                          Team B {!isVoided && winnerTeam === "B" && "\u{1F3C6}"}
-                        </p>
-                        <p className="text-xs text-gray-500 font-mono">
-                          {teamBPlayers.join(" ")}
-                        </p>
-                        <p
-                          className={`text-2xl font-bold ${
-                            !isVoided && winnerTeam === "B" ? "text-green-700" : "text-gray-500"
-                          }`}
-                        >
-                          {game.team_b_score}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          );
-        })()}
+        {/* Games recorded in this session (voided hidden by default) */}
+        {games.length > 0 && (
+          <EndedSessionGames
+            games={games as Parameters<typeof EndedSessionGames>[0]["games"]}
+          />
+        )}
 
         {/* Bottom nav row */}
         <div className="flex items-center justify-between pt-4">

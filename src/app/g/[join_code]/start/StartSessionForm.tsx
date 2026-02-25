@@ -64,7 +64,7 @@ export default function StartSessionForm({ joinCode, players, activeSessions }: 
 
   function doCreateSession() {
     startTransition(async () => {
-      const result = await createSessionAction(joinCode, Array.from(selected));
+      const result = await createSessionAction("full", joinCode, Array.from(selected));
       if (result?.error) setError(result.error);
       // On success the action redirects — no client-side handling needed.
     });
@@ -75,6 +75,7 @@ export default function StartSessionForm({ joinCode, players, activeSessions }: 
     setShowModal(false);
     startTransition(async () => {
       const result = await endAndCreateSessionAction(
+        "full",
         target.id,
         joinCode,
         Array.from(selected)

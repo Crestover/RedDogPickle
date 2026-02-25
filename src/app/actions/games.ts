@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import type { RdrDelta } from "@/lib/types";
+import type { AccessMode } from "./access";
+import { requireFullAccess } from "./access";
 
 /**
  * Server Action: recordGameAction
@@ -30,6 +32,7 @@ export type RecordGameResult =
   | { success: true; gameId: string; deltas: RdrDelta[]; targetPoints: number; winBy: number; undoExpiresAt: string };
 
 export async function recordGameAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   teamAIds: string[],
@@ -38,6 +41,8 @@ export async function recordGameAction(
   teamBScore: number,
   force = false
 ): Promise<RecordGameResult> {
+  requireFullAccess(mode);
+
   // ── Pre-flight validation (also enforced in RPC) ──────────────────────────
   if (teamAIds.length !== 2 || teamBIds.length !== 2) {
     return { error: "Each team must have exactly 2 players." };
@@ -134,10 +139,13 @@ export async function recordGameAction(
 // ─────────────────────────────────────────────────────────────
 
 export async function voidLastGameAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   redirectPath?: string
 ): Promise<{ error: string } | never> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
 
   const { data, error } = await supabase.rpc(RPC.VOID_LAST_GAME, {
@@ -173,8 +181,11 @@ export async function voidLastGameAction(
 // ─────────────────────────────────────────────────────────────
 
 export async function undoGameAction(
+  mode: AccessMode,
   gameId: string
 ): Promise<{ error: string } | { success: true }> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
 
   const { data, error } = await supabase.rpc(RPC.UNDO_GAME, {

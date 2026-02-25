@@ -27,7 +27,7 @@ export default function StaleBanner({ isStale, sessionId, joinCode }: Props) {
   function handleEndSession() {
     setError("");
     startTransition(async () => {
-      const result = await endSessionAction(sessionId, joinCode);
+      const result = await endSessionAction("full", sessionId, joinCode);
       if (result?.error) setError(result.error);
       // On success the action redirects
     });

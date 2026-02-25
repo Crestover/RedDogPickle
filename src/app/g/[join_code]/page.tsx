@@ -1,5 +1,8 @@
 import { getServerClient } from "@/lib/supabase/server";
+import { RPC } from "@/lib/supabase/rpc";
+import { redirect } from "next/navigation";
 import Link from "next/link";
+import CopyViewLink from "./CopyViewLink";
 
 /**
  * Group dashboard — Server Component.
@@ -9,6 +12,14 @@ import Link from "next/link";
  *
  * The most recently started active session is shown with "Continue Session".
  * When none exists, "Start Session" is the primary action.
+ *
+ * View-code auto-generation:
+ *   On load, if group.view_code is null, calls ensure_view_code RPC to
+ *   lazily generate the view-only code. Idempotent — only writes once.
+ *
+ * View-code redirect fallback:
+ *   When join_code lookup fails, checks if the entered code is a view_code
+ *   and redirects to /v/{view_code} if found.
  */
 
 interface PageProps {
@@ -22,18 +33,26 @@ interface ActiveSession {
 }
 
 async function getGroupAndActiveSession(joinCode: string): Promise<{
-  group: { id: string; name: string; join_code: string } | null;
+  group: { id: string; name: string; join_code: string; view_code: string | null } | null;
   activeSession: ActiveSession | null;
 }> {
   const supabase = getServerClient();
 
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, join_code")
+    .select("id, name, join_code, view_code")
     .eq("join_code", joinCode.toLowerCase())
     .maybeSingle();
 
   if (!group) return { group: null, activeSession: null };
+
+  // Lazily generate view_code if missing
+  if (!group.view_code) {
+    const { data: vc } = await supabase.rpc(RPC.ENSURE_VIEW_CODE, {
+      p_join_code: group.join_code,
+    });
+    if (vc) group.view_code = vc as string;
+  }
 
   // Active session: ended_at IS NULL (no time-based expiry)
   const { data: session } = await supabase
@@ -52,12 +71,24 @@ export default async function GroupPage({ params }: PageProps) {
   const { join_code } = await params;
   const { group, activeSession } = await getGroupAndActiveSession(join_code);
 
-  // ── Not Found ──────────────────────────────────────────────────────────
+  // ── Not Found — check if it's a view_code ───────────────────────────────
   if (!group) {
+    const supabase = getServerClient();
+    const lowerCode = join_code.toLowerCase();
+    const { data: viewGroup } = await supabase
+      .from("groups")
+      .select("view_code")
+      .eq("view_code", lowerCode)
+      .maybeSingle();
+
+    if (viewGroup) {
+      redirect(`/v/${lowerCode}`);
+    }
+
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center">
         <div className="w-full max-w-sm space-y-6">
-          <div className="text-5xl">❓</div>
+          <div className="text-5xl">&#x2753;</div>
           <div>
             <h1 className="text-2xl font-bold">Group not found</h1>
             <p className="mt-2 text-gray-500 text-sm">
@@ -71,7 +102,7 @@ export default async function GroupPage({ params }: PageProps) {
             href="/"
             className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-4 text-base font-semibold text-gray-700 shadow-sm hover:bg-gray-50 active:bg-gray-100 transition-colors min-h-[56px] w-full"
           >
-            ← Try a different code
+            &larr; Try a different code
           </Link>
         </div>
       </div>
@@ -157,19 +188,24 @@ export default async function GroupPage({ params }: PageProps) {
         </div>
 
         {/* Secondary nav */}
-        <div className="pt-4 border-t border-gray-200 flex items-center justify-between">
-          <Link
-            href="/"
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            ← Change group
-          </Link>
-          <Link
-            href={`/g/${group.join_code}/sessions`}
-            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Session history →
-          </Link>
+        <div className="pt-4 border-t border-gray-200 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <Link
+              href="/"
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              &larr; Change group
+            </Link>
+            <Link
+              href={`/g/${group.join_code}/sessions`}
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Session history &rarr;
+            </Link>
+          </div>
+          {group.view_code && (
+            <CopyViewLink viewCode={group.view_code} />
+          )}
         </div>
       </div>
     </div>

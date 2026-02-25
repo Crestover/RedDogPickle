@@ -30,7 +30,7 @@ export default function VoidLastGameButton({
     }
     setError("");
     startTransition(async () => {
-      const result = await voidLastGameAction(sessionId, joinCode, redirectPath);
+      const result = await voidLastGameAction("full", sessionId, joinCode, redirectPath);
       if (result?.error) {
         setError(result.error);
         setConfirming(false);

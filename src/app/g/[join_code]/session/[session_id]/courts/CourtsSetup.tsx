@@ -22,7 +22,7 @@ export default function CourtsSetup({ sessionId, joinCode, attendeeCount }: Prop
   function handleInit() {
     setError(null);
     startTransition(async () => {
-      const result = await initCourtsAction(sessionId, joinCode, courtCount);
+      const result = await initCourtsAction("full", sessionId, joinCode, courtCount);
       if (result.ok) {
         router.refresh();
       } else {

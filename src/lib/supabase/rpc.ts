@@ -27,4 +27,7 @@ export const RPC = {
   MARK_PLAYER_OUT: "mark_player_out",
   MAKE_PLAYER_ACTIVE: "make_player_active",
   UPDATE_COURT_COUNT: "update_court_count",
+
+  // View-Only Codes
+  ENSURE_VIEW_CODE: "ensure_view_code",
 } as const;

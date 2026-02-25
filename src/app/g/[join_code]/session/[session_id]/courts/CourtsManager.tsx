@@ -243,7 +243,7 @@ export default function CourtsManager({
     setGlobalError(null);
     startTransition(async () => {
       const result = await callAction(() =>
-        updateCourtCountAction(sessionId, joinCode, newCount)
+        updateCourtCountAction("full", sessionId, joinCode, newCount)
       );
       if (result.ok) {
         router.refresh();
@@ -259,7 +259,7 @@ export default function CourtsManager({
     setGlobalError(null);
     startTransition(async () => {
       const result = await callAction(() =>
-        suggestCourtsAction(sessionId, joinCode, courtNumbers)
+        suggestCourtsAction("full", sessionId, joinCode, courtNumbers)
       );
       if (result.ok) {
         router.refresh();
@@ -279,7 +279,7 @@ export default function CourtsManager({
     });
     startTransition(async () => {
       const result = await callAction(
-        () => startCourtGameAction(sessionId, joinCode, courtNumber),
+        () => startCourtGameAction("full", sessionId, joinCode, courtNumber),
         courtNumber
       );
       if (result.ok) {
@@ -313,6 +313,7 @@ export default function CourtsManager({
 
     startTransition(async () => {
       const result = await recordCourtGameAction(
+        "full",
         sessionId,
         joinCode,
         courtNumber,
@@ -367,7 +368,7 @@ export default function CourtsManager({
       // Clear slot
       startTransition(async () => {
         const result = await callAction(
-          () => clearCourtSlotAction(sessionId, joinCode, courtNumber, team, slot),
+          () => clearCourtSlotAction("full", sessionId, joinCode, courtNumber, team, slot),
           courtNumber
         );
         if (result.ok) {
@@ -383,7 +384,7 @@ export default function CourtsManager({
       // Assign player
       startTransition(async () => {
         const result = await callAction(
-          () => assignCourtSlotAction(sessionId, joinCode, courtNumber, team, slot, playerId),
+          () => assignCourtSlotAction("full", sessionId, joinCode, courtNumber, team, slot, playerId),
           courtNumber
         );
         if (result.ok) {
@@ -419,7 +420,7 @@ export default function CourtsManager({
 
     startTransition(async () => {
       const result = await callAction(
-        () => assignCourtSlotAction(sessionId, joinCode, courtNumber, team, slot, playerId),
+        () => assignCourtSlotAction("full", sessionId, joinCode, courtNumber, team, slot, playerId),
         courtNumber
       );
       if (result.ok) {
@@ -451,7 +452,7 @@ export default function CourtsManager({
       // Immediate removal
       startTransition(async () => {
         const result = await callAction(() =>
-          markPlayerOutAction(sessionId, joinCode, playerId, "immediate")
+          markPlayerOutAction("full", sessionId, joinCode, playerId, "immediate")
         );
         if (result.ok) {
           router.refresh();
@@ -469,7 +470,7 @@ export default function CourtsManager({
 
     startTransition(async () => {
       const result = await callAction(() =>
-        markPlayerOutAction(sessionId, joinCode, playerId, mode)
+        markPlayerOutAction("full", sessionId, joinCode, playerId, mode)
       );
       if (result.ok) {
         router.refresh();
@@ -484,7 +485,7 @@ export default function CourtsManager({
   function handleMakeActive(playerId: string) {
     startTransition(async () => {
       const result = await callAction(() =>
-        makePlayerActiveAction(sessionId, joinCode, playerId)
+        makePlayerActiveAction("full", sessionId, joinCode, playerId)
       );
       if (result.ok) {
         router.refresh();
@@ -578,7 +579,7 @@ export default function CourtsManager({
                       if (preset.targetPoints === rules.targetPoints && preset.winBy === rules.winBy) return;
                       setRules({ targetPoints: preset.targetPoints, winBy: preset.winBy });
                       startTransition(async () => {
-                        const result = await setSessionRulesAction(sessionId, preset.targetPoints, preset.winBy);
+                        const result = await setSessionRulesAction("full", sessionId, preset.targetPoints, preset.winBy);
                         if ("error" in result) {
                           setGlobalError(result.error);
                           setRules(sessionRules);

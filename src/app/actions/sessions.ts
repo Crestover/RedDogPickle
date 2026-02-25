@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
+import type { AccessMode } from "./access";
+import { requireFullAccess } from "./access";
 
 /**
  * Server Actions for session management.
@@ -25,9 +27,12 @@ import { RPC } from "@/lib/supabase/rpc";
 // On error:   returns { error: string } (form shows the message)
 // ─────────────────────────────────────────────────────────────
 export async function createSessionAction(
+  mode: AccessMode,
   joinCode: string,
   playerIds: string[]
 ): Promise<{ error: string } | never> {
+  requireFullAccess(mode);
+
   if (playerIds.length < 4) {
     return { error: "Please select at least 4 players." };
   }
@@ -55,9 +60,12 @@ export async function createSessionAction(
 // On error:   returns { error: string }
 // ─────────────────────────────────────────────────────────────
 export async function endSessionAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string
 ): Promise<{ error: string } | never> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { error } = await supabase.rpc(RPC.END_SESSION, {
     p_session_id: sessionId,
@@ -80,10 +88,13 @@ export async function endSessionAction(
 // On error:   returns { error: string }
 // ─────────────────────────────────────────────────────────────
 export async function endAndCreateSessionAction(
+  mode: AccessMode,
   endSessionId: string,
   joinCode: string,
   playerIds: string[]
 ): Promise<{ error: string } | never> {
+  requireFullAccess(mode);
+
   if (playerIds.length < 4) {
     return { error: "Please select at least 4 players." };
   }
@@ -122,10 +133,13 @@ export async function endAndCreateSessionAction(
 // Returns { success, targetPoints, winBy } or { error }.
 // ─────────────────────────────────────────────────────────────
 export async function setSessionRulesAction(
+  mode: AccessMode,
   sessionId: string,
   targetPoints: number,
   winBy: number
 ): Promise<{ success: true; targetPoints: number; winBy: number } | { error: string }> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.SET_SESSION_RULES, {
     p_session_id: sessionId,

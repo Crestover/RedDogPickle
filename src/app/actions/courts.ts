@@ -5,6 +5,8 @@ import { RPC } from "@/lib/supabase/rpc";
 import type { RpcResult } from "@/lib/types";
 import type { PairCountEntry, GameRecord } from "@/lib/autoSuggest";
 import { suggestForCourts } from "@/lib/autoSuggest";
+import type { AccessMode } from "./access";
+import { requireFullAccess } from "./access";
 
 /**
  * Courts Mode V2 — Server Actions
@@ -25,10 +27,13 @@ function rpcError<T = unknown>(message: string): RpcResult<T> {
 
 /** Initialize courts for a session. */
 export async function initCourtsAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   courtCount: number
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.INIT_COURTS, {
     p_session_id: sessionId,
@@ -41,10 +46,13 @@ export async function initCourtsAction(
 
 /** Suggest and assign courts. Hybrid: fetches data → runs autoSuggest in TS → persists via RPC. */
 export async function suggestCourtsAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   courtNumbers?: number[]
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
 
   // Fetch court data to determine which courts are OPEN
@@ -181,10 +189,13 @@ export async function suggestCourtsAction(
 
 /** Explicit OPEN -> IN_PROGRESS transition for a manually filled court. */
 export async function startCourtGameAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   courtNumber: number
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.START_COURT_GAME, {
     p_session_id: sessionId,
@@ -197,6 +208,7 @@ export async function startCourtGameAction(
 
 /** Record a game from an IN_PROGRESS court. Resets court to OPEN. RDR computed atomically in RPC. */
 export async function recordCourtGameAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   courtNumber: number,
@@ -204,6 +216,8 @@ export async function recordCourtGameAction(
   teamBScore: number,
   force = false
 ): Promise<RpcResult<{ game_id: string; target_points: number; win_by: number; deltas: { player_id: string; delta: number; rdr_after: number }[] }>> {
+  requireFullAccess(mode);
+
   // Pre-flight score validation against session rules
   const supabase = getServerClient();
 
@@ -255,6 +269,7 @@ export async function recordCourtGameAction(
 
 /** Assign a single player to a slot on an OPEN court. */
 export async function assignCourtSlotAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   courtNumber: number,
@@ -262,6 +277,8 @@ export async function assignCourtSlotAction(
   slot: number,
   playerId: string
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.UPDATE_COURT_ASSIGNMENT, {
     p_session_id: sessionId,
@@ -277,12 +294,15 @@ export async function assignCourtSlotAction(
 
 /** Clear one slot on an OPEN court. */
 export async function clearCourtSlotAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   courtNumber: number,
   team: "A" | "B",
   slot: number
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.CLEAR_COURT_SLOT, {
     p_session_id: sessionId,
@@ -297,17 +317,20 @@ export async function clearCourtSlotAction(
 
 /** Mark a player as out (immediate or after_game). */
 export async function markPlayerOutAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   playerId: string,
-  mode: "immediate" | "after_game"
+  outMode: "immediate" | "after_game"
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.MARK_PLAYER_OUT, {
     p_session_id: sessionId,
     p_join_code: joinCode,
     p_player_id: playerId,
-    p_mode: mode,
+    p_mode: outMode,
   });
   if (error) return rpcError(error.message);
   return data as RpcResult;
@@ -315,10 +338,13 @@ export async function markPlayerOutAction(
 
 /** Restore an inactive player to active. */
 export async function makePlayerActiveAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   playerId: string
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.MAKE_PLAYER_ACTIVE, {
     p_session_id: sessionId,
@@ -331,10 +357,13 @@ export async function makePlayerActiveAction(
 
 /** Update court count (add/remove empty courts). */
 export async function updateCourtCountAction(
+  mode: AccessMode,
   sessionId: string,
   joinCode: string,
   courtCount: number
 ): Promise<RpcResult> {
+  requireFullAccess(mode);
+
   const supabase = getServerClient();
   const { data, error } = await supabase.rpc(RPC.UPDATE_COURT_COUNT, {
     p_session_id: sessionId,

@@ -22,7 +22,7 @@ export default function EndSessionButton({ sessionId, joinCode }: Props) {
     // Second tap: confirmed — call the action
     setError("");
     startTransition(async () => {
-      const result = await endSessionAction(sessionId, joinCode);
+      const result = await endSessionAction("full", sessionId, joinCode);
       if (result?.error) {
         setError(result.error);
         setConfirming(false);

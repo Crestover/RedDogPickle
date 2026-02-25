@@ -204,7 +204,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     setRules({ targetPoints, winBy });
 
     startTransition(async () => {
-      const result = await setSessionRulesAction(sessionId, targetPoints, winBy);
+      const result = await setSessionRulesAction("full", sessionId, targetPoints, winBy);
       if ("error" in result) {
         setError(result.error);
         setRules(sessionRules); // revert
@@ -244,7 +244,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   // ── Undo handler ───────────────────────────────────────────────────────────
   function handleUndo(gameId: string) {
     startTransition(async () => {
-      const result = await undoGameAction(gameId);
+      const result = await undoGameAction("full", gameId);
 
       // Remove from queue regardless of outcome
       setUndoQueue((q) => q.filter((e) => e.gameId !== gameId));
@@ -285,6 +285,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
 
     startTransition(async () => {
       const result = await recordGameAction(
+        "full",
         sessionId, joinCode,
         teamA, teamB,
         parseInt(scoreA, 10),

@@ -2,6 +2,14 @@
 
 ---
 
+## v0.4.2 — Scoring Preview + Timezone Fix
+
+### Improved
+- Game preview before recording now shows two color-coded team cards — green for the winner, amber for the loser — so you can verify the result at a glance instead of reading a sentence.
+- All timestamps throughout the app now display in Central Time (Dallas) instead of depending on your device or the server timezone.
+
+---
+
 ## v0.4.1 — Polish
 
 ### Improved

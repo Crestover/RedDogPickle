@@ -29,6 +29,7 @@ async function getGroupByViewCode(viewCode: string) {
   return group;
 }
 
+// join_code used server-side only for RPC params; must never be rendered in /v
 async function getGroupStats(joinCode: string, days: number | null, sortBy: string = "rdr") {
   const supabase = getServerClient();
   const { data: stats, error } = await supabase.rpc(RPC.GET_GROUP_STATS, {

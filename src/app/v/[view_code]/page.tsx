@@ -25,7 +25,7 @@ async function getGroupByViewCode(viewCode: string) {
 
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, join_code, view_code")
+    .select("id, name, view_code")
     .eq("view_code", viewCode.toLowerCase())
     .maybeSingle();
 
@@ -68,13 +68,8 @@ export default async function ViewDashboardPage({ params }: PageProps) {
           <p className="text-sm text-gray-500 mt-1 tracking-wide">
             Statistically unnecessary. Socially unavoidable.
           </p>
-          <p className="text-xs font-medium uppercase tracking-widest text-gray-400 mt-4 mb-1">
-            Group
-          </p>
-          <p className="text-sm text-gray-400 font-mono">{group.join_code}</p>
-          <p className="text-xs text-gray-400 mt-1">
-            This is a view-only link
-          </p>
+          <p className="text-sm font-semibold text-gray-700 mt-4">{group.name || "Red Dog Group"}</p>
+          <p className="text-xs text-gray-400 mt-1">View-only link</p>
         </div>
 
         {/* Active session banner (read-only) */}

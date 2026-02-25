@@ -20,7 +20,7 @@ async function getGamesData(viewCode: string, sessionId: string) {
 
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, join_code, view_code")
+    .select("id, name, view_code")
     .eq("view_code", viewCode.toLowerCase())
     .maybeSingle();
 

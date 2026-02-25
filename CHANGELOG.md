@@ -743,6 +743,76 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [M10.2] — Fast Error Recovery & Entry Verification (2026-02-25)
+
+### Added
+- `supabase/migrations/m10.2_undo_window.sql`:
+  - `undo_expires_at timestamptz` column on `games` table
+  - `record_game` updated: returns `undo_expires_at` (now + 8 seconds) in success payload
+  - `undo_game(p_game_id uuid)` RPC — SECURITY DEFINER, FOR UPDATE row lock, validates not
+    voided + undo window not expired + session not ended, reverses ALL non-voided deltas from
+    `game_rdr_deltas` (no hardcoded count), marks game + deltas voided with `void_reason = 'undo'`,
+    returns `{ status: 'undone', game_id }`
+- `src/app/g/[join_code]/session/[session_id]/games/GamesList.tsx` — Client component: session
+  game log with `showVoided` toggle (default OFF), client-side voided filtering, voided games
+  shown with reduced opacity + "Voided" badge
+- `src/app/g/[join_code]/session/[session_id]/EndedSessionGames.tsx` — Client component: ended
+  session game list with voided toggle, 3-column grid layout (Team A / vs / Team B)
+
+### Changed
+- `src/lib/supabase/rpc.ts` — added `UNDO_GAME` constant
+- `src/app/actions/games.ts` — `RecordGameResult` success shape gains `undoExpiresAt: string`;
+  new `undoGameAction(gameId: string)` server action calling `undo_game` RPC
+- `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx`:
+  - Removed old 2-second delta flash (deltaTimerRef + deltas state)
+  - Added undo queue: `Array<{ gameId, expiresAt }>` with timestamp-based countdown (drift-
+    resilient for backgrounded tabs)
+  - Debounced `router.refresh()` at 1000ms via `scheduleRefresh()` — never blocks scoring flow
+  - Fixed-bottom dark snackbar: "Game recorded." + "Undo (N)" countdown button
+  - Pre-submit confirmation summary: "WinnerNames Score def. LoserNames Score" format
+  - `playerFirstName()` helper for display names
+- `src/app/g/[join_code]/session/[session_id]/games/page.tsx` — replaced inline game list with
+  `<GamesList>` component for voided toggle support
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — replaced inline ended session game
+  list with `<EndedSessionGames>` component for voided toggle support
+
+---
+
+## [v0.4.2] — Scoring Preview + Timezone Fix (2026-02-25)
+
+### Added
+- `src/lib/datetime.ts` — Central timezone formatter pinned to `America/Chicago` (Dallas).
+  Exports `formatTime`, `formatDate`, `formatDateTime`, `formatDateString`. Uses
+  `Intl.DateTimeFormat` with explicit `timeZone: APP_TIME_ZONE`, locale `"en-US"`, `Number.isNaN`
+  guard on all inputs. `formatDateString` handles plain "YYYY-MM-DD" strings via noon
+  construction to prevent UTC day-shift
+
+### Changed
+- `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx` — Replaced single-line "def."
+  confirmation summary with two stacked team chips: emerald (winner) + amber (loser) with
+  "Winner"/"Loser" labels, neutral gray when tied/incomplete. Layout: `flex items-center
+  justify-between`, `min-w-0 flex-1 truncate` for names, `shrink-0` for scores. No "def."
+  text anywhere
+- `src/app/g/[join_code]/session/[session_id]/page.tsx` — `formatTime()` for started_at and
+  last-game timestamps (replaced `toLocaleTimeString`)
+- `src/app/g/[join_code]/start/StartSessionForm.tsx` — `formatTime()` + `formatDate()` for
+  active session modal (replaced `toLocaleTimeString` / `toLocaleDateString`)
+- `src/app/g/[join_code]/session/[session_id]/EndedSessionGames.tsx` — `formatTime()` for
+  game played_at (replaced `toLocaleTimeString`)
+- `src/app/g/[join_code]/session/[session_id]/games/GamesList.tsx` — `formatTime()` for
+  game played_at (replaced `toLocaleTimeString`)
+- `src/app/g/[join_code]/session/[session_id]/games/page.tsx` — `formatDate()` for session
+  date header (replaced `toLocaleDateString`)
+- `src/app/g/[join_code]/sessions/page.tsx` — `formatDateString()` for session_date display
+  (replaced local `formatDate()` helper using `toLocaleDateString`); deleted local function
+- `package.json` — version bumped to `0.4.2`
+- `CHANGELOG_PUBLIC.md` — added v0.4.2 entry
+
+### Removed
+- All `toLocaleTimeString` / `toLocaleDateString` calls outside `src/lib/datetime.ts`
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-02-24 — v0.4.1
+> Last updated: 2026-02-25 — v0.4.2
 
 ---
 
@@ -29,19 +29,21 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.4.1 — Polish patch deployed. Horizontal logo on group dashboard, env-based absolute OG image URLs, tier rename, copy updates.**
+**v0.4.2 — Scoring preview chips + global timezone fix deployed to dev.**
 
 v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR (all 3 views). Full rebrand: product renamed to "Red Dog", logo + favicon + help page rewrite.
 v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_SITE_URL`), tier rename (Observer/Practitioner/Strategist/Authority/Architect), homepage + group subtitle copy updates.
+M10.2: 8-second undo window (server-enforced via `undo_expires_at`), hide voided games by default (client-side toggle), undo snackbar with countdown, debounced refresh.
+v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central timezone formatter (`src/lib/datetime.ts`) pins all displayed times to America/Chicago.
 
 ---
 
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `dev` is ahead of `main` (v0.4.1 changes); `main` at v0.3.1
+- **Branch:** `dev` is ahead of `main` (v0.4.2 changes); `main` at v0.3.1
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.4.1` (package.json, footer, changelog)
+- **Version:** `0.4.2` (package.json, footer, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
@@ -50,14 +52,14 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
 | Production  | `main`        | Production        | v0.3.1 (live, migrations run, pending merge) |
-| Dev/Preview | `dev`         | Dev               | v0.4.1 (deployed) |
+| Dev/Preview | `dev`         | Dev               | v0.4.2 (deployed) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.4.1, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3. Scripts: dev/build/start/lint/type-check |
+| `package.json` | v0.4.2, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. Scripts: dev/build/start/lint/type-check |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Standard Next.js config |
@@ -97,13 +99,15 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 | `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params |
 | `g/[join_code]/session/[session_id]/page.tsx` | Server | **Live Referee Console**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Ended sessions show simple game log. |
 | `g/[join_code]/session/[session_id]/ModeToggle.tsx` | Client | Segmented Manual/Courts toggle. **Stateless** — `mode` prop from route is source of truth, uses `<Link>`. Renders contextual subtitle ("Select teams directly" / "Manage multi-court rotation"). |
-| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Each player row has dedicated A and B buttons. No active-team targeting. Team panels are read-only summaries. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). |
+| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Each player row has dedicated A and B buttons. No active-team targeting. Team panels are read-only summaries. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). **M10.2**: Undo snackbar (8s countdown, LIFO queue), debounced refresh (1000ms). **v0.4.2**: Two-chip winner/loser preview (emerald/amber) replaces "def." sentence. |
 | `g/[join_code]/session/[session_id]/EndSessionButton.tsx` | Client | 2-tap confirm (red) for ending session |
 | `g/[join_code]/session/[session_id]/VoidLastGameButton.tsx` | Client | 2-tap confirm (amber) for voiding last game. Accepts `redirectPath` prop |
 | `g/[join_code]/session/[session_id]/StaleBanner.tsx` | Client | Amber banner when session has no games for 24+ hours. Resume / Start New / End options |
 | `g/[join_code]/session/[session_id]/SessionStandings.tsx` | Client | Collapsible standings table (NOT used on live session page — only via Standings → link) |
 | `g/[join_code]/session/[session_id]/PairingBalance.tsx` | Server | Pair game counts sorted fewest first (NOT used on live session page) |
-| `g/[join_code]/session/[session_id]/games/page.tsx` | Server | **Session game log**: First-name display, winner highlighting (emerald-600), voided games (rose badge, muted opacity) |
+| `g/[join_code]/session/[session_id]/EndedSessionGames.tsx` | Client | Game list for ended sessions with voided toggle (default OFF). 3-column grid layout (Team A / vs / Team B). |
+| `g/[join_code]/session/[session_id]/games/GamesList.tsx` | Client | Session game log with `showVoided` toggle (default OFF). Client-side voided filtering. Winner highlighting (emerald-600), voided games (reduced opacity + badge). |
+| `g/[join_code]/session/[session_id]/games/page.tsx` | Server | **Session game log**: Wraps `<GamesList>` component. First-name display, winner highlighting. |
 | `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode wrapper: LIVE header with "Courts" label, ModeToggle(courts), CourtsManager or CourtsSetup |
 | `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073 lines). Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. |
 | `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection when no courts exist yet |
@@ -113,7 +117,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 |------|------|
 | `sessions.ts` | `createSessionAction`, `endSessionAction`, `endAndCreateSessionAction` |
 | `players.ts` | `addPlayerAction` with `safeRedirect()` open-redirect prevention |
-| `games.ts` | `recordGameAction` (returns success+deltas, no redirect), `voidLastGameAction` (atomic delta reversal) |
+| `games.ts` | `recordGameAction` (returns success+deltas+undoExpiresAt, no redirect), `voidLastGameAction` (atomic delta reversal), `undoGameAction` (8s undo window) |
 | `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction`, `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` |
 
 #### `src/lib/` — Shared Utilities
@@ -121,6 +125,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 |------|------|
 | `types.ts` | Interfaces: PlayerStats, PairCount, Player, Group, PlayerRating, Session, CourtData, AttendeeWithStatus, RpcResult<T> |
 | `env.ts` | Environment variable validation (NEXT_PUBLIC_SUPABASE_URL, _ANON_KEY) |
+| `datetime.ts` | Central timezone formatter: `APP_TIME_ZONE = "America/Chicago"`, `formatTime()`, `formatDate()`, `formatDateTime()`, `formatDateString()`. All UI time formatting must route through this file. Uses `Intl.DateTimeFormat` with explicit `timeZone`. |
 | `formatting.ts` | `formatDiff()` — formats numeric with +/- sign |
 | `suggestCode.ts` | `suggestCode()` — derive player code from display name (JD, BOB, etc.) |
 | `autoSuggest.ts` | Court assignment algorithm: `suggestForCourts()`. Types: GameRecord, CourtAssignment, PairCountEntry. Helpers: `pairKey()`, `buildPairMap()`, `teamPenalty()` |
@@ -128,7 +133,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 | `supabase/server.ts` | `getServerClient()` — server-side Supabase client (anon key) |
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
-| `supabase/rpc.ts` | RPC constant registry: 21 named constants (12 core + 9 courts) |
+| `supabase/rpc.ts` | RPC constant registry: 22 named constants (13 core + 9 courts) |
 | `rdr.ts` | Tier utility: `getTier(rdr)` → Observer/Practitioner/Strategist/Authority/Architect; `tierColor(tier)` → Tailwind classes |
 | `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier) |
 
@@ -157,6 +162,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 | `migrations/m9.0_remove_session_expiry.sql` | Removes 4-hour session expiry from record_game, create_session, and related functions. Sessions no longer auto-expire. |
 | `migrations/m10.0_rdr_v1.sql` | RDR v1 + session rules: session rule columns, game rule columns, game_rdr_deltas table, set_session_rules, record_game with inline RDR math, record_court_game with rule pass-through, void_last_game with LIFO delta reversal, get_group_stats with p_sort_by + rdr column. Cold start resets player_ratings to 1200. |
 | `migrations/m10.1_fix_leaderboard_sorting.sql` | Fix leaderboard sorting: get_session_stats gains rdr column + correct ORDER BY (win_pct → point_diff → rdr → name). get_group_stats fixed ORDER BY for rdr mode (rdr → win_pct → point_diff → name). |
+| `migrations/m10.2_undo_window.sql` | 8-second undo window: adds `undo_expires_at` column, updates `record_game` to return it, creates `undo_game` RPC (FOR UPDATE lock, validates not voided + not expired + session not ended, reverses ALL non-voided deltas, marks voided with `void_reason = 'undo'`). |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -167,6 +173,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 6. Run `m9.0_remove_session_expiry.sql` (removes 4-hour expiry from RPCs)
 7. Run `m10.0_rdr_v1.sql` (RDR v1 + session rules, cold start reset)
 8. Run `m10.1_fix_leaderboard_sorting.sql` (leaderboard sorting fix)
+9. Run `m10.2_undo_window.sql` (8-second undo window + undo_game RPC)
 
 ---
 
@@ -189,7 +196,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
    - Clamped: ±40 provisional, ±25 established
 8. Persist to `game_rdr_deltas` (4 rows: game_id, player_id, delta, rdr_before, rdr_after, games_before, games_after)
 9. `search_path = public, extensions` (pgcrypto DIGEST lives in `extensions` schema on Supabase)
-10. Returns `{ status, game_id, target_points, win_by, deltas: [{player_id, delta, rdr_after}] }`
+10. Returns `{ status, game_id, target_points, win_by, undo_expires_at, deltas: [{player_id, delta, rdr_after}] }`
 
 ### void_last_game (m10.0 — rating-correct LIFO)
 1. Lock session row FOR UPDATE (concurrency safety)
@@ -198,6 +205,15 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 4. Reverse ratings per player: `rating -= delta`, `games_rated = games_before`, `provisional = (games_before < 20)`
 5. Mark game `voided_at = now()` + mark delta rows `voided_at = now()`
 6. Return `{ status: 'voided', voided_game_id }`
+
+### undo_game (m10.2 — 8-second undo window)
+1. Lock game row FOR UPDATE (concurrency safety)
+2. Validate: not voided, `undo_expires_at IS NOT NULL`, `undo_expires_at >= now()`, session not ended
+3. Resolve group_id from session
+4. Reverse ALL non-voided deltas: loop `game_rdr_deltas WHERE voided_at IS NULL`, subtract delta from player rating, restore games_before
+5. Mark game `voided_at = now(), void_reason = 'undo'` + mark delta rows `voided_at = now()`
+6. Return `{ status: 'undone', game_id }`
+7. Idempotent: second concurrent caller finds voided_at set → rejects cleanly
 
 ### Session Rules
 - **Session-level defaults**: `sessions.target_points_default` (11/15/21), `sessions.win_by_default` (1/2)
@@ -301,6 +317,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 - **Pair lookup is linear scan**: `getMatchupCount()` iterates all games. `getPairCount()` uses `.find()` on pairCounts array. Fine for ≤20 players but could be Map-based. (Files: `pairingFeedback.ts`, `RecordGameForm.tsx`, `CourtsManager.tsx`)
 - **SessionStandings.tsx and PairingBalance.tsx are orphaned on the live session page**: Still in the codebase but not rendered on the active session view (removed during Live Referee Console refactor). They're only reachable via the Standings → link. Consider cleaning up or explicitly wiring to a /standings route.
 - **CourtsManager.tsx is 1073 lines**: Largest single file. Would benefit from decomposition (court cards, waiting pool, controls as separate components).
+- **Client-side voided game filtering**: GamesList and EndedSessionGames filter voided games client-side from already-fetched data. Server-side optimization (exclude voided rows from query when toggle is OFF) is planned tech debt for large sessions.
 
 ### Server Actions
 - **No rate limiting**: Any client can spam recordGameAction (files: `games.ts`, `sessions.ts`, `courts.ts`)
@@ -363,9 +380,9 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status), all 20 RPC function bodies (M7-M9), updated views, indexes. This is the canonical reference for fresh DB setup.
+1. **Deploy v0.4.2 to production** — Merge `dev` into `main`, push. Verify Vercel builds clean. Run m10.2 migration on production Supabase.
 
-2. **Create a dedicated `/standings` route** — SessionStandings and PairingBalance components are orphaned on the live session page. Wire them to `/g/[join_code]/session/[session_id]/standings` for the "Standings →" footer link. Currently the link exists but may point to a non-existent route.
+2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at), all 22 RPC function bodies (M7-M10.2), updated views, indexes.
 
 3. **Decompose CourtsManager.tsx** — At 1073 lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
 
@@ -398,6 +415,7 @@ v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_S
 - Live session header pattern: back arrow → group name + End pill → LIVE dot indicator → ModeToggle → content
 - First names derived via `displayName.substring(0, displayName.indexOf(" "))` with fallback to full name
 - Winner highlighting: emerald-600 for winning team/score, neutral gray for losing (never red)
+- All time formatting routed through `src/lib/datetime.ts` — no direct `toLocaleString` / `toLocaleDateString` / `toLocaleTimeString` calls in UI code
 
 ### TypeScript
 - `camelCase` for variables/functions, `PascalCase` for types/components
@@ -485,8 +503,13 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.4.0`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.4.2`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
+- [ ] Record game → undo snackbar appears with 8s countdown, undo works
+- [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
+- [ ] Tied/incomplete scores → neutral gray chips, no Winner/Loser labels
+- [ ] All timestamps display in Central Time (no UTC offset)
+- [ ] Voided games hidden by default in session game list + All Games page
 
 ---
 
@@ -545,15 +568,15 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 ### No Other External APIs
 - No auth providers
-- No analytics
 - No third-party APIs
 - No CDNs for assets
+- `@vercel/analytics` included for basic page-view analytics
 
 ---
 
-## RPC Function Reference (21 functions)
+## RPC Function Reference (22 functions)
 
-### Core (12 functions)
+### Core (13 functions)
 | RPC Name | Security | Params | Returns | Purpose |
 |----------|----------|--------|---------|---------|
 | `create_session` | INVOKER | `(group_join_code text, player_ids uuid[])` | `uuid` | Create session + attendance. Idempotent on concurrent calls |
@@ -567,6 +590,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `reconcile_missing_ratings` | DEFINER | `()` | `integer` | Backfill missing Elo ratings across all groups |
 | `set_session_rules` | DEFINER | `(p_session_id uuid, p_target_points int, p_win_by int)` | `jsonb` | Update session-level game rule defaults |
 | `void_last_game` | DEFINER | `(p_session_id uuid)` | `jsonb` | Soft-delete most recent game + LIFO rating reversal via game_rdr_deltas |
+| `undo_game` | DEFINER | `(p_game_id uuid)` | `jsonb` | 8s undo window: FOR UPDATE lock, validates not voided + undo_expires_at >= now() + session not ended, reverses ALL deltas, marks voided with void_reason='undo' |
 | `recompute_session_ratings` | DEFINER | `(p_session_id uuid)` | `integer` | Forward-replay Elo from earliest affected game (legacy, not called) |
 
 ### Courts Mode V2 (9 functions)
@@ -592,7 +616,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `players` | id, group_id, display_name, code, is_active | code: uppercase, unique per group |
 | `sessions` | id, group_id, name, started_at, ended_at, closed_reason | Partial unique: one active per group |
 | `session_players` | session_id, player_id, **status**, inactive_effective_after_game | Status: ACTIVE or INACTIVE. Added in m8.0 |
-| `games` | id, session_id, sequence_num, scores, dedupe_key, voided_at | Immutable, soft-delete only |
+| `games` | id, session_id, sequence_num, scores, dedupe_key, voided_at, undo_expires_at | Immutable, soft-delete only. `undo_expires_at` for 8s undo window |
 | `game_players` | game_id, player_id, team ('A'/'B') | 4 rows per game |
 | `player_ratings` | group_id, player_id, rating, games_rated, provisional | Elo state |
 | `rating_events` | game_id, player_id, pre/post_rating, delta, algo_version | Elo audit log, idempotent via UNIQUE |
@@ -617,6 +641,8 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.3.1 — Live Referee Console | `3de91e4`→`a0d0c37` | Session page restructure, explicit A/B buttons, ModeToggle, last-game ticker, games page, courts controls reorder, minimalism audit, version bump |
 | v0.4.0 — RDR + Rebrand | `70a1362`→`ba16970` | RDR v1 (atomic ratings, MOV, partner gap, LIFO void), session-level game rules, tier badges, leaderboard sorting fix (all 3 views), full rebrand (Red Dog, logo, favicon, help page rewrite) |
 | v0.4.1 — Polish | `1ac8aeb`→`2807d75` | Horizontal logo on group dashboard, env-based absolute OG image URLs (`NEXT_PUBLIC_SITE_URL`), tier rename, homepage + group subtitle copy updates |
+| M10.2 — Undo Window | `9d5b8ca` | 8-second server-enforced undo window, hide voided games toggle, undo snackbar with countdown, debounced refresh, pre-submit confirmation summary |
+| v0.4.2 — Preview + TZ | `7d5060c`→`3cf44e8` | Winner/loser preview chips (emerald/amber), central timezone formatter (`datetime.ts`) pinned to America/Chicago, all `toLocale*` calls eliminated |
 
 ---
 

@@ -2,6 +2,17 @@
 
 ---
 
+## v0.4.3 — View-Only Sharing
+
+### Added
+- Share a read-only link to your group so spectators, friends, or family can follow along without being able to change anything. Tap "Copy view-only link" on the group dashboard to grab it.
+- View-only visitors can browse the leaderboard, session history, live sessions, and full game logs — all without a join code.
+
+### Improved
+- Added analytics to help us understand which pages are used most and improve the experience over time.
+
+---
+
 ## v0.4.2 — Scoring Preview + Timezone Fix
 
 ### Improved

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const siteUrl =
@@ -56,6 +57,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased flex flex-col">
+        <Analytics />
         <main className="flex-1 flex flex-col">{children}</main>
         <footer className="mt-auto pb-6 pt-8 text-center text-xs text-gray-400">
           <div className="space-y-1">

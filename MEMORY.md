@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-02-25 — v0.4.2
+> Last updated: 2026-02-25 — v0.4.3
 
 ---
 
@@ -29,21 +29,22 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.4.2 — Scoring preview chips + global timezone fix deployed to dev.**
+**v0.4.3 — View-only sharing + Vercel Analytics deployed to dev.**
 
 v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR (all 3 views). Full rebrand: product renamed to "Red Dog", logo + favicon + help page rewrite.
 v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_SITE_URL`), tier rename (Observer/Practitioner/Strategist/Authority/Architect), homepage + group subtitle copy updates.
 M10.2: 8-second undo window (server-enforced via `undo_expires_at`), hide voided games by default (client-side toggle), undo snackbar with countdown, debounced refresh.
 v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central timezone formatter (`src/lib/datetime.ts`) pins all displayed times to America/Chicago.
+v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 pages), `ensure_view_code` RPC, auto-generate on dashboard load, "Copy view-only link" button. Defense-in-depth `AccessMode` guard on all write actions. Vercel Analytics `<Analytics />` in root layout.
 
 ---
 
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `dev` is ahead of `main` (v0.4.2 changes); `main` at v0.3.1
+- **Branch:** `dev` is ahead of `main` (v0.4.3 changes); `main` at v0.3.1
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.4.2` (package.json, footer, changelog)
+- **Version:** `0.4.3` (package.json, footer, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
@@ -52,14 +53,14 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
 | Production  | `main`        | Production        | v0.3.1 (live, migrations run, pending merge) |
-| Dev/Preview | `dev`         | Dev               | v0.4.2 (deployed) |
+| Dev/Preview | `dev`         | Dev               | v0.4.3 (deployed) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.4.2, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. Scripts: dev/build/start/lint/type-check |
+| `package.json` | v0.4.3, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. Scripts: dev/build/start/lint/type-check |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Standard Next.js config |
@@ -86,11 +87,12 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 #### `src/app/` — Pages & Layouts
 | File | Type | Role |
 |------|------|------|
-| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<main className="flex-1">`, global footer. Metadata: title "Red Dog", icons (SVG + ICO + Apple). `siteUrl` from `NEXT_PUBLIC_SITE_URL` env var. OG/Twitter with explicitly absolute image URLs via `new URL()`. `alternates.canonical`. |
+| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<Analytics />` from `@vercel/analytics/next`, `<main className="flex-1">`, global footer. Metadata: title "Red Dog", icons (SVG + ICO + Apple). `siteUrl` from `NEXT_PUBLIC_SITE_URL` env var. OG/Twitter with explicitly absolute image URLs via `new URL()`. `alternates.canonical`. |
 | `page.tsx` | Client | Home: Red Dog logo (623px source at 160px), tagline "A proper record for a plastic ball.", group code entry form |
 | `help/page.tsx` | Server | Help page: Red Dog mark, RDR explainer, Manual vs Courts, Voids & Rating Integrity, FAQ |
 | `changelog_public/page.tsx` | Server | Renders CHANGELOG_PUBLIC.md as styled HTML via `marked` |
-| `g/[join_code]/page.tsx` | Server | Group dashboard: horizontal Red Dog logo (125px), subtitle "Statistically unnecessary. Socially unavoidable.", GROUP eyebrow + join_code, active session detection, Start/Continue/Leaderboard/Sessions links |
+| `g/[join_code]/page.tsx` | Server | Group dashboard: horizontal Red Dog logo (125px), subtitle "Statistically unnecessary. Socially unavoidable.", GROUP eyebrow + join_code, active session detection, Start/Continue/Leaderboard/Sessions links. Auto-generates `view_code` via `ensure_view_code` RPC on first load. Falls back to view_code redirect if join_code not found. Includes `<CopyViewLink>` in secondary nav. |
+| `g/[join_code]/CopyViewLink.tsx` | Client | Copies `{NEXT_PUBLIC_SITE_URL}/v/{viewCode}` to clipboard. Shows "📋 Copy view-only link" / "Copied!" with 1.5s timeout. |
 | `g/[join_code]/start/page.tsx` | Server | Start session page: wraps StartSessionForm |
 | `g/[join_code]/start/StartSessionForm.tsx` | Client | Player selection with live search, min 4 required |
 | `g/[join_code]/players/new/page.tsx` | Server | Add player page: wraps AddPlayerForm |
@@ -111,14 +113,20 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 | `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode wrapper: LIVE header with "Courts" label, ModeToggle(courts), CourtsManager or CourtsSetup |
 | `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073 lines). Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. |
 | `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection when no courts exist yet |
+| `v/[view_code]/page.tsx` | Server | **View-only dashboard**: Red Dog logo, GROUP eyebrow + join_code (read-only), "This is a view-only link" badge, active session banner, View Session + Leaderboard links, Session history link. No write CTAs. |
+| `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. No "Start a Session" CTA. |
+| `v/[view_code]/sessions/page.tsx` | Server | **View-only session history**: Session list with active/ended badges. Links to `/v/` session detail. No "Start First Session" CTA. |
+| `v/[view_code]/session/[session_id]/page.tsx` | Server | **View-only session detail**: Active (LIVE badge + "View-only" + last-game ticker + `EndedSessionGames`) and ended layouts. Mismatch protection: verifies session belongs to group. No write components. |
+| `v/[view_code]/session/[session_id]/games/page.tsx` | Server | **View-only games list**: Wraps `<GamesList>` (already read-only). Back link to `/v/` session. |
 
 #### `src/app/actions/` — Server Actions
 | File | Role |
 |------|------|
-| `sessions.ts` | `createSessionAction`, `endSessionAction`, `endAndCreateSessionAction` |
+| `access.ts` | `AccessMode = "full" \| "view"` type + `requireFullAccess(mode)` guard. All write actions take `mode` as first param and call this at the top. Safety net against accidental write component reuse in `/v/`. |
+| `sessions.ts` | `createSessionAction`, `endSessionAction`, `endAndCreateSessionAction`, `setSessionRulesAction` — all take `mode: AccessMode` as first param |
 | `players.ts` | `addPlayerAction` with `safeRedirect()` open-redirect prevention |
-| `games.ts` | `recordGameAction` (returns success+deltas+undoExpiresAt, no redirect), `voidLastGameAction` (atomic delta reversal), `undoGameAction` (8s undo window) |
-| `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction`, `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` |
+| `games.ts` | `recordGameAction` (returns success+deltas+undoExpiresAt, no redirect), `voidLastGameAction` (atomic delta reversal), `undoGameAction` (8s undo window) — all take `mode: AccessMode` as first param |
+| `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction`, `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` — all take `mode: AccessMode` as first param |
 
 #### `src/lib/` — Shared Utilities
 | File | Role |
@@ -133,7 +141,7 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 | `supabase/server.ts` | `getServerClient()` — server-side Supabase client (anon key) |
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
-| `supabase/rpc.ts` | RPC constant registry: 22 named constants (13 core + 9 courts) |
+| `supabase/rpc.ts` | RPC constant registry: 23 named constants (14 core incl `ENSURE_VIEW_CODE` + 9 courts) |
 | `rdr.ts` | Tier utility: `getTier(rdr)` → Observer/Practitioner/Strategist/Authority/Architect; `tierColor(tier)` → Tailwind classes |
 | `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier) |
 
@@ -163,6 +171,7 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 | `migrations/m10.0_rdr_v1.sql` | RDR v1 + session rules: session rule columns, game rule columns, game_rdr_deltas table, set_session_rules, record_game with inline RDR math, record_court_game with rule pass-through, void_last_game with LIFO delta reversal, get_group_stats with p_sort_by + rdr column. Cold start resets player_ratings to 1200. |
 | `migrations/m10.1_fix_leaderboard_sorting.sql` | Fix leaderboard sorting: get_session_stats gains rdr column + correct ORDER BY (win_pct → point_diff → rdr → name). get_group_stats fixed ORDER BY for rdr mode (rdr → win_pct → point_diff → name). |
 | `migrations/m10.2_undo_window.sql` | 8-second undo window: adds `undo_expires_at` column, updates `record_game` to return it, creates `undo_game` RPC (FOR UPDATE lock, validates not voided + not expired + session not ended, reverses ALL non-voided deltas, marks voided with `void_reason = 'undo'`). |
+| `migrations/m11.0_view_only_codes.sql` | View-only access codes: adds `view_code` + `view_code_created_at` columns to `groups`, unique index `idx_groups_view_code`, format constraint (`^[a-z0-9\-]+$`), `ensure_view_code(p_join_code)` SECURITY DEFINER RPC (generates `{join_code}-view` with collision handling, max 5 attempts). |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -174,6 +183,7 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 7. Run `m10.0_rdr_v1.sql` (RDR v1 + session rules, cold start reset)
 8. Run `m10.1_fix_leaderboard_sorting.sql` (leaderboard sorting fix)
 9. Run `m10.2_undo_window.sql` (8-second undo window + undo_game RPC)
+10. Run `m11.0_view_only_codes.sql` (view_code column + ensure_view_code RPC)
 
 ---
 
@@ -275,7 +285,7 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 - Animated leaderboard row reordering / rank change arrows
 - Player avatar colors
 - Session summary card (MVP, highlights)
-- Shareable leaderboard link
+- ~~Shareable leaderboard link~~ *(done: view-only links cover this)*
 - Dark mode (night court)
 - Loading skeleton states / Suspense boundaries
 - Real-time updates via Supabase Realtime (currently requires page refresh)
@@ -380,9 +390,9 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Deploy v0.4.2 to production** — Merge `dev` into `main`, push. Verify Vercel builds clean. Run m10.2 migration on production Supabase.
+1. **Deploy v0.4.3 to production** — Merge `dev` into `main`, push. Verify Vercel builds clean. Run m10.2 + m11.0 migrations on production Supabase.
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at), all 22 RPC function bodies (M7-M10.2), updated views, indexes.
+2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code), all 23 RPC function bodies (M7-M11.0), updated views, indexes.
 
 3. **Decompose CourtsManager.tsx** — At 1073 lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
 
@@ -420,7 +430,7 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 ### TypeScript
 - `camelCase` for variables/functions, `PascalCase` for types/components
 - Centralized types in `src/lib/types.ts`
-- RPC names in `src/lib/supabase/rpc.ts` as `const` object (20 constants)
+- RPC names in `src/lib/supabase/rpc.ts` as `const` object (23 constants)
 - Server actions in `src/app/actions/` with `"use server"` directive
 - Path alias: `@/` maps to `src/`
 
@@ -428,8 +438,8 @@ v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central time
 ```
 src/
   app/
-    actions/          # Server actions (sessions.ts, players.ts, games.ts, courts.ts)
-    g/[join_code]/    # Group routes (dynamic)
+    actions/          # Server actions (access.ts, sessions.ts, players.ts, games.ts, courts.ts)
+    g/[join_code]/    # Group routes (dynamic, full access)
       session/[session_id]/
         courts/       # Courts Mode sub-route
         games/        # Session game log
@@ -437,6 +447,11 @@ src/
       players/new/    # Add player
       sessions/       # Session history
       leaderboard/    # Group leaderboard
+    v/[view_code]/    # View-only routes (dynamic, read-only mirror of /g/)
+      session/[session_id]/
+        games/        # View-only game log
+      sessions/       # View-only session history
+      leaderboard/    # View-only leaderboard
     help/             # Static help page
     changelog_public/ # Rendered markdown changelog
   lib/
@@ -445,7 +460,7 @@ src/
     *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest, pairingFeedback)
 supabase/
   schema.sql          # Canonical DB reference (STALE at ~M6)
-  migrations/         # Ordered SQL migrations (m0 → m10.1)
+  migrations/         # Ordered SQL migrations (m0 → m11.0)
 docs/                 # Architecture docs, how-tos, decisions, testing checklist
 ```
 
@@ -503,13 +518,23 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.4.2`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.4.3`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
 - [ ] Tied/incomplete scores → neutral gray chips, no Winner/Loser labels
 - [ ] All timestamps display in Central Time (no UTC offset)
 - [ ] Voided games hidden by default in session game list + All Games page
+- [ ] Group dashboard shows "📋 Copy view-only link" in secondary nav
+- [ ] Copy view-only link copies correct URL to clipboard
+- [ ] Enter view_code on home page → redirects to `/v/{view_code}`
+- [ ] `/v/` dashboard: logo, group code, "This is a view-only link", leaderboard + sessions links
+- [ ] `/v/` leaderboard: all 3 range modes work, no write CTAs
+- [ ] `/v/` sessions: list renders, links go to `/v/` session detail
+- [ ] `/v/` session detail: active (LIVE + view-only badge) and ended layouts correct
+- [ ] `/v/` games: game list with voided toggle, no write components
+- [ ] Zero write buttons/forms visible on any `/v/` page
+- [ ] Session from different group on `/v/` route returns 404
 
 ---
 
@@ -538,6 +563,10 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 11. **Session stale detection is UI-only (24h threshold)**: The StaleBanner does NOT auto-end sessions or block scoring. It's a suggestion. The 4-hour server-side session expiry was removed in m9.0. Sessions now stay active indefinitely until manually ended.
 
 12. **RecordGameForm `pb-20` padding**: The `pb-20` on the scroll container prevents the sticky Record button from covering the last player rows. Removing it breaks usability.
+
+13. **View-only route isolation**: `/v/` pages MUST NOT import any write components (RecordGameForm, EndSessionButton, VoidLastGameButton, StaleBanner, StartSessionForm, CourtsManager, CourtsSetup) or server actions from `@/app/actions`. They reuse read-only components (`EndedSessionGames`, `GamesList`, `PlayerStatsRow`) from `/g/`. All `<Link>` hrefs in `/v/` point to `/v/{view_code}/...` — never `/g/`. Defense-in-depth: all write actions require `AccessMode = "full"` as first param via `requireFullAccess()` guard.
+
+14. **`ensure_view_code` RPC normalizes input**: Always calls `lower(p_join_code)` internally. Never trust caller casing. SECURITY DEFINER with `SET search_path = public`.
 
 ---
 
@@ -574,9 +603,9 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 ---
 
-## RPC Function Reference (22 functions)
+## RPC Function Reference (23 functions)
 
-### Core (13 functions)
+### Core (14 functions)
 | RPC Name | Security | Params | Returns | Purpose |
 |----------|----------|--------|---------|---------|
 | `create_session` | INVOKER | `(group_join_code text, player_ids uuid[])` | `uuid` | Create session + attendance. Idempotent on concurrent calls |
@@ -592,6 +621,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `void_last_game` | DEFINER | `(p_session_id uuid)` | `jsonb` | Soft-delete most recent game + LIFO rating reversal via game_rdr_deltas |
 | `undo_game` | DEFINER | `(p_game_id uuid)` | `jsonb` | 8s undo window: FOR UPDATE lock, validates not voided + undo_expires_at >= now() + session not ended, reverses ALL deltas, marks voided with void_reason='undo' |
 | `recompute_session_ratings` | DEFINER | `(p_session_id uuid)` | `integer` | Forward-replay Elo from earliest affected game (legacy, not called) |
+| `ensure_view_code` | DEFINER | `(p_join_code text)` | `text` | Auto-generate view_code for a group. Returns existing if set, else generates `{join_code}-view` with collision handling (appends `-{4 chars}`, max 5 attempts). Normalizes input to lowercase. |
 
 ### Courts Mode V2 (9 functions)
 | RPC Name | Security | Params | Returns | Purpose |
@@ -612,7 +642,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 | Table | Key Columns | Notes |
 |-------|-------------|-------|
-| `groups` | id, name, join_code | join_code: lowercase alphanumeric + hyphens, unique |
+| `groups` | id, name, join_code, view_code, view_code_created_at | join_code: lowercase alphanumeric + hyphens, unique. view_code: nullable, unique, format `^[a-z0-9\-]+$`, auto-generated as `{join_code}-view` |
 | `players` | id, group_id, display_name, code, is_active | code: uppercase, unique per group |
 | `sessions` | id, group_id, name, started_at, ended_at, closed_reason | Partial unique: one active per group |
 | `session_players` | session_id, player_id, **status**, inactive_effective_after_game | Status: ACTIVE or INACTIVE. Added in m8.0 |
@@ -643,6 +673,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.4.1 — Polish | `1ac8aeb`→`2807d75` | Horizontal logo on group dashboard, env-based absolute OG image URLs (`NEXT_PUBLIC_SITE_URL`), tier rename, homepage + group subtitle copy updates |
 | M10.2 — Undo Window | `9d5b8ca` | 8-second server-enforced undo window, hide voided games toggle, undo snackbar with countdown, debounced refresh, pre-submit confirmation summary |
 | v0.4.2 — Preview + TZ | `7d5060c`→`3cf44e8` | Winner/loser preview chips (emerald/amber), central timezone formatter (`datetime.ts`) pinned to America/Chicago, all `toLocale*` calls eliminated |
+| v0.4.3 — View-Only Sharing | `3642fb7`→`fa40aeb` | View-only access codes (`/v/[view_code]` route tree, 5 pages), `ensure_view_code` RPC (m11.0), `AccessMode` guard on all write actions, "Copy view-only link" button, home page view_code redirect, Vercel Analytics `<Analytics />` |
 
 ---
 

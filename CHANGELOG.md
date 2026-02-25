@@ -813,6 +813,70 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [v0.4.3] — View-Only Sharing + Analytics (2026-02-25)
+
+### Added
+- `supabase/migrations/m11.0_view_only_codes.sql`:
+  - `view_code` + `view_code_created_at` columns on `groups` table
+  - Unique index `idx_groups_view_code` (NULLs allowed)
+  - Format constraint: `view_code ~ '^[a-z0-9\-]+$'` (idempotent via DO block)
+  - `ensure_view_code(p_join_code text)` RPC — SECURITY DEFINER, `SET search_path = public`.
+    Normalizes input via `lower()`. If `view_code` already set, returns immediately. Otherwise
+    generates `{join_code}-view`, with collision handling via `substr(md5(random()::text), 1, 4)`
+    suffix (max 5 attempts). Persists `view_code` + `view_code_created_at = now()`. Grants to
+    `anon` + `authenticated`
+- `src/app/actions/access.ts` — `AccessMode = "full" | "view"` type + `requireFullAccess(mode)`
+  guard function. All write server actions take `mode` as first parameter and call this at the
+  top. Safety net against accidental write component reuse in `/v/` routes
+- `src/app/g/[join_code]/CopyViewLink.tsx` — Client component: copies
+  `{NEXT_PUBLIC_SITE_URL}/v/{viewCode}` to clipboard. Shows "📋 Copy view-only link" with
+  brief "Copied!" feedback (1.5s timeout)
+- `src/app/v/[view_code]/page.tsx` — View-only dashboard: Red Dog logo, GROUP eyebrow +
+  join_code (read-only display), "This is a view-only link" badge, active session banner,
+  View Session + Leaderboard links, Session history link. No write CTAs
+- `src/app/v/[view_code]/leaderboard/page.tsx` — View-only leaderboard: same data as `/g/`
+  version (all 3 range modes via `?range=`), `PlayerStatsRow`, player ratings. No "Start a
+  Session" CTA in empty state
+- `src/app/v/[view_code]/sessions/page.tsx` — View-only session history: session list with
+  active/ended badges, links to `/v/` session detail. No "Start First Session" CTA
+- `src/app/v/[view_code]/session/[session_id]/page.tsx` — View-only session detail: active
+  sessions show LIVE badge + "View-only" label + last-game ticker + `EndedSessionGames`;
+  ended sessions show "Ended" badge + game log. Mismatch protection: verifies
+  `session.group_id === group.id`. No write components (RecordGameForm, EndSessionButton,
+  VoidLastGameButton, StaleBanner, ModeToggle, Rules Chip, Courts links)
+- `src/app/v/[view_code]/session/[session_id]/games/page.tsx` — View-only games list: wraps
+  `<GamesList>` component (already read-only). Back link to `/v/` session
+
+### Changed
+- `src/app/layout.tsx` — Added `<Analytics />` from `@vercel/analytics/next` inside `<body>`
+  for page view and web vitals tracking
+- `src/app/g/[join_code]/page.tsx`:
+  - Now selects `view_code` from groups; auto-generates via `ensure_view_code` RPC on first
+    load if `view_code` is null (idempotent — skips RPC when already set)
+  - Not-found fallback checks if entered code is a `view_code` and redirects to `/v/{code}`
+  - Secondary nav includes `<CopyViewLink viewCode={group.view_code} />` when view_code exists
+- `src/app/actions/games.ts` — All 3 write actions (`recordGameAction`, `voidLastGameAction`,
+  `undoGameAction`) now take `mode: AccessMode` as first param + `requireFullAccess()` guard
+- `src/app/actions/sessions.ts` — All 4 write actions (`createSessionAction`,
+  `endSessionAction`, `endAndCreateSessionAction`, `setSessionRulesAction`) now take
+  `mode: AccessMode` as first param + `requireFullAccess()` guard
+- `src/app/actions/courts.ts` — All 9 write actions now take `mode: AccessMode` as first
+  param + `requireFullAccess()` guard
+- All write components updated to pass `"full"` as first arg to action calls:
+  `RecordGameForm.tsx`, `EndSessionButton.tsx`, `VoidLastGameButton.tsx`, `StaleBanner.tsx`,
+  `StartSessionForm.tsx`, `CourtsManager.tsx`, `CourtsSetup.tsx`
+- `src/lib/supabase/rpc.ts` — added `ENSURE_VIEW_CODE` constant
+- `package.json` — version bumped to `0.4.3`
+- `CHANGELOG_PUBLIC.md` — added v0.4.3 entry
+
+### Route hygiene (verified via grep)
+- Zero action imports in any `/v/` file
+- Zero write component imports in any `/v/` file
+- Zero `/g/` string literals in `/v/` Link hrefs
+- All `/v/` routes confirmed as `ƒ` (dynamic) in build output
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

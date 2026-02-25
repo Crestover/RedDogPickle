@@ -1,4 +1,5 @@
 import { getServerClient } from "@/lib/supabase/server";
+import { formatDateString } from "@/lib/datetime";
 import type { Session } from "@/lib/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -19,17 +20,6 @@ function isActive(session: Session): boolean {
   return !session.ended_at;
 }
 
-function formatDate(dateStr: string): string {
-  // session_date is a plain date string "YYYY-MM-DD"
-  const [year, month, day] = dateStr.split("-");
-  const d = new Date(Number(year), Number(month) - 1, Number(day));
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 async function getGroupAndSessions(joinCode: string) {
   const supabase = getServerClient();
@@ -117,7 +107,7 @@ export default async function SessionHistoryPage({ params }: PageProps) {
                         </span>
                       )}
                       <span className="text-xs text-gray-400">
-                        {formatDate(session.session_date)}
+                        {formatDateString(session.session_date)}
                       </span>
                     </div>
                     <p className="text-sm font-mono text-gray-900 truncate leading-snug">

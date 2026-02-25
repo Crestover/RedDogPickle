@@ -1,6 +1,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
+import { formatTime } from "@/lib/datetime";
 import type { PairCount, Player } from "@/lib/types";
 import type { GameRecord } from "@/lib/autoSuggest";
 import Link from "next/link";
@@ -132,11 +133,7 @@ export default async function SessionPage({ params }: PageProps) {
   const isStale = active && Date.now() - staleRef > TWENTY_FOUR_HOURS_MS;
 
   // Format started_at for display
-  const startedAt = new Date(session.started_at);
-  const startedLabel = startedAt.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const startedLabel = formatTime(session.started_at);
 
   // Flatten attendees into Player[] for RecordGameForm, sorted by code
   const players = attendees
@@ -159,10 +156,7 @@ export default async function SessionPage({ params }: PageProps) {
     const bCodes = teamCodes(gp, "B").join("/");
     lastScore = `${lastGame.team_a_score}\u2013${lastGame.team_b_score}`;
     lastTeams = `${aCodes} vs ${bCodes}`;
-    lastTime = new Date(lastGame.played_at).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    lastTime = formatTime(lastGame.played_at);
   }
 
   // ── ACTIVE session layout ─────────────────────────────────────

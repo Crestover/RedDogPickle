@@ -342,11 +342,11 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   // Suppress unused var lint — undoTick forces re-render for countdown
   void undoTick;
 
-  // ── Confirmation Summary ───────────────────────────────────────────────────
+  // ── Confirmation Summary (Winner / Loser Chips) ────────────────────────────
   function renderConfirmationSummary() {
     if (!teamsComplete) {
       return (
-        <p className="text-xs text-gray-400 text-center px-3 py-2">
+        <p className="text-xs text-gray-400 text-center px-3 py-2 rounded-lg bg-gray-50">
           Select both teams to preview result
         </p>
       );
@@ -357,24 +357,49 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     const aScore = isNaN(scoreANum) ? "\u2013" : scoreA;
     const bScore = isNaN(scoreBNum) ? "\u2013" : scoreB;
 
-    // Winner determinable: both scores present + not tied
-    if (winnerTeam) {
-      const winNames = winnerTeam === "A" ? aNames : bNames;
-      const winScore = winnerTeam === "A" ? aScore : bScore;
-      const loseNames = winnerTeam === "A" ? bNames : aNames;
-      const loseScore = winnerTeam === "A" ? bScore : aScore;
-      return (
-        <p className="text-sm font-semibold text-gray-900 text-center truncate px-3 py-2">
-          {winNames} {winScore} <span className="text-gray-400 font-normal">def.</span> {loseNames} {loseScore}
-        </p>
-      );
-    }
+    const aIsWinner = winnerTeam === "A";
+    const bIsWinner = winnerTeam === "B";
 
-    // Neutral format: incomplete or tied
+    const chipA = aIsWinner
+      ? "bg-emerald-50 border-emerald-200"
+      : bIsWinner
+        ? "bg-amber-50 border-amber-200/70"
+        : "bg-gray-50 border-gray-200";
+    const chipB = bIsWinner
+      ? "bg-emerald-50 border-emerald-200"
+      : aIsWinner
+        ? "bg-amber-50 border-amber-200/70"
+        : "bg-gray-50 border-gray-200";
+
+    const labelA = aIsWinner ? "Winner" : bIsWinner ? "Loser" : null;
+    const labelB = bIsWinner ? "Winner" : aIsWinner ? "Loser" : null;
+
+    const labelClsA = aIsWinner ? "text-emerald-700" : "text-amber-700";
+    const labelClsB = bIsWinner ? "text-emerald-700" : "text-amber-700";
+
+    const scoreWtA = aIsWinner ? "font-bold" : "font-semibold";
+    const scoreWtB = bIsWinner ? "font-bold" : "font-semibold";
+
     return (
-      <p className="text-sm font-semibold text-gray-900 text-center truncate px-3 py-2">
-        {aNames} {aScore} <span className="text-gray-400 font-normal">&ndash;</span> {bNames} {bScore}
-      </p>
+      <>
+        {/* Team A chip */}
+        <div className={`flex items-center justify-between rounded-lg border px-3 py-2 ${chipA}`}>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900 truncate">{aNames}</p>
+            {labelA && <p className={`text-xs font-medium ${labelClsA}`}>{labelA}</p>}
+          </div>
+          <span className={`text-lg ${scoreWtA} text-gray-900 ml-3 shrink-0`}>{aScore}</span>
+        </div>
+
+        {/* Team B chip */}
+        <div className={`flex items-center justify-between rounded-lg border px-3 py-2 ${chipB}`}>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-gray-900 truncate">{bNames}</p>
+            {labelB && <p className={`text-xs font-medium ${labelClsB}`}>{labelB}</p>}
+          </div>
+          <span className={`text-lg ${scoreWtB} text-gray-900 ml-3 shrink-0`}>{bScore}</span>
+        </div>
+      </>
     );
   }
 
@@ -621,9 +646,9 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         </p>
       )}
 
-      {/* ── Confirmation Summary (M10.2) ──────────────────────── */}
+      {/* ── Confirmation Summary (Winner / Loser Chips) ──────── */}
       {!possibleDup && (
-        <div className="rounded-lg bg-gray-50">
+        <div className="flex flex-col gap-2">
           {renderConfirmationSummary()}
         </div>
       )}

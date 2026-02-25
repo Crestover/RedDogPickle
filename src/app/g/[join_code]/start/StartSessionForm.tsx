@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo } from "react";
 import { createSessionAction, endAndCreateSessionAction } from "@/app/actions/sessions";
+import { formatTime, formatDate } from "@/lib/datetime";
 import type { Player } from "@/lib/types";
 
 interface ActiveSession {
@@ -91,16 +92,10 @@ export default function StartSessionForm({ joinCode, players, activeSessions }: 
   // Format started_at for display in modal
   const targetSession = activeSessions[0];
   const targetStartedLabel = targetSession
-    ? new Date(targetSession.started_at).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatTime(targetSession.started_at)
     : "";
   const targetDateLabel = targetSession
-    ? new Date(targetSession.started_at).toLocaleDateString([], {
-        month: "short",
-        day: "numeric",
-      })
+    ? formatDate(targetSession.started_at, { year: undefined, month: "short", day: "numeric" })
     : "";
 
   return (

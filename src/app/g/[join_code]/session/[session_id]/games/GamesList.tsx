@@ -12,6 +12,7 @@
  */
 
 import { useState } from "react";
+import { formatTime } from "@/lib/datetime";
 
 interface GamePlayer {
   player_id: string;
@@ -100,10 +101,7 @@ export default function GamesList({ games, activeCount, totalCount }: Props) {
               : [];
             const aNamesArr = teamNames(gamePlayers, "A");
             const bNamesArr = teamNames(gamePlayers, "B");
-            const time = new Date(game.played_at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
+            const time = formatTime(game.played_at);
 
             const aWins = game.team_a_score > game.team_b_score;
             const bWins = game.team_b_score > game.team_a_score;

@@ -1,4 +1,5 @@
 import { getServerClient } from "@/lib/supabase/server";
+import { formatDate } from "@/lib/datetime";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import GamesList from "./GamesList";
@@ -52,7 +53,7 @@ export default async function SessionGamesPage({ params }: PageProps) {
   const activeCount = games.filter((g) => !(g as { voided_at?: string | null }).voided_at).length;
 
   // Format session date
-  const sessionDate = new Date(session.started_at).toLocaleDateString([], {
+  const sessionDate = formatDate(session.started_at, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

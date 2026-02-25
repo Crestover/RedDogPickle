@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { formatTime } from "@/lib/datetime";
 
 interface GamePlayer {
   player_id: string;
@@ -98,10 +99,7 @@ export default function EndedSessionGames({ games }: Props) {
                   )}
                 </span>
                 <span className="text-xs text-gray-400">
-                  {new Date(game.played_at).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatTime(game.played_at)}
                 </span>
               </div>
               <div className="grid grid-cols-3 items-center text-center">

@@ -223,15 +223,13 @@ export async function recordCourtGameAction(
 
   const { data: sessionData } = await supabase
     .from("sessions")
-    .select("target_points_default, win_by_default")
+    .select("target_points_default")
     .eq("id", sessionId)
     .single();
 
   const targetPoints = (sessionData as { target_points_default: number } | null)?.target_points_default ?? 11;
-  const winBy = (sessionData as { win_by_default: number } | null)?.win_by_default ?? 2;
 
   const winner = Math.max(teamAScore, teamBScore);
-  const loser = Math.min(teamAScore, teamBScore);
 
   if (teamAScore === teamBScore) {
     return { ok: false, error: { code: "INVALID_SCORE", message: "Scores cannot be equal." } };
@@ -240,15 +238,6 @@ export async function recordCourtGameAction(
     return {
       ok: false,
       error: { code: "INVALID_SCORE", message: `Winning score must be at least ${targetPoints} (got ${winner}).` },
-    };
-  }
-  if (winner - loser < winBy) {
-    return {
-      ok: false,
-      error: {
-        code: "INVALID_SCORE",
-        message: `Winning margin must be at least ${winBy} (got ${winner - loser}).`,
-      },
     };
   }
 

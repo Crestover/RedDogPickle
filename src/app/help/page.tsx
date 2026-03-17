@@ -54,7 +54,7 @@ export default function HelpPage() {
             <li>Tracks who attended</li>
             <li>Records games in order</li>
             <li>Generates standings automatically</li>
-            <li>Uses the scoring rules you choose (11 / 15 / 21, win by 1 or 2)</li>
+            <li>Uses the scoring rules you choose (game to 11, 15, or 21)</li>
           </ul>
           <p className="text-sm text-gray-600 leading-relaxed">
             Sessions stay active until you end them manually. No
@@ -253,8 +253,7 @@ export default function HelpPage() {
               Can we play to 15 or 21 instead of 11?
             </h3>
             <p className="text-sm text-gray-600">
-              Yes. Each session can choose 11, 15, or 21 points &mdash; win by
-              1 or win by 2.
+              Yes. Each session can choose game to 11, 15, or 21 points.
             </p>
           </div>
 

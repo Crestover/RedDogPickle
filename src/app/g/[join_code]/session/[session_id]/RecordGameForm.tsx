@@ -12,8 +12,8 @@
  *   - Live pre-submit confirmation summary above Record button
  *   - Debounced router.refresh() — never blocks scoring flow
  *
- * Rules Chip: session-level rules (target_points + win_by) displayed
- * as a tappable chip. Tapping opens an inline picker with presets.
+ * Rules Chip: session-level target_points displayed as a tappable chip.
+ * Tapping opens an inline picker with presets (11 / 15 / 21).
  * Rules persist across games (no per-game reset).
  *
  * Duplicate handling (M4.1):
@@ -52,12 +52,8 @@ interface UndoEntry {
   expiresAt: number; // timestamp ms — countdown derived from expiresAt - now
 }
 
-/** Rule presets for the picker. */
-const RULE_PRESETS: { targetPoints: number; winBy: number; label: string }[] = [
-  { targetPoints: 11, winBy: 2, label: "11 \u00B7 W2" },
-  { targetPoints: 15, winBy: 1, label: "15 \u00B7 W1" },
-  { targetPoints: 21, winBy: 2, label: "21 \u00B7 W2" },
-];
+/** Target-point presets for the picker. */
+const TARGET_PRESETS = [11, 15, 21] as const;
 
 /** Returns a human-readable relative time string, e.g. "2 minutes ago" */
 function relativeTime(isoString: string): string {
@@ -196,15 +192,15 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   }
 
   // ── Rules Chip handler ──────────────────────────────────────────────────────
-  function handleRuleSelect(targetPoints: number, winBy: number) {
+  function handleRuleSelect(targetPoints: number) {
     setShowRulePicker(false);
-    if (targetPoints === rules.targetPoints && winBy === rules.winBy) return;
+    if (targetPoints === rules.targetPoints) return;
 
     // Optimistic update
-    setRules({ targetPoints, winBy });
+    setRules({ targetPoints, winBy: 1 });
 
     startTransition(async () => {
-      const result = await setSessionRulesAction("full", sessionId, targetPoints, winBy);
+      const result = await setSessionRulesAction("full", sessionId, targetPoints, 1);
       if ("error" in result) {
         setError(result.error);
         setRules(sessionRules); // revert
@@ -228,9 +224,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     if (a < 0 || b < 0) return "Scores cannot be negative.";
     if (a === b) return "Scores cannot be equal.";
     const w = Math.max(a, b);
-    const l = Math.min(a, b);
     if (w < rules.targetPoints) return `Winning score must be at least ${rules.targetPoints} (got ${w}).`;
-    if (w - l < rules.winBy) return `Winning margin must be at least ${rules.winBy} (got ${w - l}).`;
     return null;
   }
 
@@ -416,25 +410,22 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
           onClick={() => setShowRulePicker(!showRulePicker)}
           className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
         >
-          {rules.targetPoints} &middot; win by {rules.winBy}
+          Game to {rules.targetPoints}
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-400">
             <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
           </svg>
         </button>
-        <p className="text-xs text-gray-400 leading-tight mt-1">
-          Set points + win-by rules for this session.
-        </p>
 
-        {/* Rule picker dropdown */}
+        {/* Target points picker */}
         {showRulePicker && (
           <div className="mt-2 flex gap-2">
-            {RULE_PRESETS.map((preset) => {
-              const isActive = preset.targetPoints === rules.targetPoints && preset.winBy === rules.winBy;
+            {TARGET_PRESETS.map((tp) => {
+              const isActive = tp === rules.targetPoints;
               return (
                 <button
-                  key={preset.label}
+                  key={tp}
                   type="button"
-                  onClick={() => handleRuleSelect(preset.targetPoints, preset.winBy)}
+                  onClick={() => handleRuleSelect(tp)}
                   disabled={isPending}
                   className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
                     isActive
@@ -442,7 +433,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
                       : "bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300"
                   } disabled:opacity-50`}
                 >
-                  {preset.label}
+                  {tp}
                 </button>
               );
             })}

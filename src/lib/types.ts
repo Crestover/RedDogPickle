@@ -36,11 +36,15 @@ export interface Player {
   code: string;
 }
 
+/** Supported sport types. */
+export type Sport = "pickleball" | "padel";
+
 /** Core group fields. */
 export interface Group {
   id: string;
   name: string;
   join_code: string;
+  sport: Sport;
 }
 
 /** Player rating from player_ratings table. */

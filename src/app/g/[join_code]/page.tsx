@@ -33,14 +33,14 @@ interface ActiveSession {
 }
 
 async function getGroupAndActiveSession(joinCode: string): Promise<{
-  group: { id: string; name: string; join_code: string; view_code: string | null } | null;
+  group: { id: string; name: string; join_code: string; view_code: string | null; sport: string } | null;
   activeSession: ActiveSession | null;
 }> {
   const supabase = getServerClient();
 
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, join_code, view_code")
+    .select("id, name, join_code, view_code, sport")
     .eq("join_code", joinCode.toLowerCase())
     .maybeSingle();
 

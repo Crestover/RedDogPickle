@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { CourtData, AttendeeWithStatus, RpcResult } from "@/lib/types";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
-import { isSuspiciousOvertimeScore } from "@/lib/scoring";
+import { isSuspiciousScore } from "@/lib/sports/validators";
 import VoidLastGameButton from "../VoidLastGameButton";
 import {
   suggestCourtsAction,
@@ -42,10 +42,8 @@ interface Props {
   gamesPlayedMap: Record<string, number>;
   games: GameRecord[];
   sessionRules: { targetPoints: number; winBy: number };
+  sportConfig: { targetPresets: number[]; playersPerTeam: number; maxCourts: number };
 }
-
-/** Target-point presets for the picker. */
-const TARGET_PRESETS = [11, 15, 21] as const;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -110,6 +108,7 @@ export default function CourtsManager({
   gamesPlayedMap,
   games,
   sessionRules,
+  sportConfig,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -240,7 +239,7 @@ export default function CourtsManager({
   // ── Court count changes ───────────────────────────────────
 
   function handleCourtCountChange(delta: number) {
-    const newCount = Math.max(1, Math.min(8, courtCount + delta));
+    const newCount = Math.max(1, Math.min(sportConfig.maxCourts, courtCount + delta));
     if (newCount === courtCount) return;
 
     setGlobalError(null);
@@ -309,7 +308,7 @@ export default function CourtsManager({
     }
 
     // Suspicious overtime margin check
-    if (!forceWarning && isSuspiciousOvertimeScore(scoreA, scoreB, rules.targetPoints) && !courtScoreWarnings[courtNumber]) {
+    if (!forceWarning && isSuspiciousScore(scoreA, scoreB, rules.targetPoints) && !courtScoreWarnings[courtNumber]) {
       setCourtScoreWarnings((prev) => ({ ...prev, [courtNumber]: true }));
       return;
     }
@@ -552,7 +551,7 @@ export default function CourtsManager({
             <button
               type="button"
               onClick={() => handleCourtCountChange(1)}
-              disabled={courtCount >= 8 || isPending}
+              disabled={courtCount >= sportConfig.maxCourts || isPending}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-lg font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               +
@@ -579,7 +578,7 @@ export default function CourtsManager({
           </button>
           {showRulePicker && (
             <div className="mt-2 flex gap-2">
-              {TARGET_PRESETS.map((tp) => {
+              {sportConfig.targetPresets.map((tp) => {
                 const isActive = tp === rules.targetPoints;
                 return (
                   <button

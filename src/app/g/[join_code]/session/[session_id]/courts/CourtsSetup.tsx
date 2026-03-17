@@ -8,13 +8,14 @@ interface Props {
   sessionId: string;
   joinCode: string;
   attendeeCount: number;
+  sportConfig: { playersPerCourt: number; maxCourts: number };
 }
 
-export default function CourtsSetup({ sessionId, joinCode, attendeeCount }: Props) {
+export default function CourtsSetup({ sessionId, joinCode, attendeeCount, sportConfig }: Props) {
   const router = useRouter();
   const [courtCount, setCourtCount] = useState(() => {
-    // Default: as many courts as we can fill with attendees (max 8)
-    return Math.max(1, Math.min(Math.floor(attendeeCount / 4), 8));
+    // Default: as many courts as we can fill with attendees
+    return Math.max(1, Math.min(Math.floor(attendeeCount / sportConfig.playersPerCourt), sportConfig.maxCourts));
   });
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export default function CourtsSetup({ sessionId, joinCode, attendeeCount }: Prop
         Choose how many courts to use for this session.
         {attendeeCount > 0 && (
           <> You have <span className="font-semibold">{attendeeCount}</span> players
-            {" "}({Math.floor(attendeeCount / 4)} full courts).</>
+            {" "}({Math.floor(attendeeCount / sportConfig.playersPerCourt)} full courts).</>
         )}
       </p>
 
@@ -56,8 +57,8 @@ export default function CourtsSetup({ sessionId, joinCode, attendeeCount }: Prop
           <span className="w-8 text-center text-lg font-bold font-mono">{courtCount}</span>
           <button
             type="button"
-            onClick={() => setCourtCount((c) => Math.min(8, c + 1))}
-            disabled={courtCount >= 8 || isPending}
+            onClick={() => setCourtCount((c) => Math.min(sportConfig.maxCourts, c + 1))}
+            disabled={courtCount >= sportConfig.maxCourts || isPending}
             className="w-8 h-8 rounded-lg border border-gray-300 bg-white text-gray-700 font-bold text-lg flex items-center justify-center hover:bg-gray-50 disabled:opacity-40 transition-colors"
           >
             +

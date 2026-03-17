@@ -2,8 +2,10 @@ import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
 import { formatTime } from "@/lib/datetime";
-import type { PairCount, Player, PlayerStats, PlayerRating } from "@/lib/types";
-import type { GameRecord } from "@/lib/autoSuggest";
+import type { PairCount, Player, PlayerStats, PlayerRating, Sport } from "@/lib/types";
+import { getSportConfig } from "@/lib/sports";
+import { transformGameRecords } from "@/lib/results/transformGameRecord";
+import { STALE_SESSION_MS } from "@/lib/constants/shared";
 import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -41,7 +43,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
   // Fetch the group
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, join_code")
+    .select("id, name, join_code, sport")
     .eq("join_code", joinCode.toLowerCase())
     .maybeSingle();
 
@@ -83,21 +85,7 @@ async function getSessionData(joinCode: string, sessionId: string) {
   }
 
   // Transform non-voided games into GameRecord[] for inline pairing feedback
-  const gameRecords: GameRecord[] = (games ?? [])
-    .filter((g) => !g.voided_at)
-    .map((g) => {
-      const gps = Array.isArray(g.game_players) ? g.game_players : [];
-      return {
-        id: g.id,
-        teamAIds: gps
-          .filter((gp: { team: string }) => gp.team === "A")
-          .map((gp: { player_id: string }) => gp.player_id),
-        teamBIds: gps
-          .filter((gp: { team: string }) => gp.team === "B")
-          .map((gp: { player_id: string }) => gp.player_id),
-        played_at: g.played_at,
-      };
-    });
+  const gameRecords = transformGameRecords((games ?? []) as import("@/lib/results/transformGameRecord").RawGameRow[]);
 
   return {
     group,
@@ -124,8 +112,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const { group, session, attendees, games, gameRecords, pairCounts } = data;
   const active = isActiveSession(session);
 
+  // Resolve sport config for this group
+  const sportConfig = getSportConfig(group.sport as Sport);
+
   // Stale detection: active but no non-voided game in 24 hours
-  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
   const lastGameAt = games
     .filter((g) => !(g as { voided_at?: string | null }).voided_at)
     .reduce((max, g) => {
@@ -133,7 +123,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       return Number.isNaN(t) ? max : Math.max(max, t);
     }, 0);
   const staleRef = lastGameAt || new Date(session.started_at).getTime();
-  const isStale = active && Date.now() - staleRef > TWENTY_FOUR_HOURS_MS;
+  const isStale = active && Date.now() - staleRef > STALE_SESSION_MS;
 
   // Format started_at for display
   const startedLabel = formatTime(session.started_at);
@@ -211,8 +201,12 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             }))}
             games={gameRecords}
             sessionRules={{
-              targetPoints: (session as unknown as { target_points_default: number }).target_points_default ?? 11,
-              winBy: (session as unknown as { win_by_default: number }).win_by_default ?? 2,
+              targetPoints: session.target_points_default ?? sportConfig.defaultTargetPoints,
+              winBy: session.win_by_default ?? sportConfig.defaultWinBy,
+            }}
+            sportConfig={{
+              targetPresets: [...sportConfig.targetPresets],
+              playersPerTeam: sportConfig.playersPerTeam,
             }}
           />
 

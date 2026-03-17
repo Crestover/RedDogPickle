@@ -3,7 +3,10 @@
 import { redirect } from "next/navigation";
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
-import type { RdrDelta } from "@/lib/types";
+import type { RdrDelta, Sport } from "@/lib/types";
+import { getSportConfig } from "@/lib/sports";
+import { one } from "@/lib/supabase/helpers";
+import { handleServerError } from "@/lib/errors";
 import type { AccessMode } from "./access";
 import { requireFullAccess } from "./access";
 
@@ -43,27 +46,11 @@ export async function recordGameAction(
 ): Promise<RecordGameResult> {
   requireFullAccess(mode);
 
-  // ── Pre-flight validation (also enforced in RPC) ──────────────────────────
-  if (teamAIds.length !== 2 || teamBIds.length !== 2) {
-    return { error: "Each team must have exactly 2 players." };
-  }
-
-  const overlap = teamAIds.filter((id) => teamBIds.includes(id));
-  if (overlap.length > 0) {
-    return { error: "A player cannot be on both teams." };
-  }
-
-  const winner = Math.max(teamAScore, teamBScore);
-
-  if (teamAScore === teamBScore) {
-    return { error: "Scores cannot be equal." };
-  }
-
-  // Read session rules for pre-flight validation
+  // ── Fetch session rules + group sport in a single joined query ────────────
   const supabase = getServerClient();
   const { data: sessionData, error: sessionErr } = await supabase
     .from("sessions")
-    .select("target_points_default")
+    .select("target_points_default, group:groups!inner(sport)")
     .eq("id", sessionId)
     .single();
 
@@ -71,10 +58,23 @@ export async function recordGameAction(
     return { error: "Could not read session rules." };
   }
 
+  const groupRow = one((sessionData as { group: { sport: string } | { sport: string }[] }).group) as { sport: string };
+  const sportConfig = getSportConfig(groupRow.sport as Sport);
   const targetPoints = (sessionData as { target_points_default: number }).target_points_default;
 
-  if (winner < targetPoints) {
-    return { error: `Winning score must be at least ${targetPoints} (got ${winner}).` };
+  // ── Pre-flight validation (also enforced in RPC) ──────────────────────────
+  if (teamAIds.length !== sportConfig.playersPerTeam || teamBIds.length !== sportConfig.playersPerTeam) {
+    return { error: `Each team must have exactly ${sportConfig.playersPerTeam} players.` };
+  }
+
+  const overlap = teamAIds.filter((id) => teamBIds.includes(id));
+  if (overlap.length > 0) {
+    return { error: "A player cannot be on both teams." };
+  }
+
+  const scoreResult = sportConfig.validateScores(teamAScore, teamBScore, targetPoints);
+  if (!scoreResult.valid) {
+    return { error: scoreResult.error! };
   }
 
   const { data, error } = await supabase.rpc(RPC.RECORD_GAME, {
@@ -88,8 +88,7 @@ export async function recordGameAction(
   });
 
   if (error) {
-    console.error("[recordGameAction] RPC error:", error.message);
-    return { error: error.message ?? "Failed to record game." };
+    return { error: handleServerError("recordGameAction", error) };
   }
 
   // RPC returns jsonb — Supabase JS deserialises it as a plain object
@@ -148,8 +147,7 @@ export async function voidLastGameAction(
   });
 
   if (error) {
-    console.error("[voidLastGameAction] RPC error:", error.message);
-    return { error: error.message ?? "Failed to void game." };
+    return { error: handleServerError("voidLastGameAction", error) };
   }
 
   const result = data as { status: string; voided_game_id?: string; sequence_num?: number };
@@ -188,8 +186,7 @@ export async function undoGameAction(
   });
 
   if (error) {
-    console.error("[undoGameAction] RPC error:", error.message);
-    return { error: error.message ?? "Failed to undo game." };
+    return { error: handleServerError("undoGameAction", error) };
   }
 
   const result = data as { status: string; game_id?: string };

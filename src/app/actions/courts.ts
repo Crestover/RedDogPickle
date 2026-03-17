@@ -2,9 +2,12 @@
 
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
-import type { RpcResult } from "@/lib/types";
-import type { PairCountEntry, GameRecord } from "@/lib/autoSuggest";
+import type { RpcResult, Sport } from "@/lib/types";
+import type { PairCountEntry } from "@/lib/autoSuggest";
 import { suggestForCourts } from "@/lib/autoSuggest";
+import { transformGameRecords } from "@/lib/results/transformGameRecord";
+import { getSportConfig } from "@/lib/sports";
+import { one } from "@/lib/supabase/helpers";
 import type { AccessMode } from "./access";
 import { requireFullAccess } from "./access";
 
@@ -119,23 +122,7 @@ export async function suggestCourtsAction(
     .is("voided_at", null)
     .order("played_at", { ascending: true });
 
-  const games: GameRecord[] = (gamesRaw ?? []).map((g) => {
-    const gps = Array.isArray(
-      (g as { game_players?: unknown }).game_players
-    )
-      ? (g as { game_players: { player_id: string; team: string }[] }).game_players
-      : [];
-    return {
-      id: (g as { id: string }).id,
-      teamAIds: gps
-        .filter((gp) => gp.team === "A")
-        .map((gp) => gp.player_id),
-      teamBIds: gps
-        .filter((gp) => gp.team === "B")
-        .map((gp) => gp.player_id),
-      played_at: (g as { played_at: string }).played_at,
-    };
-  });
+  const games = transformGameRecords((gamesRaw ?? []) as import("@/lib/results/transformGameRecord").RawGameRow[]);
 
   // Fetch pair counts
   const { data: pairCountsRaw } = await supabase.rpc(
@@ -218,27 +205,22 @@ export async function recordCourtGameAction(
 ): Promise<RpcResult<{ game_id: string; target_points: number; win_by: number; deltas: { player_id: string; delta: number; rdr_after: number }[] }>> {
   requireFullAccess(mode);
 
-  // Pre-flight score validation against session rules
+  // Pre-flight score validation against session rules + resolve sport
   const supabase = getServerClient();
 
   const { data: sessionData } = await supabase
     .from("sessions")
-    .select("target_points_default")
+    .select("target_points_default, group:groups!inner(sport)")
     .eq("id", sessionId)
     .single();
 
-  const targetPoints = (sessionData as { target_points_default: number } | null)?.target_points_default ?? 11;
+  const groupRow = one((sessionData as { group: { sport: string } | { sport: string }[] } | null)?.group) as { sport: string } | null;
+  const sportConfig = getSportConfig((groupRow?.sport ?? "pickleball") as Sport);
+  const targetPoints = (sessionData as { target_points_default: number } | null)?.target_points_default ?? sportConfig.defaultTargetPoints;
 
-  const winner = Math.max(teamAScore, teamBScore);
-
-  if (teamAScore === teamBScore) {
-    return { ok: false, error: { code: "INVALID_SCORE", message: "Scores cannot be equal." } };
-  }
-  if (winner < targetPoints) {
-    return {
-      ok: false,
-      error: { code: "INVALID_SCORE", message: `Winning score must be at least ${targetPoints} (got ${winner}).` },
-    };
+  const scoreResult = sportConfig.validateScores(teamAScore, teamBScore, targetPoints);
+  if (!scoreResult.valid) {
+    return { ok: false, error: { code: scoreResult.code ?? "INVALID_SCORE", message: scoreResult.error! } };
   }
 
   const { data, error } = await supabase.rpc(RPC.RECORD_COURT_GAME, {

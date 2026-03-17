@@ -1,14 +1,16 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
-import type { PairCount, CourtData, AttendeeWithStatus } from "@/lib/types";
+import type { PairCount, CourtData, AttendeeWithStatus, Sport } from "@/lib/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import EndSessionButton from "../EndSessionButton";
 import ModeToggle from "../ModeToggle";
 import CourtsManager from "./CourtsManager";
 import CourtsSetup from "./CourtsSetup";
-import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
+import type { PairCountEntry } from "@/lib/autoSuggest";
+import { getSportConfig } from "@/lib/sports";
+import { transformGameRecords } from "@/lib/results/transformGameRecord";
 
 interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
@@ -21,7 +23,7 @@ export default async function CourtsPage({ params }: PageProps) {
   // Fetch group
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, join_code")
+    .select("id, name, join_code, sport")
     .eq("join_code", join_code.toLowerCase())
     .maybeSingle();
 
@@ -83,15 +85,7 @@ export default async function CourtsPage({ params }: PageProps) {
     .is("voided_at", null)
     .order("sequence_num", { ascending: true });
 
-  const games: GameRecord[] = (gamesRaw ?? []).map((g) => {
-    const gps = Array.isArray(g.game_players) ? g.game_players : [];
-    return {
-      id: g.id,
-      teamAIds: gps.filter((gp: { team: string }) => gp.team === "A").map((gp: { player_id: string }) => gp.player_id),
-      teamBIds: gps.filter((gp: { team: string }) => gp.team === "B").map((gp: { player_id: string }) => gp.player_id),
-      played_at: g.played_at,
-    };
-  });
+  const games = transformGameRecords((gamesRaw ?? []) as import("@/lib/results/transformGameRecord").RawGameRow[]);
 
   // Fetch pair counts
   const { data: pairCountsRaw } = await supabase.rpc(
@@ -104,6 +98,9 @@ export default async function CourtsPage({ params }: PageProps) {
     player_b_id: p.player_b_id,
     games_together: p.games_together,
   }));
+
+  // Resolve sport config
+  const sportConfig = getSportConfig(group.sport as Sport);
 
   // Compute games-played-this-session per player
   const gamesPlayedMap: Record<string, number> = {};
@@ -150,6 +147,7 @@ export default async function CourtsPage({ params }: PageProps) {
             sessionId={session.id}
             joinCode={group.join_code}
             attendeeCount={attendees.length}
+            sportConfig={{ playersPerCourt: sportConfig.playersPerCourt, maxCourts: sportConfig.maxCourts }}
           />
         ) : (
           <CourtsManager
@@ -161,9 +159,10 @@ export default async function CourtsPage({ params }: PageProps) {
             gamesPlayedMap={gamesPlayedMap}
             games={games}
             sessionRules={{
-              targetPoints: (session as unknown as { target_points_default: number }).target_points_default ?? 11,
-              winBy: (session as unknown as { win_by_default: number }).win_by_default ?? 2,
+              targetPoints: session.target_points_default ?? sportConfig.defaultTargetPoints,
+              winBy: session.win_by_default ?? sportConfig.defaultWinBy,
             }}
+            sportConfig={{ targetPresets: [...sportConfig.targetPresets], playersPerTeam: sportConfig.playersPerTeam, maxCourts: sportConfig.maxCourts }}
           />
         )}
 

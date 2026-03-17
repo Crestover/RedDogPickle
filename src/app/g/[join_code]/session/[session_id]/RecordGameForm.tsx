@@ -30,7 +30,11 @@ import { setSessionRulesAction } from "@/app/actions/sessions";
 import type { Player } from "@/lib/types";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
-import { isSuspiciousOvertimeScore } from "@/lib/scoring";
+import {
+  validateScores as validateScoresShared,
+  isSuspiciousScore,
+  isShutout as isShutoutShared,
+} from "@/lib/sports/validators";
 
 interface Props {
   sessionId: string;
@@ -39,6 +43,7 @@ interface Props {
   pairCounts?: PairCountEntry[];
   games?: GameRecord[];
   sessionRules: { targetPoints: number; winBy: number };
+  sportConfig: { targetPresets: number[]; playersPerTeam: number };
 }
 
 type Team = "A" | "B" | null;
@@ -52,9 +57,6 @@ interface UndoEntry {
   gameId: string;
   expiresAt: number; // timestamp ms — countdown derived from expiresAt - now
 }
-
-/** Target-point presets for the picker. */
-const TARGET_PRESETS = [11, 15, 21] as const;
 
 /** Returns a human-readable relative time string, e.g. "2 minutes ago" */
 function relativeTime(isoString: string): string {
@@ -71,7 +73,7 @@ function firstName(displayName: string): string {
   return space > 0 ? displayName.substring(0, space) : displayName;
 }
 
-export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts, games, sessionRules }: Props) {
+export default function RecordGameForm({ sessionId, joinCode, attendees, pairCounts, games, sessionRules, sportConfig }: Props) {
   const router = useRouter();
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -154,9 +156,9 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     }
 
     // Add to target team (if room)
-    if (target === "A" && teamA.length < 2) {
+    if (target === "A" && teamA.length < sportConfig.playersPerTeam) {
       setTeamA((p) => [...p, playerId]);
-    } else if (target === "B" && teamB.length < 2) {
+    } else if (target === "B" && teamB.length < sportConfig.playersPerTeam) {
       setTeamB((p) => [...p, playerId]);
     }
   }
@@ -185,7 +187,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   function isShutout(): boolean {
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
-    return Math.min(a, b) === 0 && Math.max(a, b) >= rules.targetPoints;
+    return isShutoutShared(a, b, rules.targetPoints);
   }
 
   function disarmShutout() {
@@ -214,8 +216,8 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
 
   // ── Validation ─────────────────────────────────────────────────────────────
   function validateSelection(): string | null {
-    if (teamA.length !== 2) return "Team A needs exactly 2 players.";
-    if (teamB.length !== 2) return "Team B needs exactly 2 players.";
+    if (teamA.length !== sportConfig.playersPerTeam) return `Team A needs exactly ${sportConfig.playersPerTeam} players.`;
+    if (teamB.length !== sportConfig.playersPerTeam) return `Team B needs exactly ${sportConfig.playersPerTeam} players.`;
     return null;
   }
 
@@ -223,18 +225,15 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     const a = parseInt(scoreA, 10);
     const b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return "Enter scores for both teams.";
-    if (a < 0 || b < 0) return "Scores cannot be negative.";
-    if (a === b) return "Scores cannot be equal.";
-    const w = Math.max(a, b);
-    if (w < rules.targetPoints) return `Winning score must be at least ${rules.targetPoints} (got ${w}).`;
-    return null;
+    const result = validateScoresShared(a, b, rules.targetPoints);
+    return result.valid ? null : result.error!;
   }
 
   /** True when winning score is above target and margin exceeds 2. */
   function checkSuspiciousScore(): boolean {
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
-    return isSuspiciousOvertimeScore(a, b, rules.targetPoints);
+    return isSuspiciousScore(a, b, rules.targetPoints);
   }
 
   // ── Reset ──────────────────────────────────────────────────────────────────
@@ -343,10 +342,10 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     !isNaN(scoreANum) && !isNaN(scoreBNum) && scoreANum !== scoreBNum
       ? scoreANum > scoreBNum ? "A" : "B"
       : null;
-  const teamsComplete = teamA.length === 2 && teamB.length === 2;
+  const teamsComplete = teamA.length === sportConfig.playersPerTeam && teamB.length === sportConfig.playersPerTeam;
   const allReady = teamsComplete && !isNaN(scoreANum) && !isNaN(scoreBNum);
-  const teamAFull = teamA.length >= 2;
-  const teamBFull = teamB.length >= 2;
+  const teamAFull = teamA.length >= sportConfig.playersPerTeam;
+  const teamBFull = teamB.length >= sportConfig.playersPerTeam;
 
   // Latest undoable game for snackbar display
   const latestUndo = undoQueue.length > 0 ? undoQueue[undoQueue.length - 1] : null;
@@ -436,7 +435,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         {/* Target points picker */}
         {showRulePicker && (
           <div className="mt-2 flex gap-2">
-            {TARGET_PRESETS.map((tp) => {
+            {sportConfig.targetPresets.map((tp) => {
               const isActive = tp === rules.targetPoints;
               return (
                 <button
@@ -470,13 +469,13 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         {/* Team A panel */}
         <div className="flex-1 rounded-lg px-3 py-2 bg-white border border-gray-200">
           <p className="text-xs font-semibold text-blue-600 mb-0.5">
-            Team A ({teamA.length}/2)
+            Team A ({teamA.length}/{sportConfig.playersPerTeam})
           </p>
           {teamA.length === 0
             ? <p className="text-[10px] text-gray-400">Select below</p>
             : <p className="text-xs font-mono text-gray-700">{teamA.map(playerCode).join(" \u00B7 ")}</p>
           }
-          {teamA.length === 2 && (() => {
+          {teamA.length === sportConfig.playersPerTeam && (() => {
             const count = getPairCount(teamA[0], teamA[1]);
             return (
               <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">
@@ -490,13 +489,13 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         {/* Team B panel */}
         <div className="flex-1 rounded-lg px-3 py-2 bg-white border border-gray-200">
           <p className="text-xs font-semibold text-orange-600 mb-0.5">
-            Team B ({teamB.length}/2)
+            Team B ({teamB.length}/{sportConfig.playersPerTeam})
           </p>
           {teamB.length === 0
             ? <p className="text-[10px] text-gray-400">Select below</p>
             : <p className="text-xs font-mono text-gray-700">{teamB.map(playerCode).join(" \u00B7 ")}</p>
           }
-          {teamB.length === 2 && (() => {
+          {teamB.length === sportConfig.playersPerTeam && (() => {
             const count = getPairCount(teamB[0], teamB[1]);
             return (
               <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-0.5">

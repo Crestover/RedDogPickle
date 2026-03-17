@@ -6,15 +6,9 @@
  */
 
 import type { GameRecord } from "@/lib/autoSuggest";
+import { pairKey } from "@/lib/pairing";
 
 // ── Matchup key ──────────────────────────────────────────────
-
-/**
- * Canonical pair key for two player IDs (alphabetical order).
- */
-function pairKey(a: string, b: string): string {
-  return a < b ? `${a}:${b}` : `${b}:${a}`;
-}
 
 /**
  * Canonical matchup key for a 4-player game (exact team-vs-team).

@@ -40,10 +40,7 @@ export interface PairCountEntry {
 
 // ── Helpers ───────────────────────────────────────────────────
 
-/** Canonical pair key (alphabetical order). */
-function pairKey(a: string, b: string): string {
-  return a < b ? `${a}:${b}` : `${b}:${a}`;
-}
+import { pairKey } from "@/lib/pairing";
 
 /** Build a lookup map from pair count entries. */
 function buildPairMap(pairs: PairCountEntry[]): Map<string, number> {

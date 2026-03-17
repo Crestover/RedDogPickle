@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
+import { handleServerError } from "@/lib/errors";
 import type { AccessMode } from "./access";
 import { requireFullAccess } from "./access";
 
@@ -44,8 +45,7 @@ export async function createSessionAction(
   });
 
   if (error) {
-    console.error("[createSessionAction] RPC error:", error.message);
-    return { error: error.message ?? "Failed to start session." };
+    return { error: handleServerError("createSessionAction", error) };
   }
 
   redirect(`/g/${joinCode}/session/${sessionId as string}`);
@@ -72,8 +72,7 @@ export async function endSessionAction(
   });
 
   if (error) {
-    console.error("[endSessionAction] RPC error:", error.message);
-    return { error: error.message ?? "Failed to end session." };
+    return { error: handleServerError("endSessionAction", error) };
   }
 
   redirect(`/g/${joinCode}`);
@@ -107,8 +106,7 @@ export async function endAndCreateSessionAction(
   });
 
   if (endError) {
-    console.error("[endAndCreateSessionAction] end RPC error:", endError.message);
-    return { error: endError.message ?? "Failed to end session." };
+    return { error: handleServerError("endAndCreateSessionAction:end", endError) };
   }
 
   // 2. Create the new session
@@ -118,8 +116,7 @@ export async function endAndCreateSessionAction(
   });
 
   if (createError) {
-    console.error("[endAndCreateSessionAction] create RPC error:", createError.message);
-    return { error: createError.message ?? "Failed to start session." };
+    return { error: handleServerError("endAndCreateSessionAction:create", createError) };
   }
 
   redirect(`/g/${joinCode}/session/${sessionId as string}`);
@@ -148,8 +145,7 @@ export async function setSessionRulesAction(
   });
 
   if (error) {
-    console.error("[setSessionRulesAction] RPC error:", error.message);
-    return { error: error.message ?? "Failed to update session rules." };
+    return { error: handleServerError("setSessionRulesAction", error) };
   }
 
   const result = data as { status: string; target_points: number; win_by: number };

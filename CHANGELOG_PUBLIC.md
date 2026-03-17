@@ -2,6 +2,15 @@
 
 ---
 
+## v0.5.1 — Under the Hood
+
+### Improved
+- Behind-the-scenes work to support additional sports in the future. Everything works exactly the same as before — this update lays the groundwork for what's coming next.
+- Added automated testing across the app to catch issues faster and keep things reliable as we add new features.
+- Search engines are now blocked from indexing the app, keeping your group data private.
+
+---
+
 ## v0.5.0 — Session Browsing + Scoring Improvements
 
 ### Added

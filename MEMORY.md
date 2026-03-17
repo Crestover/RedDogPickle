@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-03-17 — v0.5.0
+> Last updated: 2026-03-17 — v0.5.1
 
 ---
 
@@ -29,7 +29,9 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.5.0 — Session browsing, scoring improvements, and navigation polish.**
+**v0.5.1 — Multi-sport foundation (Phase 1) + test infrastructure.**
+
+v0.5.1 (Phase 1): Sport abstraction layer (`SportConfig` interface, `getSportConfig()` registry). All pickleball-specific logic centralized in `src/lib/sports/pickleball.ts` — target presets, team sizes, court limits, validation, outcome derivation, rating inputs. Shared pure validators (`validators.ts`) used by both server actions and client components. DB migration adds `sport` column to `groups` table. Server actions fetch `group.sport` via joined query and validate through `sportConfig`. UI components receive serializable sport props (no function serialization). Deprecated `scoring.ts` removed — all callers migrated. Shared utilities: `pairKey()` deduplicated, `transformGameRecords()` centralized, `handleServerError()` structured logging, `constants/shared.ts` for app-wide timing constants. Vitest test infrastructure: 160 tests across 15 files covering scoring parity, server action validation, UI component behavior, and transformation backward compatibility. `robots.txt` blocks all crawling.
 
 v0.5.0: Suspicious score warning (overtime margin > 2 triggers amber confirmation in both Manual and Courts mode). End Session button + footer nav (All Games, Standings) added to Courts Mode for parity with Manual. Context-aware leaderboard back nav via `from` query param. Leaderboard "Last Session" mode gains Previous/Next session browsing via `session_id` param. Ended session detail has Games/Standings tab toggle (reuses `get_session_stats` RPC + `PlayerStatsRow`). Game cards unified: `EndedSessionGames` rewritten to match `GamesList` layout. Player names now "first name + last initial" format. Win-by removed from UI (m12.0 migration relaxes DB validation). All changes mirrored in `/v/` view-only routes.
 
@@ -44,26 +46,28 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `main` and `dev` both at v0.5.0
+- **Branch:** `dev` is 4 commits ahead of `main` (Phase 1 work)
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.5.0` (package.json, footer, changelog)
+- **Version:** `0.5.0` (package.json, footer, changelog) — Phase 1 is internal refactor, no version bump yet
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
-- **Pending migration:** `m12.0_simplify_win_by.sql` must be applied to Supabase before deploy
+- **Pending migration:** `m12.0_simplify_win_by.sql` (win-by removal) + `m13.0_sport_column.sql` (sport column) must be applied to Supabase before deploy
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
 | Production  | `main`        | Production        | v0.5.0 (pushed, pending m12.0 migration) |
-| Dev/Preview | `dev`         | Dev               | v0.5.0 (pushed, pending m12.0 migration) |
+| Dev/Preview | `dev`         | Dev               | v0.5.1-dev (Phase 1 multi-sport, pending m12.0 + m13.0 migrations) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.5.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. Scripts: dev/build/start/lint/type-check |
+| `package.json` | v0.5.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch |
+| `vitest.config.ts` | Vitest config: `@vitejs/plugin-react`, jsdom environment, `@/` alias, setup file `src/test-setup.ts` |
+| `public/robots.txt` | Blocks all crawling: `User-agent: * / Disallow: /` |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Standard Next.js config |
@@ -104,18 +108,18 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params. `from` param for context-aware back nav. `session_id` param for session browsing in Last Session mode with Previous/Next arrows. |
 | `g/[join_code]/session/[session_id]/page.tsx` | Server | **Live Referee Console**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Ended sessions have Games/Standings tab toggle (`tab` query param); Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `PlayerStatsRow`. |
 | `g/[join_code]/session/[session_id]/ModeToggle.tsx` | Client | Segmented Manual/Courts toggle. **Stateless** — `mode` prop from route is source of truth, uses `<Link>`. Renders contextual subtitle ("Select teams directly" / "Manage multi-court rotation"). |
-| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Each player row has dedicated A and B buttons. No active-team targeting. Team panels are read-only summaries. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). **M10.2**: Undo snackbar (8s countdown, LIFO queue), debounced refresh (1000ms). **v0.4.2**: Two-chip winner/loser preview (emerald/amber). **v0.5.0**: Suspicious score warning (`scoreWarningArmed` state, `isSuspiciousOvertimeScore()` — fires when margin > 2 in overtime, amber "Cancel"/"Record anyway" confirmation). |
+| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Receives `sportConfig: { targetPresets, playersPerTeam }` prop — no hardcoded sport constants. Uses shared `validateScores()`, `isSuspiciousScore()`, `isShutout()`, `deriveOutcome()` from `@/lib/sports/validators`. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). **M10.2**: Undo snackbar (8s countdown, LIFO queue), debounced refresh (1000ms). **v0.4.2**: Two-chip winner/loser preview (emerald/amber). **v0.5.0**: Suspicious score warning (`scoreWarningArmed` state, amber "Cancel"/"Record anyway" confirmation). |
 | `g/[join_code]/session/[session_id]/EndSessionButton.tsx` | Client | 2-tap confirm (red) for ending session |
 | `g/[join_code]/session/[session_id]/VoidLastGameButton.tsx` | Client | 2-tap confirm (amber) for voiding last game. Accepts `redirectPath` prop |
 | `g/[join_code]/session/[session_id]/StaleBanner.tsx` | Client | Amber banner when session has no games for 24+ hours. Resume / Start New / End options |
 | `g/[join_code]/session/[session_id]/SessionStandings.tsx` | Client | Collapsible standings table (NOT used on live session page — only via Standings → link) |
 | `g/[join_code]/session/[session_id]/PairingBalance.tsx` | Server | Pair game counts sorted fewest first (NOT used on live session page) |
-| `g/[join_code]/session/[session_id]/EndedSessionGames.tsx` | Client | Game list for ended sessions with voided toggle (default OFF). Matches `GamesList.tsx` card layout: score-dash-score with emerald winner, team short names ("Joe S.") underneath. |
-| `g/[join_code]/session/[session_id]/games/GamesList.tsx` | Client | Session game log with `showVoided` toggle (default OFF). Client-side voided filtering. Winner highlighting (emerald-600), voided games (reduced opacity + badge). Player names as "first name + last initial" via `shortName()`. |
+| `g/[join_code]/session/[session_id]/EndedSessionGames.tsx` | Client | Game list for ended sessions with voided toggle (default OFF). Uses `deriveOutcome()` from `@/lib/sports/validators` for winner highlighting. Matches `GamesList.tsx` card layout: score-dash-score with emerald winner, team short names ("Joe S.") underneath. |
+| `g/[join_code]/session/[session_id]/games/GamesList.tsx` | Client | Session game log with `showVoided` toggle (default OFF). Uses `deriveOutcome()` from `@/lib/sports/validators` for winner highlighting. Client-side voided filtering. Winner highlighting (emerald-600), voided games (reduced opacity + badge). Player names as "first name + last initial" via `shortName()`. |
 | `g/[join_code]/session/[session_id]/games/page.tsx` | Server | **Session game log**: Wraps `<GamesList>` component. First-name display, winner highlighting. |
 | `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode wrapper: LIVE header with "Courts" label, ModeToggle(courts), EndSessionButton, CourtsManager or CourtsSetup. Footer nav: "All games →" + "Standings →" links (matching manual mode). |
-| `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073+ lines). Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. **v0.5.0**: Per-court suspicious score warning (`courtScoreWarnings` state). |
-| `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection when no courts exist yet |
+| `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073+ lines). Receives `sportConfig: { targetPresets, playersPerTeam, maxCourts }` prop. Uses shared `isSuspiciousScore()` from `@/lib/sports/validators`. Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. **v0.5.0**: Per-court suspicious score warning (`courtScoreWarnings` state). |
+| `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection. Receives `sportConfig: { playersPerCourt, maxCourts }` prop — no hardcoded 4/8 constants |
 | `v/[view_code]/page.tsx` | Server | **View-only dashboard**: Red Dog logo, group name display (with "Red Dog Group" fallback), "View-only link" label, active session banner, View Session + Leaderboard links, Session history link. No write CTAs. `join_code` pruned from `.select()` — never fetched or rendered. |
 | `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. Session browsing via `session_id` param with Previous/Next arrows. No "Start a Session" CTA. `join_code` kept in `.select()` for server-only RPC params (never rendered in JSX). |
 | `v/[view_code]/sessions/page.tsx` | Server | **View-only session history**: Session list with active/ended badges. Links to `/v/` session detail. No "Start First Session" CTA. `join_code` pruned from `.select()`. |
@@ -128,19 +132,27 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `access.ts` | `AccessMode = "full" \| "view"` type + `requireFullAccess(mode)` guard. All write actions take `mode` as first param and call this at the top. Safety net against accidental write component reuse in `/v/`. |
 | `sessions.ts` | `createSessionAction`, `endSessionAction`, `endAndCreateSessionAction`, `setSessionRulesAction` — all take `mode: AccessMode` as first param |
 | `players.ts` | `addPlayerAction` with `safeRedirect()` open-redirect prevention |
-| `games.ts` | `recordGameAction` (returns success+deltas+undoExpiresAt, no redirect), `voidLastGameAction` (atomic delta reversal), `undoGameAction` (8s undo window) — all take `mode: AccessMode` as first param |
-| `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction`, `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` — all take `mode: AccessMode` as first param |
+| `games.ts` | `recordGameAction` (fetches `group.sport` via joined query, validates through `sportConfig.validateScores()`, returns success+deltas+undoExpiresAt), `voidLastGameAction` (atomic delta reversal), `undoGameAction` (8s undo window) — all take `mode: AccessMode` as first param. Uses `handleServerError` for structured logging |
+| `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction` (validates through `sportConfig`), `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` — all take `mode: AccessMode` as first param. Uses `transformGameRecords` for game data normalization |
 
 #### `src/lib/` — Shared Utilities
 | File | Role |
 |------|------|
-| `types.ts` | Interfaces: PlayerStats, PairCount, Player, Group, PlayerRating, Session, CourtData, AttendeeWithStatus, RpcResult<T> |
-| `env.ts` | Environment variable validation (NEXT_PUBLIC_SUPABASE_URL, _ANON_KEY) |
+| `types.ts` | Interfaces: PlayerStats, PairCount, Player, Group (includes `sport: Sport`), PlayerRating, Session, CourtData, AttendeeWithStatus, RpcResult<T>. Type: `Sport = "pickleball" \| "padel"` |
+| `env.ts` | Environment variable validation (NEXT_PUBLIC_SUPABASE_URL, _ANON_KEY, optional NEXT_PUBLIC_SITE_URL) |
 | `datetime.ts` | Central timezone formatter: `APP_TIME_ZONE = "America/Chicago"`, `formatTime()`, `formatDate()`, `formatDateTime()`, `formatDateString()`. All UI time formatting must route through this file. Uses `Intl.DateTimeFormat` with explicit `timeZone`. |
-| `formatting.ts` | `formatDiff()` — formats numeric with +/- sign |
+| `formatting.ts` | `formatDiff()` — formats numeric with +/- sign. `shortName()` — "first name + last initial" format |
 | `suggestCode.ts` | `suggestCode()` — derive player code from display name (JD, BOB, etc.) |
-| `autoSuggest.ts` | Court assignment algorithm: `suggestForCourts()`. Types: GameRecord, CourtAssignment, PairCountEntry. Helpers: `pairKey()`, `buildPairMap()`, `teamPenalty()` |
-| `pairingFeedback.ts` | `matchupKey()`, `getMatchupCount()`, `severityDotClass()`. Shared by RecordGameForm + CourtsManager |
+| `autoSuggest.ts` | Court assignment algorithm: `suggestForCourts()`. Types: GameRecord, CourtAssignment, PairCountEntry. Helpers: `buildPairMap()`, `teamPenalty()`. Imports `pairKey` from `@/lib/pairing` |
+| `pairing.ts` | `pairKey(a, b)` — canonical player pair key (sorted, joined). Shared by autoSuggest + pairingFeedback |
+| `pairingFeedback.ts` | `matchupKey()`, `getMatchupCount()`, `severityDotClass()`. Shared by RecordGameForm + CourtsManager. Imports `pairKey` from `@/lib/pairing` |
+| `errors.ts` | `handleServerError(context, error)` — structured error logging with prefix, returns user-friendly message. Used by server actions |
+| `constants/shared.ts` | Sport-agnostic timing constants: `STALE_SESSION_MS` (24h), `UNDO_CONFIRMATION_DISPLAY_MS` (2s), `DEBOUNCED_REFRESH_MS` (1s) |
+| `sports/types.ts` | `SportConfig` interface: sport constants, validation methods, outcome derivation, rating inputs. `ValidationResult` type |
+| `sports/pickleball.ts` | Pickleball `SportConfig` implementation. Delegates validation/outcome to shared `validators.ts`. Constants: targetPresets=[11,15,21], playersPerTeam=2, playersPerCourt=4, maxCourts=8 |
+| `sports/validators.ts` | Shared pure client-safe validators: `validateScores()`, `isSuspiciousScore()`, `isShutout()`, `deriveOutcome()`. Single source of truth for scoring rules — imported by both SportConfig and UI components |
+| `sports/index.ts` | Sport registry: `getSportConfig(sport)` → SportConfig. Padel temporarily maps to pickleball config |
+| `results/transformGameRecord.ts` | `transformGameRecords(rawGames)` — centralized transformation from raw Supabase rows to `GameRecord[]`. Filters voided games, normalizes game_players to teamAIds/teamBIds |
 | `supabase/server.ts` | `getServerClient()` — server-side Supabase client (anon key) |
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
@@ -176,6 +188,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `migrations/m10.2_undo_window.sql` | 8-second undo window: adds `undo_expires_at` column, updates `record_game` to return it, creates `undo_game` RPC (FOR UPDATE lock, validates not voided + not expired + session not ended, reverses ALL non-voided deltas, marks voided with `void_reason = 'undo'`). |
 | `migrations/m11.0_view_only_codes.sql` | View-only access codes: adds `view_code` + `view_code_created_at` columns to `groups`, unique index `idx_groups_view_code`, format constraint (`^[a-z0-9\-]+$`), `ensure_view_code(p_join_code)` SECURITY DEFINER RPC (generates `{join_code}-view` with collision handling, max 5 attempts). |
 | `migrations/m12.0_simplify_win_by.sql` | Simplify scoring: recreates `record_game` and `record_court_game` RPCs with relaxed validation — removes server-side win-by constraint. Target points still enforced. |
+| `migrations/m13.0_sport_column.sql` | Multi-sport foundation: adds `sport TEXT NOT NULL DEFAULT 'pickleball'` column to `groups` table with CHECK constraint `(sport IN ('pickleball', 'padel'))`. |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -189,6 +202,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 9. Run `m10.2_undo_window.sql` (8-second undo window + undo_game RPC)
 10. Run `m11.0_view_only_codes.sql` (view_code column + ensure_view_code RPC)
 11. Run `m12.0_simplify_win_by.sql` (relaxed score validation — removes win-by constraint from RPCs)
+12. Run `m13.0_sport_column.sql` (adds sport column to groups table)
 
 ---
 
@@ -659,7 +673,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 | Table | Key Columns | Notes |
 |-------|-------------|-------|
-| `groups` | id, name, join_code, view_code, view_code_created_at | join_code: lowercase alphanumeric + hyphens, unique. view_code: nullable, unique, format `^[a-z0-9\-]+$`, auto-generated as `{join_code}-view` |
+| `groups` | id, name, join_code, view_code, view_code_created_at, sport | join_code: lowercase alphanumeric + hyphens, unique. view_code: nullable, unique, format `^[a-z0-9\-]+$`, auto-generated as `{join_code}-view`. sport: TEXT NOT NULL DEFAULT 'pickleball', CHECK IN ('pickleball', 'padel') |
 | `players` | id, group_id, display_name, code, is_active | code: uppercase, unique per group |
 | `sessions` | id, group_id, name, started_at, ended_at, closed_reason | Partial unique: one active per group |
 | `session_players` | session_id, player_id, **status**, inactive_effective_after_game | Status: ACTIVE or INACTIVE. Added in m8.0 |
@@ -692,6 +706,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.4.2 — Preview + TZ | `7d5060c`→`3cf44e8` | Winner/loser preview chips (emerald/amber), central timezone formatter (`datetime.ts`) pinned to America/Chicago, all `toLocale*` calls eliminated |
 | v0.4.3 — View-Only Sharing | `3642fb7`→`2ec10b1` | View-only access codes (`/v/[view_code]` route tree, 5 pages), `ensure_view_code` RPC (m11.0), `AccessMode` guard on all write actions, "Copy view-only link" button, home page view_code redirect, Vercel Analytics `<Analytics />`. Security fix (`2ec10b1`): removed `join_code` from all `/v/` pages — dashboard shows `group.name`, `.select()` pruned in 4 files, leaderboard keeps `join_code` server-only for RPCs |
 | v0.5.0 — Session Browsing | `8981bf3`→`09d3427` | Suspicious score warning (Manual + Courts), End Session + footer nav in Courts Mode, context-aware leaderboard back nav (`from` param), session browsing in Last Session mode (`session_id` param + Prev/Next), Games/Standings tabs on ended sessions, unified game card layout (EndedSessionGames rewritten), "first name + last initial" name format, win-by removed from UI (m12.0 migration). All changes mirrored in `/v/` routes. |
+| v0.5.1 — Multi-Sport Phase 1 | `7233d8d`→`d98c410` | Sport abstraction layer (`SportConfig`, `getSportConfig()`, `validators.ts` shared pure validators), DB migration `m13.0` adds `sport` column, server actions use joined query for `group.sport`, UI components receive serializable sport props, deprecated `scoring.ts` removed, shared utilities (`pairKey`, `transformGameRecords`, `handleServerError`, `constants/shared.ts`), `robots.txt`, Vitest test infrastructure (160 tests/15 files). Zero UI/UX changes — internal refactor only. |
 
 ---
 

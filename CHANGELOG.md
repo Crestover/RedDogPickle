@@ -940,6 +940,54 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [v0.5.1] — Multi-Sport Foundation (Phase 1) (2026-03-17)
+
+### Added
+- **Sport abstraction layer** (`src/lib/sports/`):
+  - `SportConfig` interface (`types.ts`): sport constants, validation methods, outcome derivation, rating inputs
+  - `pickleball.ts`: Pickleball implementation — all sport-specific logic centralized (target presets, team sizes, court limits, validation rules, outcome derivation, rating input computation)
+  - `validators.ts`: Shared pure client-safe validators (`validateScores`, `isSuspiciousScore`, `isShutout`, `deriveOutcome`) — single source of truth for scoring rules, imported by both server actions and UI components
+  - `index.ts`: Sport registry with `getSportConfig(sport)` — padel temporarily maps to pickleball config
+- **DB migration `m13.0_sport_column.sql`**: Adds `sport TEXT NOT NULL DEFAULT 'pickleball'` column to `groups` table with CHECK constraint for `('pickleball', 'padel')`
+- **`Sport` type** added to `src/lib/types.ts` (`"pickleball" | "padel"`), `sport` field added to `Group` interface
+- **Shared utilities**:
+  - `src/lib/pairing.ts`: Deduplicated `pairKey()` function (was duplicated in autoSuggest.ts and pairingFeedback.ts)
+  - `src/lib/results/transformGameRecord.ts`: Centralized game record transformation from raw Supabase rows to `GameRecord[]` (was duplicated in 3 files)
+  - `src/lib/errors.ts`: `handleServerError()` structured error logging helper
+  - `src/lib/constants/shared.ts`: Sport-agnostic timing constants (STALE_SESSION_MS, UNDO_CONFIRMATION_DISPLAY_MS, DEBOUNCED_REFRESH_MS)
+- **Vitest test infrastructure** (160 tests across 15 files):
+  - Scoring parity: pickleball config, validators, golden-path integration, padel fallback
+  - Server action validation: mocked games + courts action pre-flight checks
+  - UI component regression: RecordGameForm, GamesList, EndedSessionGames (winner highlighting, presets, team-size)
+  - Transformation backward compatibility: transformGameRecords voided filtering, ordering, malformed input
+  - Shared utility tests: pairKey, autoSuggest, rdr tiers
+  - Dev dependencies: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom
+- **`public/robots.txt`**: Blocks all search engine crawling (`User-agent: * / Disallow: /`)
+
+### Changed
+- **Server actions** (`games.ts`, `courts.ts`): Fetch `group.sport` via single joined query (`sessions → groups!inner`), validate through `sportConfig.validateScores()` instead of inline checks. Team size validated against `sportConfig.playersPerTeam` instead of hardcoded `2`
+- **`sessions.ts`**: Error logging via `handleServerError()` instead of inline `console.error`
+- **RecordGameForm.tsx**: Receives `sportConfig: { targetPresets, playersPerTeam }` prop. All validation (`validateScores`, `isSuspiciousScore`, `isShutout`) and outcome derivation (`deriveOutcome`) imported from shared `validators.ts`. No more hardcoded `TARGET_PRESETS` or magic number `2`
+- **CourtsManager.tsx**: Receives `sportConfig` prop with `targetPresets`, `playersPerTeam`, `maxCourts`. Uses shared `isSuspiciousScore()` from validators
+- **CourtsSetup.tsx**: Receives `sportConfig: { playersPerCourt, maxCourts }` — no hardcoded `4`/`8` constants
+- **GamesList.tsx** + **EndedSessionGames.tsx**: Winner highlighting now uses `deriveOutcome()` from shared validators instead of inline `scoreA > scoreB` comparisons
+- **Session server pages** (`page.tsx`, `courts/page.tsx`): Resolve `getSportConfig()` from `group.sport`, pass serializable sport data to client components
+- **`autoSuggest.ts`** + **`pairingFeedback.ts`**: Import `pairKey` from shared `@/lib/pairing` instead of local definitions
+- **`env.ts`**: Added optional `NEXT_PUBLIC_SITE_URL` field
+
+### Removed
+- **`src/lib/scoring.ts`**: Deprecated wrapper fully removed — all callers migrated to `sportConfig` or shared validators directly
+
+### Migration required
+- `m13.0_sport_column.sql` must be applied to Supabase (non-breaking: DEFAULT 'pickleball', all existing groups auto-tagged)
+
+### Notes
+- **Zero UI/UX changes** — this is a purely internal refactor preparing for Phase 2 (padel support)
+- **Zero behavior changes** — all scoring, validation, and outcome logic is functionally identical
+- All 160 tests pass; `npm run build` succeeds; `npm run type-check` clean
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

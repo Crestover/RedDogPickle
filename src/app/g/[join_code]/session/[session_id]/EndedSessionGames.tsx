@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { formatTime } from "@/lib/datetime";
 import { shortName } from "@/lib/formatting";
+import { deriveOutcome } from "@/lib/sports/validators";
 
 interface GamePlayer {
   player_id: string;
@@ -86,8 +87,10 @@ export default function EndedSessionGames({ games }: Props) {
           const bNamesArr = teamNames(gamePlayers, "B");
           const time = formatTime(game.played_at);
 
-          const aWins = game.team_a_score > game.team_b_score;
-          const bWins = game.team_b_score > game.team_a_score;
+          const isTied = game.team_a_score === game.team_b_score;
+          const { winner } = !isTied ? deriveOutcome(game.team_a_score, game.team_b_score) : { winner: null };
+          const aWins = winner === "A";
+          const bWins = winner === "B";
 
           const scoreAClass = !isVoided && aWins ? "text-emerald-600" : "text-gray-700";
           const scoreBClass = !isVoided && bWins ? "text-emerald-600" : "text-gray-700";

@@ -67,3 +67,17 @@ export function isShutout(
 ): boolean {
   return Math.min(scoreA, scoreB) === 0 && Math.max(scoreA, scoreB) >= targetPoints;
 }
+
+/**
+ * Derive which team won from the scores.
+ * Assumes scores have already been validated (not equal).
+ */
+export function deriveOutcome(
+  scoreA: number,
+  scoreB: number
+): { winner: "A" | "B"; loser: "A" | "B" } {
+  if (scoreA > scoreB) {
+    return { winner: "A", loser: "B" };
+  }
+  return { winner: "B", loser: "A" };
+}

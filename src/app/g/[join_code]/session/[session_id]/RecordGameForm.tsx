@@ -34,6 +34,7 @@ import {
   validateScores as validateScoresShared,
   isSuspiciousScore,
   isShutout as isShutoutShared,
+  deriveOutcome,
 } from "@/lib/sports/validators";
 
 interface Props {
@@ -340,7 +341,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   const scoreBNum = parseInt(scoreB, 10);
   const winnerTeam =
     !isNaN(scoreANum) && !isNaN(scoreBNum) && scoreANum !== scoreBNum
-      ? scoreANum > scoreBNum ? "A" : "B"
+      ? deriveOutcome(scoreANum, scoreBNum).winner
       : null;
   const teamsComplete = teamA.length === sportConfig.playersPerTeam && teamB.length === sportConfig.playersPerTeam;
   const allReady = teamsComplete && !isNaN(scoreANum) && !isNaN(scoreBNum);

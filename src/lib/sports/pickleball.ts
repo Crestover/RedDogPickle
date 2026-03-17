@@ -15,6 +15,7 @@ import {
   validateScores,
   isSuspiciousScore,
   isShutout,
+  deriveOutcome,
 } from "./validators";
 
 export const pickleballConfig: SportConfig = {
@@ -35,14 +36,8 @@ export const pickleballConfig: SportConfig = {
   isSuspiciousScore,
   isShutout,
 
-  // ── Outcome derivation ────────────────────────────────────────
-
-  deriveOutcome(scoreA: number, scoreB: number) {
-    if (scoreA > scoreB) {
-      return { winner: "A" as const, loser: "B" as const };
-    }
-    return { winner: "B" as const, loser: "A" as const };
-  },
+  // ── Outcome derivation (delegates to shared validator) ─────────
+  deriveOutcome,
 
   // ── Rating inputs ─────────────────────────────────────────────
 

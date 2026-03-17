@@ -891,6 +891,55 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [v0.5.0] — Session Browsing + Scoring Improvements (2026-03-16)
+
+### Added
+- **Suspicious score warning** in `RecordGameForm.tsx` and `CourtsManager.tsx`:
+  - `scoreWarningArmed` state (manual) / `courtScoreWarnings` per-court state (courts)
+  - `isSuspiciousOvertimeScore()`: fires when winner > target_points AND margin > 2
+  - Amber inline confirmation ("Cancel" / "Record anyway") matches existing duplicate warning pattern
+  - Auto-clears on score input change; no extra taps for normal scores
+- **End Session button in Courts Mode** (`courts/page.tsx`):
+  - `EndSessionButton` added to courts header — same position as manual mode
+- **Courts Mode footer nav** (`courts/page.tsx`):
+  - "All games →" and "Standings →" links at bottom, matching manual mode
+  - Standings link includes `from` query param for context-aware back navigation
+- **Session standings tab** on ended session detail (`session/[session_id]/page.tsx`):
+  - Games / Standings pill toggle (same style as leaderboard range pills)
+  - `tab` query param (`games` default, `standings`)
+  - Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `PlayerStatsRow` list
+  - Mirrored in `/v/` view-only route
+- **Leaderboard session browsing** (`leaderboard/page.tsx`):
+  - `session_id` query param for "Last Session" range mode
+  - Previous / Next navigation arrows to step through ended sessions
+  - Fetches all ended sessions, finds adjacent by index
+  - `sessionNavHref()` helper preserves `from` param across navigation
+  - Session name displayed below range pills when viewing specific session
+  - Mirrored in `/v/` view-only leaderboard
+- **Context-aware leaderboard back link** (`leaderboard/page.tsx`):
+  - `from` query param: when present, back arrow uses decoded URL instead of group dashboard
+  - "Standings →" links from session pages pass `from` param encoding the session URL
+  - Mirrored in `/v/` view-only leaderboard
+
+### Changed
+- `EndedSessionGames.tsx` — Fully rewritten to match `GamesList.tsx` card layout:
+  - Replaced 3-column grid (Team A / vs / Team B with trophy emoji) with score-dash-score + team names layout
+  - Winning score highlighted in emerald, losing in neutral gray
+  - `GamePlayer` interface updated: `players` now includes `display_name` field
+  - Added `shortName()` and `teamNames()` functions for name formatting
+- `GamesList.tsx` — `firstName()` renamed to `shortName()`, now produces "Joe S." format (first name + last initial) instead of first name only
+- `EndedSessionGames.tsx` — Same `shortName()` formatting: "Joe S." instead of player codes
+- `leaderboard/page.tsx` — Standalone `getLastSessionStats()` function removed, logic inlined for session nav support. `group!.join_code` non-null assertion added.
+- `v/[view_code]/leaderboard/page.tsx` — Same changes as `/g/` leaderboard with `group!.view_code` assertion
+- `package.json` — Version bumped to `0.5.0`
+- `CHANGELOG_PUBLIC.md` — Added v0.5.0 entry
+- `supabase/migrations/m12.0_simplify_win_by.sql` — Recreates `record_game` and `record_court_game` RPCs with relaxed score validation (win-by constraint removed from DB layer)
+
+### Migration required
+- `m12.0_simplify_win_by.sql` must be applied to Supabase before deploy — updated `record_game` and `record_court_game` RPCs remove server-side win-by validation
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

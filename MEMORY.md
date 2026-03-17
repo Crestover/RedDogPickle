@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-02-25 — v0.4.3
+> Last updated: 2026-03-17 — v0.5.0
 
 ---
 
@@ -29,38 +29,41 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.4.3 — View-only sharing + Vercel Analytics deployed to dev.**
+**v0.5.0 — Session browsing, scoring improvements, and navigation polish.**
 
-v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21, win-by 1/2). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR (all 3 views). Full rebrand: product renamed to "Red Dog", logo + favicon + help page rewrite.
-v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_SITE_URL`), tier rename (Observer/Practitioner/Strategist/Authority/Architect), homepage + group subtitle copy updates.
-M10.2: 8-second undo window (server-enforced via `undo_expires_at`), hide voided games by default (client-side toggle), undo snackbar with countdown, debounced refresh.
+v0.5.0: Suspicious score warning (overtime margin > 2 triggers amber confirmation in both Manual and Courts mode). End Session button + footer nav (All Games, Standings) added to Courts Mode for parity with Manual. Context-aware leaderboard back nav via `from` query param. Leaderboard "Last Session" mode gains Previous/Next session browsing via `session_id` param. Ended session detail has Games/Standings tab toggle (reuses `get_session_stats` RPC + `PlayerStatsRow`). Game cards unified: `EndedSessionGames` rewritten to match `GamesList` layout. Player names now "first name + last initial" format. Win-by removed from UI (m12.0 migration relaxes DB validation). All changes mirrored in `/v/` view-only routes.
+
+v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 pages), `ensure_view_code` RPC, auto-generate on dashboard load, "Copy view-only link" button. Defense-in-depth `AccessMode` guard on all write actions. Vercel Analytics `<Analytics />` in root layout. Security fix: removed `join_code` exposure from all `/v/` pages.
 v0.4.2: Winner/loser preview chips replace "def." sentence summary. Central timezone formatter (`src/lib/datetime.ts`) pins all displayed times to America/Chicago.
-v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 pages), `ensure_view_code` RPC, auto-generate on dashboard load, "Copy view-only link" button. Defense-in-depth `AccessMode` guard on all write actions. Vercel Analytics `<Analytics />` in root layout. Security fix: removed `join_code` exposure from all `/v/` pages — dashboard header shows `group.name` instead, `join_code` pruned from `.select()` in 4 of 5 files (kept server-only in leaderboard for RPCs).
+M10.2: 8-second undo window (server-enforced via `undo_expires_at`), hide voided games by default (client-side toggle), undo snackbar with countdown, debounced refresh.
+v0.4.1 patch: Group dashboard horizontal logo, env-based OG URLs (`NEXT_PUBLIC_SITE_URL`), tier rename (Observer/Practitioner/Strategist/Authority/Architect), homepage + group subtitle copy updates.
+v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/21). Rating-correct LIFO void. Cosmetic tier badges. Server-side leaderboard sorting by RDR (all 3 views). Full rebrand: product renamed to "Red Dog", logo + favicon + help page rewrite.
 
 ---
 
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `main` and `dev` both at v0.4.3 (including join_code security fix)
+- **Branch:** `main` and `dev` both at v0.5.0
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.4.3` (package.json, footer, changelog)
+- **Version:** `0.5.0` (package.json, footer, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
+- **Pending migration:** `m12.0_simplify_win_by.sql` must be applied to Supabase before deploy
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | v0.4.3 (deployed, including join_code security fix) |
-| Dev/Preview | `dev`         | Dev               | v0.4.3 (deployed) |
+| Production  | `main`        | Production        | v0.5.0 (pushed, pending m12.0 migration) |
+| Dev/Preview | `dev`         | Dev               | v0.5.0 (pushed, pending m12.0 migration) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.4.3, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. Scripts: dev/build/start/lint/type-check |
+| `package.json` | v0.5.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. Scripts: dev/build/start/lint/type-check |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Standard Next.js config |
@@ -98,25 +101,25 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 | `g/[join_code]/players/new/page.tsx` | Server | Add player page: wraps AddPlayerForm |
 | `g/[join_code]/players/new/AddPlayerForm.tsx` | Client | Name + code input with auto-suggest code from name |
 | `g/[join_code]/sessions/page.tsx` | Server | Session history list with active/ended badges |
-| `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params |
-| `g/[join_code]/session/[session_id]/page.tsx` | Server | **Live Referee Console**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Ended sessions show simple game log. |
+| `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params. `from` param for context-aware back nav. `session_id` param for session browsing in Last Session mode with Previous/Next arrows. |
+| `g/[join_code]/session/[session_id]/page.tsx` | Server | **Live Referee Console**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Ended sessions have Games/Standings tab toggle (`tab` query param); Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `PlayerStatsRow`. |
 | `g/[join_code]/session/[session_id]/ModeToggle.tsx` | Client | Segmented Manual/Courts toggle. **Stateless** — `mode` prop from route is source of truth, uses `<Link>`. Renders contextual subtitle ("Select teams directly" / "Manage multi-court rotation"). |
-| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Each player row has dedicated A and B buttons. No active-team targeting. Team panels are read-only summaries. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). **M10.2**: Undo snackbar (8s countdown, LIFO queue), debounced refresh (1000ms). **v0.4.2**: Two-chip winner/loser preview (emerald/amber) replaces "def." sentence. |
+| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Each player row has dedicated A and B buttons. No active-team targeting. Team panels are read-only summaries. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). **M10.2**: Undo snackbar (8s countdown, LIFO queue), debounced refresh (1000ms). **v0.4.2**: Two-chip winner/loser preview (emerald/amber). **v0.5.0**: Suspicious score warning (`scoreWarningArmed` state, `isSuspiciousOvertimeScore()` — fires when margin > 2 in overtime, amber "Cancel"/"Record anyway" confirmation). |
 | `g/[join_code]/session/[session_id]/EndSessionButton.tsx` | Client | 2-tap confirm (red) for ending session |
 | `g/[join_code]/session/[session_id]/VoidLastGameButton.tsx` | Client | 2-tap confirm (amber) for voiding last game. Accepts `redirectPath` prop |
 | `g/[join_code]/session/[session_id]/StaleBanner.tsx` | Client | Amber banner when session has no games for 24+ hours. Resume / Start New / End options |
 | `g/[join_code]/session/[session_id]/SessionStandings.tsx` | Client | Collapsible standings table (NOT used on live session page — only via Standings → link) |
 | `g/[join_code]/session/[session_id]/PairingBalance.tsx` | Server | Pair game counts sorted fewest first (NOT used on live session page) |
-| `g/[join_code]/session/[session_id]/EndedSessionGames.tsx` | Client | Game list for ended sessions with voided toggle (default OFF). 3-column grid layout (Team A / vs / Team B). |
-| `g/[join_code]/session/[session_id]/games/GamesList.tsx` | Client | Session game log with `showVoided` toggle (default OFF). Client-side voided filtering. Winner highlighting (emerald-600), voided games (reduced opacity + badge). |
+| `g/[join_code]/session/[session_id]/EndedSessionGames.tsx` | Client | Game list for ended sessions with voided toggle (default OFF). Matches `GamesList.tsx` card layout: score-dash-score with emerald winner, team short names ("Joe S.") underneath. |
+| `g/[join_code]/session/[session_id]/games/GamesList.tsx` | Client | Session game log with `showVoided` toggle (default OFF). Client-side voided filtering. Winner highlighting (emerald-600), voided games (reduced opacity + badge). Player names as "first name + last initial" via `shortName()`. |
 | `g/[join_code]/session/[session_id]/games/page.tsx` | Server | **Session game log**: Wraps `<GamesList>` component. First-name display, winner highlighting. |
-| `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode wrapper: LIVE header with "Courts" label, ModeToggle(courts), CourtsManager or CourtsSetup |
-| `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073 lines). Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. |
+| `g/[join_code]/session/[session_id]/courts/page.tsx` | Server | Courts Mode wrapper: LIVE header with "Courts" label, ModeToggle(courts), EndSessionButton, CourtsManager or CourtsSetup. Footer nav: "All games →" + "Standings →" links (matching manual mode). |
+| `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073+ lines). Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. **v0.5.0**: Per-court suspicious score warning (`courtScoreWarnings` state). |
 | `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection when no courts exist yet |
 | `v/[view_code]/page.tsx` | Server | **View-only dashboard**: Red Dog logo, group name display (with "Red Dog Group" fallback), "View-only link" label, active session banner, View Session + Leaderboard links, Session history link. No write CTAs. `join_code` pruned from `.select()` — never fetched or rendered. |
-| `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. No "Start a Session" CTA. `join_code` kept in `.select()` for server-only RPC params (never rendered in JSX). |
+| `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. Session browsing via `session_id` param with Previous/Next arrows. No "Start a Session" CTA. `join_code` kept in `.select()` for server-only RPC params (never rendered in JSX). |
 | `v/[view_code]/sessions/page.tsx` | Server | **View-only session history**: Session list with active/ended badges. Links to `/v/` session detail. No "Start First Session" CTA. `join_code` pruned from `.select()`. |
-| `v/[view_code]/session/[session_id]/page.tsx` | Server | **View-only session detail**: Active (LIVE badge + "View-only" + last-game ticker + `EndedSessionGames`) and ended layouts. Mismatch protection: verifies session belongs to group. No write components. `join_code` pruned from `.select()`. |
+| `v/[view_code]/session/[session_id]/page.tsx` | Server | **View-only session detail**: Active (LIVE badge + "View-only" + last-game ticker + `EndedSessionGames`) and ended layouts with Games/Standings tab toggle. Mismatch protection: verifies session belongs to group. No write components. `join_code` pruned from `.select()`. |
 | `v/[view_code]/session/[session_id]/games/page.tsx` | Server | **View-only games list**: Wraps `<GamesList>` (already read-only). Back link to `/v/` session. `join_code` pruned from `.select()`. |
 
 #### `src/app/actions/` — Server Actions
@@ -172,6 +175,7 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 | `migrations/m10.1_fix_leaderboard_sorting.sql` | Fix leaderboard sorting: get_session_stats gains rdr column + correct ORDER BY (win_pct → point_diff → rdr → name). get_group_stats fixed ORDER BY for rdr mode (rdr → win_pct → point_diff → name). |
 | `migrations/m10.2_undo_window.sql` | 8-second undo window: adds `undo_expires_at` column, updates `record_game` to return it, creates `undo_game` RPC (FOR UPDATE lock, validates not voided + not expired + session not ended, reverses ALL non-voided deltas, marks voided with `void_reason = 'undo'`). |
 | `migrations/m11.0_view_only_codes.sql` | View-only access codes: adds `view_code` + `view_code_created_at` columns to `groups`, unique index `idx_groups_view_code`, format constraint (`^[a-z0-9\-]+$`), `ensure_view_code(p_join_code)` SECURITY DEFINER RPC (generates `{join_code}-view` with collision handling, max 5 attempts). |
+| `migrations/m12.0_simplify_win_by.sql` | Simplify scoring: recreates `record_game` and `record_court_game` RPCs with relaxed validation — removes server-side win-by constraint. Target points still enforced. |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -184,6 +188,7 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 8. Run `m10.1_fix_leaderboard_sorting.sql` (leaderboard sorting fix)
 9. Run `m10.2_undo_window.sql` (8-second undo window + undo_game RPC)
 10. Run `m11.0_view_only_codes.sql` (view_code column + ensure_view_code RPC)
+11. Run `m12.0_simplify_win_by.sql` (relaxed score validation — removes win-by constraint from RPCs)
 
 ---
 
@@ -226,11 +231,11 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 7. Idempotent: second concurrent caller finds voided_at set → rejects cleanly
 
 ### Session Rules
-- **Session-level defaults**: `sessions.target_points_default` (11/15/21), `sessions.win_by_default` (1/2)
+- **Session-level defaults**: `sessions.target_points_default` (11/15/21), `sessions.win_by_default` (columns still exist but win-by removed from UI in v0.5.0)
 - **Per-game resolved rules**: `games.target_points`, `games.win_by` — immutable truth for each game
 - **set_session_rules RPC**: Hardened SECURITY DEFINER. Validates session exists + active + real group. Updates session defaults.
-- **UI**: Rules Chip (tappable, shows "15 · win by 1") with inline picker presets. Shared in RecordGameForm + CourtsManager.
-- **Rule override semantics (v1)**: `p_target_points` override uses `session.win_by_default` for win_by. Future v2 can add `p_win_by`.
+- **UI**: Rules Chip (tappable, shows target points only). Shared in RecordGameForm + CourtsManager. Win-by picker removed in v0.5.0.
+- **DB validation (m12.0)**: `record_game` and `record_court_game` RPCs no longer enforce win-by margin — only validates winner >= target_points.
 
 ### RDR Tier System (cosmetic, UI-only)
 - <1100: Observer (gray)
@@ -390,11 +395,11 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. ~~**Deploy v0.4.3 to production**~~ ✅ Done. `main` pushed with join_code security fix (`2ec10b1`). Still need to run m10.2 + m11.0 migrations on production Supabase if not already done.
+1. **Apply m12.0 migration** — Run `m12.0_simplify_win_by.sql` on both Dev and Production Supabase instances. Required for v0.5.0 scoring changes.
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code), all 23 RPC function bodies (M7-M11.0), updated views, indexes.
+2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code), all RPC function bodies (M7-M12.0), updated views, indexes.
 
-3. **Decompose CourtsManager.tsx** — At 1073 lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
+3. **Decompose CourtsManager.tsx** — At 1073+ lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
 
 ---
 
@@ -423,7 +428,7 @@ v0.4.3: View-only access codes — `/v/[view_code]` read-only route tree (5 page
 - Route as source of truth for visual state — never localStorage for UI mode
 - Only Record Game button uses filled green style; all other buttons are outline-only
 - Live session header pattern: back arrow → group name + End pill → LIVE dot indicator → ModeToggle → content
-- First names derived via `displayName.substring(0, displayName.indexOf(" "))` with fallback to full name
+- Player names in game cards: `shortName()` → "Joe S." (first name + last initial). Leaderboard/standings still use full display_name.
 - Winner highlighting: emerald-600 for winning team/score, neutral gray for losing (never red)
 - All time formatting routed through `src/lib/datetime.ts` — no direct `toLocaleString` / `toLocaleDateString` / `toLocaleTimeString` calls in UI code
 
@@ -518,7 +523,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.4.3`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.5.0`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
@@ -535,6 +540,18 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] `/v/` games: game list with voided toggle, no write components
 - [ ] Zero write buttons/forms visible on any `/v/` page
 - [ ] Session from different group on `/v/` route returns 404
+- [ ] Manual mode: enter overtime score with margin > 2 → amber warning appears; "Record anyway" proceeds
+- [ ] Courts mode: enter overtime score with margin > 2 → per-court amber warning; "Record anyway" proceeds
+- [ ] Suspicious score warning clears when score inputs change
+- [ ] Courts mode: End Session button visible in header
+- [ ] Courts mode: "All games →" and "Standings →" links in footer
+- [ ] Ended session: Games/Standings tab toggle works, defaults to Games
+- [ ] Ended session Standings tab shows player stats with RDR badges
+- [ ] Leaderboard "Last Session": Previous/Next arrows navigate between sessions
+- [ ] Leaderboard back arrow returns to originating session when accessed via "Standings →"
+- [ ] Game cards in EndedSessionGames match GamesList layout (score + short names)
+- [ ] Player names in game cards show "Joe S." format (first name + last initial)
+- [ ] `/v/` routes mirror all new features (session tabs, leaderboard browsing) in read-only mode
 
 ---
 
@@ -674,6 +691,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | M10.2 — Undo Window | `9d5b8ca` | 8-second server-enforced undo window, hide voided games toggle, undo snackbar with countdown, debounced refresh, pre-submit confirmation summary |
 | v0.4.2 — Preview + TZ | `7d5060c`→`3cf44e8` | Winner/loser preview chips (emerald/amber), central timezone formatter (`datetime.ts`) pinned to America/Chicago, all `toLocale*` calls eliminated |
 | v0.4.3 — View-Only Sharing | `3642fb7`→`2ec10b1` | View-only access codes (`/v/[view_code]` route tree, 5 pages), `ensure_view_code` RPC (m11.0), `AccessMode` guard on all write actions, "Copy view-only link" button, home page view_code redirect, Vercel Analytics `<Analytics />`. Security fix (`2ec10b1`): removed `join_code` from all `/v/` pages — dashboard shows `group.name`, `.select()` pruned in 4 files, leaderboard keeps `join_code` server-only for RPCs |
+| v0.5.0 — Session Browsing | `8981bf3`→`09d3427` | Suspicious score warning (Manual + Courts), End Session + footer nav in Courts Mode, context-aware leaderboard back nav (`from` param), session browsing in Last Session mode (`session_id` param + Prev/Next), Games/Standings tabs on ended sessions, unified game card layout (EndedSessionGames rewritten), "first name + last initial" name format, win-by removed from UI (m12.0 migration). All changes mirrored in `/v/` routes. |
 
 ---
 

@@ -30,6 +30,7 @@ import { setSessionRulesAction } from "@/app/actions/sessions";
 import type { Player } from "@/lib/types";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
+import { isSuspiciousOvertimeScore } from "@/lib/scoring";
 
 interface Props {
   sessionId: string;
@@ -230,11 +231,10 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   }
 
   /** True when winning score is above target and margin exceeds 2. */
-  function isSuspiciousOvertimeScore(): boolean {
+  function checkSuspiciousScore(): boolean {
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
-    const w = Math.max(a, b), l = Math.min(a, b);
-    return w > rules.targetPoints && (w - l) > 2;
+    return isSuspiciousOvertimeScore(a, b, rules.targetPoints);
   }
 
   // ── Reset ──────────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     if (selErr || scErr) { setError(selErr ?? scErr ?? ""); return; }
 
     // Suspicious overtime margin warning — arm on first tap, proceed on second
-    if (!force && isSuspiciousOvertimeScore() && !scoreWarningArmed) {
+    if (!force && checkSuspiciousScore() && !scoreWarningArmed) {
       setScoreWarningArmed(true);
       return;
     }

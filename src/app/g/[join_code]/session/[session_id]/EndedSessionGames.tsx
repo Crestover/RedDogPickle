@@ -12,6 +12,7 @@
 
 import { useState } from "react";
 import { formatTime } from "@/lib/datetime";
+import { shortName } from "@/lib/formatting";
 
 interface GamePlayer {
   player_id: string;
@@ -38,13 +39,6 @@ function one<T>(val: T | T[] | null | undefined): T | null {
   if (val == null) return null;
   if (Array.isArray(val)) return val[0] ?? null;
   return val;
-}
-
-/** Derive "first name + last initial" from display_name: "Joe Smith" → "Joe S." */
-function shortName(displayName: string): string {
-  const parts = displayName.trim().split(/\s+/);
-  if (parts.length < 2) return parts[0] ?? displayName;
-  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
 /** Extract short names for a given team, sorted. */

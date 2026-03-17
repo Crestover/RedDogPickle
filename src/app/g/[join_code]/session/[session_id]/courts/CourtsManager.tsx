@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { CourtData, AttendeeWithStatus, RpcResult } from "@/lib/types";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
+import { isSuspiciousOvertimeScore } from "@/lib/scoring";
 import VoidLastGameButton from "../VoidLastGameButton";
 import {
   suggestCourtsAction,
@@ -308,9 +309,7 @@ export default function CourtsManager({
     }
 
     // Suspicious overtime margin check
-    const w = Math.max(scoreA, scoreB);
-    const l = Math.min(scoreA, scoreB);
-    if (!forceWarning && w > rules.targetPoints && (w - l) > 2 && !courtScoreWarnings[courtNumber]) {
+    if (!forceWarning && isSuspiciousOvertimeScore(scoreA, scoreB, rules.targetPoints) && !courtScoreWarnings[courtNumber]) {
       setCourtScoreWarnings((prev) => ({ ...prev, [courtNumber]: true }));
       return;
     }

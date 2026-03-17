@@ -4,6 +4,7 @@ import { one } from "@/lib/supabase/helpers";
 import type { PairCount, CourtData, AttendeeWithStatus } from "@/lib/types";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import EndSessionButton from "../EndSessionButton";
 import ModeToggle from "../ModeToggle";
 import CourtsManager from "./CourtsManager";
 import CourtsSetup from "./CourtsSetup";
@@ -125,9 +126,12 @@ export default async function CourtsPage({ params }: PageProps) {
 
         {/* Session header */}
         <div>
-          <h1 className="text-xl font-bold leading-tight font-mono">
-            {session.name}
-          </h1>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="text-xl font-bold leading-tight font-mono">
+              {session.name}
+            </h1>
+            <EndSessionButton sessionId={session.id} joinCode={group.join_code} />
+          </div>
           <p className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-gray-400 mt-1">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
             Live Session &middot; Courts
@@ -162,6 +166,22 @@ export default async function CourtsPage({ params }: PageProps) {
             }}
           />
         )}
+
+        {/* Bottom nav row — matches manual mode */}
+        <div className="flex items-center justify-between pt-4">
+          <Link
+            href={`/g/${group.join_code}/session/${session.id}/games`}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            All games &rarr;
+          </Link>
+          <Link
+            href={`/g/${group.join_code}/leaderboard?from=${encodeURIComponent(`/g/${group.join_code}/session/${session.id}/courts`)}`}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Standings &rarr;
+          </Link>
+        </div>
       </div>
     </div>
   );

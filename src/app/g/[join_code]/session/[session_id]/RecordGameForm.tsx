@@ -85,6 +85,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
   const shutoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [rules, setRules] = useState(sessionRules);
   const [showRulePicker, setShowRulePicker] = useState(false);
+  const [scoreWarningArmed, setScoreWarningArmed] = useState(false);
 
   // ── Undo queue (M10.2) ─────────────────────────────────────────────────────
   const [undoQueue, setUndoQueue] = useState<UndoEntry[]>([]);
@@ -228,11 +229,20 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     return null;
   }
 
+  /** True when winning score is above target and margin exceeds 2. */
+  function isSuspiciousOvertimeScore(): boolean {
+    const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
+    if (isNaN(a) || isNaN(b)) return false;
+    const w = Math.max(a, b), l = Math.min(a, b);
+    return w > rules.targetPoints && (w - l) > 2;
+  }
+
   // ── Reset ──────────────────────────────────────────────────────────────────
   function handleReset() {
     setTeamA([]); setTeamB([]);
     setScoreA(""); setScoreB(""); setError(""); setPossibleDup(null);
     disarmShutout();
+    setScoreWarningArmed(false);
   }
 
   // ── Undo handler ───────────────────────────────────────────────────────────
@@ -273,6 +283,13 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
     const selErr = validateSelection();
     const scErr = validateScores();
     if (selErr || scErr) { setError(selErr ?? scErr ?? ""); return; }
+
+    // Suspicious overtime margin warning — arm on first tap, proceed on second
+    if (!force && isSuspiciousOvertimeScore() && !scoreWarningArmed) {
+      setScoreWarningArmed(true);
+      return;
+    }
+    setScoreWarningArmed(false);
 
     setError("");
     setPossibleDup(null);
@@ -571,7 +588,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
           <input
             id="score-a" type="number" inputMode="numeric" pattern="[0-9]*"
             min={0} max={99} value={scoreA}
-            onChange={(e) => { setScoreA(e.target.value); setError(""); disarmShutout(); }}
+            onChange={(e) => { setScoreA(e.target.value); setError(""); disarmShutout(); setScoreWarningArmed(false); }}
             placeholder="0"
             className="w-full rounded-lg border-2 border-blue-200 bg-blue-50 px-3 py-3 text-center text-2xl font-bold text-blue-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
@@ -583,7 +600,7 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
           <input
             id="score-b" type="number" inputMode="numeric" pattern="[0-9]*"
             min={0} max={99} value={scoreB}
-            onChange={(e) => { setScoreB(e.target.value); setError(""); disarmShutout(); }}
+            onChange={(e) => { setScoreB(e.target.value); setError(""); disarmShutout(); setScoreWarningArmed(false); }}
             placeholder="0"
             className="w-full rounded-lg border-2 border-orange-200 bg-orange-50 px-3 py-3 text-center text-2xl font-bold text-orange-900 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
           />
@@ -598,6 +615,36 @@ export default function RecordGameForm({ sessionId, joinCode, attendees, pairCou
         >
           Score includes a 0. Tap Record again to confirm.
         </p>
+      )}
+
+      {/* ── Suspicious overtime score warning ──────────────────── */}
+      {scoreWarningArmed && !possibleDup && (
+        <div
+          role="alert"
+          className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 space-y-2"
+        >
+          <p className="text-xs font-semibold text-amber-800">
+            This score is greater than win by 2. Are you sure you want to record it?
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setScoreWarningArmed(false)}
+              disabled={isPending}
+              className="flex-1 rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => submit(false)}
+              disabled={isPending}
+              className="flex-1 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 active:bg-amber-800 transition-colors disabled:opacity-50"
+            >
+              {isPending ? "Saving\u2026" : "Record anyway"}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Possible-duplicate warning banner ──────────────────── */}

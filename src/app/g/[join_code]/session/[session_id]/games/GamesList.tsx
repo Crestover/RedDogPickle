@@ -36,10 +36,11 @@ interface Props {
   totalCount: number;
 }
 
-/** Derive first name from display_name: "Joe Smith" → "Joe" */
-function firstName(displayName: string): string {
-  const space = displayName.indexOf(" ");
-  return space > 0 ? displayName.substring(0, space) : displayName;
+/** Derive "first name + last initial" from display_name: "Joe Smith" → "Joe S." */
+function shortName(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/);
+  if (parts.length < 2) return parts[0] ?? displayName;
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
 /** Unwrap Supabase one-or-array relation. */
@@ -49,13 +50,13 @@ function one<T>(val: T | T[] | null | undefined): T | null {
   return val;
 }
 
-/** Extract first names for a given team, sorted. */
+/** Extract short names for a given team, sorted. */
 function teamNames(gamePlayers: GamePlayer[], team: "A" | "B"): string[] {
   return gamePlayers
     .filter((gp) => gp.team === team)
     .map((gp) => {
       const player = one(gp.players) as { display_name?: string } | null;
-      return player?.display_name ? firstName(player.display_name) : "?";
+      return player?.display_name ? shortName(player.display_name) : "?";
     })
     .sort();
 }

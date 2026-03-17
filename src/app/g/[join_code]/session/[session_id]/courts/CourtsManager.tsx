@@ -125,6 +125,7 @@ export default function CourtsManager({
   const [optimisticClearedCourts, setOptimisticClearedCourts] = useState<Set<number>>(new Set());
   const [rules, setRules] = useState(sessionRules);
   const [showRulePicker, setShowRulePicker] = useState(false);
+  const [courtScoreWarnings, setCourtScoreWarnings] = useState<Record<number, boolean>>({});
 
   // Sync rules from server props
   useEffect(() => { setRules(sessionRules); }, [sessionRules]);
@@ -205,6 +206,11 @@ export default function CourtsManager({
       [courtNumber]: { ...getScores(courtNumber), [field]: value },
     }));
     setCourtErrors((prev) => {
+      const next = { ...prev };
+      delete next[courtNumber];
+      return next;
+    });
+    setCourtScoreWarnings((prev) => {
       const next = { ...prev };
       delete next[courtNumber];
       return next;
@@ -291,7 +297,7 @@ export default function CourtsManager({
 
   // ── Record Game (IN_PROGRESS → OPEN, optimistic) ──────────
 
-  function handleRecordCourt(courtNumber: number) {
+  function handleRecordCourt(courtNumber: number, forceWarning = false) {
     const scores = getScores(courtNumber);
     const scoreA = parseInt(scores.scoreA, 10);
     const scoreB = parseInt(scores.scoreB, 10);
@@ -300,6 +306,19 @@ export default function CourtsManager({
       setCourtErrors((prev) => ({ ...prev, [courtNumber]: "Enter both scores" }));
       return;
     }
+
+    // Suspicious overtime margin check
+    const w = Math.max(scoreA, scoreB);
+    const l = Math.min(scoreA, scoreB);
+    if (!forceWarning && w > rules.targetPoints && (w - l) > 2 && !courtScoreWarnings[courtNumber]) {
+      setCourtScoreWarnings((prev) => ({ ...prev, [courtNumber]: true }));
+      return;
+    }
+    setCourtScoreWarnings((prev) => {
+      const next = { ...prev };
+      delete next[courtNumber];
+      return next;
+    });
 
     setCourtErrors((prev) => {
       const next = { ...prev };
@@ -841,8 +860,42 @@ export default function CourtsManager({
               </p>
             )}
 
+            {/* Suspicious overtime score warning */}
+            {courtScoreWarnings[court.court_number] && (
+              <div
+                role="alert"
+                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 space-y-2"
+              >
+                <p className="text-xs font-semibold text-amber-800">
+                  This score is greater than win by 2. Are you sure you want to record it?
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCourtScoreWarnings((prev) => {
+                      const next = { ...prev };
+                      delete next[court.court_number];
+                      return next;
+                    })}
+                    disabled={isPending}
+                    className="flex-1 rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRecordCourt(court.court_number, true)}
+                    disabled={isPending}
+                    className="flex-1 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 active:bg-amber-800 transition-colors disabled:opacity-50"
+                  >
+                    {isPending ? "Saving\u2026" : "Record anyway"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Action buttons */}
-            {isInProgress && (
+            {isInProgress && !courtScoreWarnings[court.court_number] && (
               <button
                 type="button"
                 onClick={() => handleRecordCourt(court.court_number)}

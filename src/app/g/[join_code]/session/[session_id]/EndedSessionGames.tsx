@@ -3,6 +3,9 @@
 /**
  * EndedSessionGames — Game list for ended sessions with voided toggle.
  *
+ * Card layout matches GamesList (All Games page):
+ *   Game # + time → score (winner in emerald) → team names
+ *
  * Default: voided games hidden.
  * Toggle: "Show voided" reveals voided games with reduced opacity + badge.
  */
@@ -13,7 +16,7 @@ import { formatTime } from "@/lib/datetime";
 interface GamePlayer {
   player_id: string;
   team: string;
-  players: { code?: string } | { code?: string }[] | null;
+  players: { id?: string; display_name?: string; code?: string } | { id?: string; display_name?: string; code?: string }[] | null;
 }
 
 interface Game {
@@ -37,13 +40,20 @@ function one<T>(val: T | T[] | null | undefined): T | null {
   return val;
 }
 
-/** Extract player codes for a given team from the game_players join. */
-function teamCodes(gamePlayers: GamePlayer[], team: "A" | "B"): string[] {
+/** Derive "first name + last initial" from display_name: "Joe Smith" → "Joe S." */
+function shortName(displayName: string): string {
+  const parts = displayName.trim().split(/\s+/);
+  if (parts.length < 2) return parts[0] ?? displayName;
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+}
+
+/** Extract short names for a given team, sorted. */
+function teamNames(gamePlayers: GamePlayer[], team: "A" | "B"): string[] {
   return gamePlayers
     .filter((gp) => gp.team === team)
     .map((gp) => {
-      const player = one(gp.players) as { code?: string } | null;
-      return player?.code ?? "?";
+      const player = one(gp.players) as { display_name?: string } | null;
+      return player?.display_name ? shortName(player.display_name) : "?";
     })
     .sort();
 }
@@ -71,70 +81,56 @@ export default function EndedSessionGames({ games }: Props) {
           </button>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {displayGames.map((game) => {
           const isVoided = !!game.voided_at;
           const gamePlayers = Array.isArray(game.game_players)
             ? game.game_players
             : [];
 
-          const teamAPlayers = teamCodes(gamePlayers, "A");
-          const teamBPlayers = teamCodes(gamePlayers, "B");
+          const aNamesArr = teamNames(gamePlayers, "A");
+          const bNamesArr = teamNames(gamePlayers, "B");
+          const time = formatTime(game.played_at);
 
-          const winnerTeam =
-            game.team_a_score > game.team_b_score ? "A" : "B";
+          const aWins = game.team_a_score > game.team_b_score;
+          const bWins = game.team_b_score > game.team_a_score;
+
+          const scoreAClass = !isVoided && aWins ? "text-emerald-600" : "text-gray-700";
+          const scoreBClass = !isVoided && bWins ? "text-emerald-600" : "text-gray-700";
+          const namesAClass = !isVoided && aWins ? "text-emerald-600 font-medium" : "text-gray-700";
+          const namesBClass = !isVoided && bWins ? "text-emerald-600 font-medium" : "text-gray-700";
 
           return (
             <div
               key={game.id}
-              className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-40" : ""}`}
+              className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-60" : ""}`}
             >
+              {/* Header row: Game # + badge + time */}
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-400">
+                <span className="text-xs text-gray-400">
                   Game #{game.sequence_num}
                   {isVoided && (
-                    <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700 uppercase">
+                    <span className="ml-1.5 inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
                       Voided
                     </span>
                   )}
                 </span>
-                <span className="text-xs text-gray-400">
-                  {formatTime(game.played_at)}
-                </span>
+                <span className="text-xs text-gray-400">{time}</span>
               </div>
-              <div className="grid grid-cols-3 items-center text-center">
-                <div>
-                  <p className="text-xs text-blue-600 font-semibold mb-0.5">
-                    Team A {!isVoided && winnerTeam === "A" && "\u{1F3C6}"}
-                  </p>
-                  <p className="text-xs text-gray-500 font-mono">
-                    {teamAPlayers.join(" ")}
-                  </p>
-                  <p
-                    className={`text-2xl font-bold ${
-                      !isVoided && winnerTeam === "A" ? "text-green-700" : "text-gray-500"
-                    }`}
-                  >
-                    {game.team_a_score}
-                  </p>
-                </div>
-                <div className="text-gray-300 text-lg font-bold">vs</div>
-                <div>
-                  <p className="text-xs text-orange-600 font-semibold mb-0.5">
-                    Team B {!isVoided && winnerTeam === "B" && "\u{1F3C6}"}
-                  </p>
-                  <p className="text-xs text-gray-500 font-mono">
-                    {teamBPlayers.join(" ")}
-                  </p>
-                  <p
-                    className={`text-2xl font-bold ${
-                      !isVoided && winnerTeam === "B" ? "text-green-700" : "text-gray-500"
-                    }`}
-                  >
-                    {game.team_b_score}
-                  </p>
-                </div>
-              </div>
+
+              {/* Score */}
+              <p className="text-xl font-semibold font-mono mb-1">
+                <span className={scoreAClass}>{game.team_a_score}</span>
+                <span className="text-gray-300">&ndash;</span>
+                <span className={scoreBClass}>{game.team_b_score}</span>
+              </p>
+
+              {/* Teams (short names) */}
+              <p className="text-sm leading-snug">
+                <span className={namesAClass}>{aNamesArr.join(" / ")}</span>
+                <span className="text-gray-400"> vs </span>
+                <span className={namesBClass}>{bNamesArr.join(" / ")}</span>
+              </p>
             </div>
           );
         })}

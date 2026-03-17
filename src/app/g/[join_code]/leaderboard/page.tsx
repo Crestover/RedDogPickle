@@ -18,7 +18,7 @@ import { notFound } from "next/navigation";
 
 interface PageProps {
   params: Promise<{ join_code: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; session_id?: string }>;
 }
 
 type RangeMode = "all" | "30d" | "last";
@@ -44,36 +44,6 @@ async function getGroupStats(joinCode: string, days: number | null, sortBy: stri
     console.error("get_group_stats error:", error);
     return [] as PlayerStats[];
   }
-  return (stats ?? []) as PlayerStats[];
-}
-
-async function getLastSessionStats(joinCode: string) {
-  const supabase = getServerClient();
-
-  // Find the most recently ended session
-  const { data: sessionId, error: idError } = await supabase.rpc(
-    RPC.GET_LAST_SESSION_ID,
-    { p_join_code: joinCode }
-  );
-
-  if (idError) {
-    console.error("get_last_session_id error:", idError);
-    return [] as PlayerStats[];
-  }
-
-  if (!sessionId) return [] as PlayerStats[];
-
-  // Fetch stats for that session
-  const { data: stats, error: statsError } = await supabase.rpc(
-    RPC.GET_SESSION_STATS,
-    { p_session_id: sessionId }
-  );
-
-  if (statsError) {
-    console.error("get_session_stats error:", statsError);
-    return [] as PlayerStats[];
-  }
-
   return (stats ?? []) as PlayerStats[];
 }
 
@@ -113,7 +83,7 @@ function emptyMessage(mode: RangeMode): string {
 
 export default async function LeaderboardPage({ params, searchParams }: PageProps) {
   const { join_code: rawJoinCode } = await params;
-  const { range } = await searchParams;
+  const { range, from, session_id: sessionIdParam } = await searchParams;
 
   // Input sanitisation
   const joinCode = decodeURIComponent(rawJoinCode).trim().toLowerCase();
@@ -124,13 +94,99 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
   const group = await getGroup(joinCode);
   if (!group) notFound();
 
+  // ── Session navigation for single-session mode (Part D) ──────────────────
+  // When session_id is provided, load that specific session's stats.
+  // Also fetch adjacent sessions for prev/next navigation.
+  let targetSessionId: string | null = null;
+  let prevSessionId: string | null = null;
+  let nextSessionId: string | null = null;
+  let sessionName: string | null = null;
+
   // Fetch stats based on selected range
   // All modes now return rdr from their respective RPCs and are
   // sorted server-side — no client re-sorting.
   let stats: PlayerStats[];
 
-  if (mode === "last") {
-    stats = await getLastSessionStats(joinCode);
+  if (mode === "last" && sessionIdParam) {
+    // Specific session requested — fetch that session's stats
+    targetSessionId = sessionIdParam;
+    const { data: sessionStats, error: sessionStatsError } = await (async () => {
+      const supabase = getServerClient();
+      return supabase.rpc(RPC.GET_SESSION_STATS, { p_session_id: sessionIdParam });
+    })();
+    if (sessionStatsError) {
+      console.error("get_session_stats error:", sessionStatsError);
+      stats = [];
+    } else {
+      stats = (sessionStats ?? []) as PlayerStats[];
+    }
+
+    // Fetch session name for display
+    const supabase = getServerClient();
+    const { data: sessionRow } = await supabase
+      .from("sessions")
+      .select("id, name")
+      .eq("id", sessionIdParam)
+      .maybeSingle();
+    sessionName = sessionRow?.name ?? null;
+
+    // Fetch adjacent sessions for prev/next nav
+    const { data: allSessions } = await supabase
+      .from("sessions")
+      .select("id, started_at")
+      .eq("group_id", group.id)
+      .not("ended_at", "is", null)
+      .order("started_at", { ascending: false });
+
+    if (allSessions) {
+      const idx = allSessions.findIndex((s) => s.id === sessionIdParam);
+      if (idx >= 0) {
+        // Ordered newest first: prev = older (idx+1), next = newer (idx-1)
+        nextSessionId = idx > 0 ? allSessions[idx - 1].id : null;
+        prevSessionId = idx < allSessions.length - 1 ? allSessions[idx + 1].id : null;
+      }
+    }
+  } else if (mode === "last") {
+    // Default "last session" — find the most recent ended session
+    const supabase = getServerClient();
+    const { data: lastId } = await supabase.rpc(
+      RPC.GET_LAST_SESSION_ID,
+      { p_join_code: joinCode }
+    );
+    if (lastId) {
+      targetSessionId = lastId;
+      const { data: sessionStats } = await supabase.rpc(
+        RPC.GET_SESSION_STATS,
+        { p_session_id: lastId }
+      );
+      stats = (sessionStats ?? []) as PlayerStats[];
+
+      // Fetch session name
+      const { data: sessionRow } = await supabase
+        .from("sessions")
+        .select("id, name")
+        .eq("id", lastId)
+        .maybeSingle();
+      sessionName = sessionRow?.name ?? null;
+
+      // Fetch adjacent sessions
+      const { data: allSessions } = await supabase
+        .from("sessions")
+        .select("id, started_at")
+        .eq("group_id", group.id)
+        .not("ended_at", "is", null)
+        .order("started_at", { ascending: false });
+
+      if (allSessions) {
+        const idx = allSessions.findIndex((s) => s.id === lastId);
+        if (idx >= 0) {
+          nextSessionId = idx > 0 ? allSessions[idx - 1].id : null;
+          prevSessionId = idx < allSessions.length - 1 ? allSessions[idx + 1].id : null;
+        }
+      }
+    } else {
+      stats = [];
+    }
   } else {
     // All-time and 30-day: sort by RDR server-side
     const days = mode === "30d" ? 30 : null;
@@ -141,16 +197,27 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
   // doesn't return rdr column, and for provisional flag)
   const ratingsMap = await getGroupRatings(group.id);
 
+  // Back link destination: context-aware
+  const backHref = from
+    ? decodeURIComponent(from)
+    : `/g/${group.join_code}`;
+  const backLabel = from ? "Back" : group.name;
+
+  // Build query params helper for session navigation links
+  function sessionNavHref(sid: string) {
+    return `/g/${group!.join_code}/leaderboard?range=last&session_id=${sid}${from ? `&from=${encodeURIComponent(from)}` : ""}`;
+  }
+
   return (
     <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
         {/* Header */}
         <div>
           <Link
-            href={`/g/${group.join_code}`}
+            href={backHref}
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
-            &larr; {group.name}
+            &larr; {backLabel}
           </Link>
           <h1 className="mt-3 text-2xl font-bold">Leaderboard</h1>
         </div>
@@ -188,6 +255,43 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
             Last Session
           </Link>
         </div>
+
+        {/* Session nav — prev/next for single-session mode */}
+        {mode === "last" && targetSessionId && (
+          <div className="space-y-2">
+            {sessionName && (
+              <p className="text-sm font-mono text-gray-600 text-center truncate">
+                {sessionName}
+              </p>
+            )}
+            <div className="flex items-center justify-between">
+              {prevSessionId ? (
+                <Link
+                  href={sessionNavHref(prevSessionId)}
+                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  &larr; Previous
+                </Link>
+              ) : (
+                <span className="text-xs text-gray-300">
+                  &larr; Previous
+                </span>
+              )}
+              {nextSessionId ? (
+                <Link
+                  href={sessionNavHref(nextSessionId)}
+                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Next &rarr;
+                </Link>
+              ) : (
+                <span className="text-xs text-gray-300">
+                  Next &rarr;
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         {stats.length === 0 ? (

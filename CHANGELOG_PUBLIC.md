@@ -2,6 +2,23 @@
 
 ---
 
+## v0.5.0 — Session Browsing + Scoring Improvements
+
+### Added
+- **Session standings tab**: Ended sessions now have a Games / Standings toggle so you can see rankings without leaving the session.
+- **Browse session standings from the leaderboard**: The "Last Session" view now shows Previous and Next buttons to step through all your past sessions.
+- **Suspicious score warning**: If you enter a score with an unusually large overtime margin (greater than win by 2), a quick confirmation appears before saving. Normal scores are unaffected.
+- **End Session from Courts Mode**: The End button now appears in the Courts page header — no need to switch to Manual first.
+- **Courts Mode footer links**: All Games and Standings links now appear at the bottom of the Courts page, matching Manual mode.
+
+### Improved
+- Game cards across the app now show the same layout: game number, score with the winning side highlighted in green, and player names underneath.
+- Player names in game cards now display as first name + last initial (e.g. "Joe S.") instead of first name only.
+- Tapping Standings from a session takes you to the leaderboard and the back button returns you to that session instead of the home screen.
+- Scoring rules simplified: the target points picker (11 / 15 / 21) is the only setting you need. Win-by has been removed from the interface to keep things simple.
+
+---
+
 ## v0.4.3 — View-Only Sharing
 
 ### Added
@@ -35,7 +52,7 @@
 ### Added
 - New **Red Dog Rating (RDR)** system replaces the old Elo ratings. RDR accounts for margin of victory and partner skill gaps for more accurate player rankings.
 - Cosmetic **tier badges** on the leaderboard: Observer, Practitioner, Strategist, Authority, and Architect.
-- **Session-level game rules**: set target points (11, 15, or 21) and win-by (1 or 2) for the entire session via a tappable Rules Chip. No more toggling per game.
+- **Session-level game rules**: set target points (11, 15, or 21) for the entire session via a tappable Rules Chip. No more toggling per game.
 - **RDR delta flash** after recording a game briefly shows each player's rating change.
 - **Rating-correct void**: voiding a game now cleanly reverses each player's rating change.
 - New **Red Dog logo** on the home screen and brand mark on the help page.

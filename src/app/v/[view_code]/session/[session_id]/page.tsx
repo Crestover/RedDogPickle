@@ -1,6 +1,9 @@
 import { getServerClient } from "@/lib/supabase/server";
+import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
 import { formatTime } from "@/lib/datetime";
+import type { PlayerStats, PlayerRating } from "@/lib/types";
+import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndedSessionGames from "@/app/g/[join_code]/session/[session_id]/EndedSessionGames";
@@ -16,6 +19,7 @@ import EndedSessionGames from "@/app/g/[join_code]/session/[session_id]/EndedSes
 
 interface PageProps {
   params: Promise<{ view_code: string; session_id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }
 
 function teamCodes(
@@ -65,8 +69,9 @@ async function getSessionData(viewCode: string, sessionId: string) {
   return { group, session, games: games ?? [] };
 }
 
-export default async function ViewSessionPage({ params }: PageProps) {
+export default async function ViewSessionPage({ params, searchParams }: PageProps) {
   const { view_code, session_id } = await params;
+  const { tab } = await searchParams;
   const data = await getSessionData(view_code, session_id);
 
   if (!data) notFound();
@@ -157,7 +162,28 @@ export default async function ViewSessionPage({ params }: PageProps) {
     );
   }
 
-  // ── ENDED session layout ──────────────────────────────────────────────────
+  // ── ENDED session layout with tabs ──────────────────────────────────────
+  const activeTab = tab === "standings" ? "standings" : "games";
+
+  let sessionStandings: PlayerStats[] = [];
+  const ratingsMap = new Map<string, PlayerRating>();
+  if (activeTab === "standings") {
+    const supabase = getServerClient();
+    const { data: standingsData } = await supabase.rpc(
+      RPC.GET_SESSION_STATS,
+      { p_session_id: session.id }
+    );
+    sessionStandings = (standingsData ?? []) as PlayerStats[];
+
+    const { data: ratingsData } = await supabase
+      .from("player_ratings")
+      .select("group_id, player_id, rating, games_rated, provisional")
+      .eq("group_id", group.id);
+    for (const row of ratingsData ?? []) {
+      ratingsMap.set(row.player_id, row as PlayerRating);
+    }
+  }
+
   return (
     <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
@@ -182,11 +208,65 @@ export default async function ViewSessionPage({ params }: PageProps) {
           </h1>
         </div>
 
-        {/* Games */}
-        {games.length > 0 && (
-          <EndedSessionGames
-            games={games as Parameters<typeof EndedSessionGames>[0]["games"]}
-          />
+        {/* Tabs: Games | Standings */}
+        <div className="flex rounded-xl bg-gray-100 p-1">
+          <Link
+            href={`/v/${group.view_code}/session/${session.id}`}
+            className={`flex-1 rounded-lg px-2 py-2 text-center text-sm font-semibold transition-colors ${
+              activeTab === "games"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Games
+          </Link>
+          <Link
+            href={`/v/${group.view_code}/session/${session.id}?tab=standings`}
+            className={`flex-1 rounded-lg px-2 py-2 text-center text-sm font-semibold transition-colors ${
+              activeTab === "standings"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Standings
+          </Link>
+        </div>
+
+        {/* Tab content */}
+        {activeTab === "games" ? (
+          <>
+            {games.length > 0 ? (
+              <EndedSessionGames
+                games={games as Parameters<typeof EndedSessionGames>[0]["games"]}
+              />
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-4">No games recorded.</p>
+            )}
+          </>
+        ) : (
+          <>
+            {sessionStandings.length > 0 ? (
+              <div className="space-y-2">
+                {sessionStandings.map((player, index) => {
+                  const pr = ratingsMap.get(player.player_id);
+                  const rating = player.rdr != null
+                    ? Number(player.rdr)
+                    : (pr?.rating ?? null);
+                  return (
+                    <PlayerStatsRow
+                      key={player.player_id}
+                      rank={index + 1}
+                      player={player}
+                      rating={rating}
+                      provisional={pr?.provisional ?? false}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-4">No standings data.</p>
+            )}
+          </>
         )}
 
         {/* Bottom nav */}
@@ -201,7 +281,7 @@ export default async function ViewSessionPage({ params }: PageProps) {
             href={`/v/${group.view_code}/leaderboard`}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
-            Standings &rarr;
+            Leaderboard &rarr;
           </Link>
         </div>
       </div>

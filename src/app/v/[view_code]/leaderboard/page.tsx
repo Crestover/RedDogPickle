@@ -14,7 +14,7 @@ import { notFound } from "next/navigation";
 
 interface PageProps {
   params: Promise<{ view_code: string }>;
-  searchParams: Promise<{ range?: string }>;
+  searchParams: Promise<{ range?: string; session_id?: string }>;
 }
 
 type RangeMode = "all" | "30d" | "last";
@@ -41,34 +41,6 @@ async function getGroupStats(joinCode: string, days: number | null, sortBy: stri
     console.error("get_group_stats error:", error);
     return [] as PlayerStats[];
   }
-  return (stats ?? []) as PlayerStats[];
-}
-
-async function getLastSessionStats(joinCode: string) {
-  const supabase = getServerClient();
-
-  const { data: sessionId, error: idError } = await supabase.rpc(
-    RPC.GET_LAST_SESSION_ID,
-    { p_join_code: joinCode }
-  );
-
-  if (idError) {
-    console.error("get_last_session_id error:", idError);
-    return [] as PlayerStats[];
-  }
-
-  if (!sessionId) return [] as PlayerStats[];
-
-  const { data: stats, error: statsError } = await supabase.rpc(
-    RPC.GET_SESSION_STATS,
-    { p_session_id: sessionId }
-  );
-
-  if (statsError) {
-    console.error("get_session_stats error:", statsError);
-    return [] as PlayerStats[];
-  }
-
   return (stats ?? []) as PlayerStats[];
 }
 
@@ -105,7 +77,7 @@ function emptyMessage(mode: RangeMode): string {
 
 export default async function ViewLeaderboardPage({ params, searchParams }: PageProps) {
   const { view_code } = await params;
-  const { range } = await searchParams;
+  const { range, session_id: sessionIdParam } = await searchParams;
 
   const group = await getGroupByViewCode(view_code);
   if (!group) notFound();
@@ -113,14 +85,62 @@ export default async function ViewLeaderboardPage({ params, searchParams }: Page
   const mode = parseRange(range);
 
   let stats: PlayerStats[];
-  if (mode === "last") {
-    stats = await getLastSessionStats(group.join_code);
+  let targetSessionId: string | null = null;
+  let prevSessionId: string | null = null;
+  let nextSessionId: string | null = null;
+  let sessionName: string | null = null;
+
+  if (mode === "last" && sessionIdParam) {
+    targetSessionId = sessionIdParam;
+    const supabase = getServerClient();
+    const { data: sessionStats } = await supabase.rpc(RPC.GET_SESSION_STATS, { p_session_id: sessionIdParam });
+    stats = (sessionStats ?? []) as PlayerStats[];
+
+    const { data: sessionRow } = await supabase.from("sessions").select("id, name").eq("id", sessionIdParam).maybeSingle();
+    sessionName = sessionRow?.name ?? null;
+
+    const { data: allSessions } = await supabase
+      .from("sessions").select("id, started_at").eq("group_id", group.id)
+      .not("ended_at", "is", null).order("started_at", { ascending: false });
+    if (allSessions) {
+      const idx = allSessions.findIndex((s) => s.id === sessionIdParam);
+      if (idx >= 0) {
+        nextSessionId = idx > 0 ? allSessions[idx - 1].id : null;
+        prevSessionId = idx < allSessions.length - 1 ? allSessions[idx + 1].id : null;
+      }
+    }
+  } else if (mode === "last") {
+    const supabase = getServerClient();
+    const { data: lastId } = await supabase.rpc(RPC.GET_LAST_SESSION_ID, { p_join_code: group.join_code });
+    if (lastId) {
+      targetSessionId = lastId;
+      const { data: sessionStats } = await supabase.rpc(RPC.GET_SESSION_STATS, { p_session_id: lastId });
+      stats = (sessionStats ?? []) as PlayerStats[];
+      const { data: sessionRow } = await supabase.from("sessions").select("id, name").eq("id", lastId).maybeSingle();
+      sessionName = sessionRow?.name ?? null;
+      const { data: allSessions } = await supabase
+        .from("sessions").select("id, started_at").eq("group_id", group.id)
+        .not("ended_at", "is", null).order("started_at", { ascending: false });
+      if (allSessions) {
+        const idx = allSessions.findIndex((s) => s.id === lastId);
+        if (idx >= 0) {
+          nextSessionId = idx > 0 ? allSessions[idx - 1].id : null;
+          prevSessionId = idx < allSessions.length - 1 ? allSessions[idx + 1].id : null;
+        }
+      }
+    } else {
+      stats = [];
+    }
   } else {
     const days = mode === "30d" ? 30 : null;
     stats = await getGroupStats(group.join_code, days, "rdr");
   }
 
   const ratingsMap = await getGroupRatings(group.id);
+
+  function sessionNavHref(sid: string) {
+    return `/v/${group!.view_code}/leaderboard?range=last&session_id=${sid}`;
+  }
 
   return (
     <div className="flex flex-col px-4 py-8">
@@ -169,6 +189,39 @@ export default async function ViewLeaderboardPage({ params, searchParams }: Page
             Last Session
           </Link>
         </div>
+
+        {/* Session nav — prev/next for single-session mode */}
+        {mode === "last" && targetSessionId && (
+          <div className="space-y-2">
+            {sessionName && (
+              <p className="text-sm font-mono text-gray-600 text-center truncate">
+                {sessionName}
+              </p>
+            )}
+            <div className="flex items-center justify-between">
+              {prevSessionId ? (
+                <Link
+                  href={sessionNavHref(prevSessionId)}
+                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  &larr; Previous
+                </Link>
+              ) : (
+                <span className="text-xs text-gray-300">&larr; Previous</span>
+              )}
+              {nextSessionId ? (
+                <Link
+                  href={sessionNavHref(nextSessionId)}
+                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Next &rarr;
+                </Link>
+              ) : (
+                <span className="text-xs text-gray-300">Next &rarr;</span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         {stats.length === 0 ? (

@@ -54,7 +54,6 @@ export async function recordGameAction(
   }
 
   const winner = Math.max(teamAScore, teamBScore);
-  const loser = Math.min(teamAScore, teamBScore);
 
   if (teamAScore === teamBScore) {
     return { error: "Scores cannot be equal." };
@@ -64,7 +63,7 @@ export async function recordGameAction(
   const supabase = getServerClient();
   const { data: sessionData, error: sessionErr } = await supabase
     .from("sessions")
-    .select("target_points_default, win_by_default")
+    .select("target_points_default")
     .eq("id", sessionId)
     .single();
 
@@ -73,13 +72,9 @@ export async function recordGameAction(
   }
 
   const targetPoints = (sessionData as { target_points_default: number }).target_points_default;
-  const winBy = (sessionData as { win_by_default: number }).win_by_default;
 
   if (winner < targetPoints) {
     return { error: `Winning score must be at least ${targetPoints} (got ${winner}).` };
-  }
-  if (winner - loser < winBy) {
-    return { error: `Winning margin must be at least ${winBy} (got ${winner - loser}).` };
   }
 
   const { data, error } = await supabase.rpc(RPC.RECORD_GAME, {
@@ -123,7 +118,7 @@ export async function recordGameAction(
     gameId: result.game_id!,
     deltas: (result.deltas ?? []) as RdrDelta[],
     targetPoints: result.target_points ?? targetPoints,
-    winBy: result.win_by ?? winBy,
+    winBy: result.win_by ?? 1,
     undoExpiresAt: result.undo_expires_at!,
   };
 }

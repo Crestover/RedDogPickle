@@ -43,12 +43,8 @@ interface Props {
   sessionRules: { targetPoints: number; winBy: number };
 }
 
-/** Rule presets for the picker. */
-const RULE_PRESETS: { targetPoints: number; winBy: number; label: string }[] = [
-  { targetPoints: 11, winBy: 2, label: "11 · W2" },
-  { targetPoints: 15, winBy: 1, label: "15 · W1" },
-  { targetPoints: 21, winBy: 2, label: "21 · W2" },
-];
+/** Target-point presets for the picker. */
+const TARGET_PRESETS = [11, 15, 21] as const;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -558,28 +554,25 @@ export default function CourtsManager({
             onClick={() => setShowRulePicker(!showRulePicker)}
             className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
           >
-            {rules.targetPoints} &middot; win by {rules.winBy}
+            Game to {rules.targetPoints}
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-400">
               <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
             </svg>
           </button>
-          <p className="text-xs text-gray-400 leading-tight mt-1">
-            Set points + win-by rules for this session.
-          </p>
           {showRulePicker && (
             <div className="mt-2 flex gap-2">
-              {RULE_PRESETS.map((preset) => {
-                const isActive = preset.targetPoints === rules.targetPoints && preset.winBy === rules.winBy;
+              {TARGET_PRESETS.map((tp) => {
+                const isActive = tp === rules.targetPoints;
                 return (
                   <button
-                    key={preset.label}
+                    key={tp}
                     type="button"
                     onClick={() => {
                       setShowRulePicker(false);
-                      if (preset.targetPoints === rules.targetPoints && preset.winBy === rules.winBy) return;
-                      setRules({ targetPoints: preset.targetPoints, winBy: preset.winBy });
+                      if (tp === rules.targetPoints) return;
+                      setRules({ targetPoints: tp, winBy: 1 });
                       startTransition(async () => {
-                        const result = await setSessionRulesAction("full", sessionId, preset.targetPoints, preset.winBy);
+                        const result = await setSessionRulesAction("full", sessionId, tp, 1);
                         if ("error" in result) {
                           setGlobalError(result.error);
                           setRules(sessionRules);
@@ -595,7 +588,7 @@ export default function CourtsManager({
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300"
                     } disabled:opacity-50`}
                   >
-                    {preset.label}
+                    {tp}
                   </button>
                 );
               })}

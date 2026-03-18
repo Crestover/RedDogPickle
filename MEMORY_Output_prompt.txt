@@ -27,5 +27,7 @@ Logic Guardrails: Are there any "load-bearing" hacks or specific logic choices w
 
 External Dependencies: List any APIs, environment variables (names only), or 3rd party tools we are integrated with so the next session knows the "outside world" we connect to.
 
+Include a release checklist so that we don't miss any steps such as updating the version number in the page footer
+
 
 Format Rule: Output this as a single, copy-pastable code block. Use clear headings and bullet points. Do not provide conversational filler; just the data.

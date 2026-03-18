@@ -48,7 +48,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ### Git State
 - **Branch:** `dev` is 4 commits ahead of `main` (Phase 1 work)
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.5.0` (package.json, footer, changelog) — Phase 1 is internal refactor, no version bump yet
+- **Version:** `0.5.1` (package.json → footer via next.config.ts, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
@@ -58,7 +58,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
 | Production  | `main`        | Production        | v0.5.0 (pushed, pending m12.0 migration) |
-| Dev/Preview | `dev`         | Dev               | v0.5.1-dev (Phase 1 multi-sport, pending m12.0 + m13.0 migrations) |
+| Dev/Preview | `dev`         | Dev               | v0.5.1 (Phase 1 multi-sport, m13.0 applied) |
 
 ### Complete File Map
 
@@ -486,6 +486,18 @@ docs/                 # Architecture docs, how-tos, decisions, testing checklist
 ---
 
 ## The Validation Suite
+
+### Version Bump Checklist
+
+> **Every time the version number changes, ALL of these must be updated together.**
+> This includes new feature releases, patch releases, and any changelog updates.
+
+1. **`package.json`** — Update `"version"` field (this is the single source of truth)
+2. **Footer auto-updates** — `next.config.ts` reads `package.json` version into `NEXT_PUBLIC_APP_VERSION`, which `layout.tsx` renders in the global footer. No manual footer edit needed, but **Vercel must rebuild** for the change to take effect.
+3. **`CHANGELOG.md`** — Add version entry with technical details
+4. **`CHANGELOG_PUBLIC.md`** — Add version entry in plain English (user-facing, rendered at `/changelog_public`)
+5. **`MEMORY.md`** — Update the `Version` line under Git State, the Environments table, the Active Sprint Goal, and add a Milestone History entry
+6. **New migrations?** — If any new `.sql` files were added under `supabase/migrations/`, note them in the Pending migration line under Git State and alert the user to apply them before deploying
 
 ### Local Build Check
 ```bash

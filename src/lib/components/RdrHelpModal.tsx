@@ -130,14 +130,17 @@ export default function RdrHelpModal() {
                 </p>
               </section>
 
-              {/* Learn more link */}
-              <div className="pt-1">
+              {/* CTA */}
+              <div className="pt-2 space-y-2">
+                <p className="text-xs text-gray-400">
+                  Built for real games with real people &mdash; not theoretical rankings.
+                </p>
                 <Link
-                  href="/help"
+                  href="/help#rdr"
                   className="text-sm text-green-700 font-medium hover:text-green-800 transition-colors"
                   onClick={() => setOpen(false)}
                 >
-                  Learn more about Red Dog →
+                  Learn how ratings work →
                 </Link>
               </div>
             </div>

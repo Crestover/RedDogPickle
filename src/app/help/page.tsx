@@ -161,7 +161,7 @@ export default function HelpPage() {
 
         {/* RDR */}
         <section className="space-y-2">
-          <h2 className="text-base font-semibold text-gray-900">
+          <h2 id="rdr" className="text-base font-semibold text-gray-900 scroll-mt-8">
             RDR &mdash; Red Dog Rating
           </h2>
           <p className="text-sm text-gray-600 leading-relaxed">

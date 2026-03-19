@@ -89,7 +89,7 @@ function parseRange(range?: string): RangeMode {
 function emptyMessage(mode: RangeMode): string {
   if (mode === "30d") return "No games in the last 30 days.";
   if (mode === "last") return "No completed sessions yet.";
-  return "No games recorded yet.";
+  return "No games yet. Once you start playing, ratings will track performance across your group.";
 }
 
 export default async function LeaderboardPage({ params, searchParams }: PageProps) {
@@ -257,6 +257,9 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
             <h1 className="text-2xl font-bold">Leaderboard</h1>
             <RdrHelpModal />
           </div>
+          <p className="mt-1.5 text-xs text-gray-400">
+            Ratings update based on who you play and how you perform. More games = more accurate.
+          </p>
         </div>
 
         {/* Toggle — 3 pills */}

@@ -22,7 +22,13 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, isRe
   const losses = player.games_played - player.games_won;
 
   return (
-    <div className="rounded-xl bg-white border border-gray-200 px-4 py-3">
+    <div
+      className="rounded-xl bg-white border px-4 py-3"
+      style={isReigningGoat
+        ? { border: "1.5px solid rgba(245, 197, 66, 0.5)", background: "rgba(255, 215, 0, 0.035)" }
+        : { borderColor: "#e5e7eb" }
+      }
+    >
       {/* Top row: rank, code badge, name, W-L */}
       <div className="flex items-center gap-3">
         <span className="text-sm font-bold text-gray-400 w-6 text-right shrink-0">
@@ -32,19 +38,24 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, isRe
           {player.code}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 truncate">
+          <p className={`text-gray-900 truncate ${isReigningGoat ? "font-semibold" : "font-medium"}`}>
             {player.display_name}
             {isReigningGoat && (
               <span
-                className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none"
-                style={{ background: "linear-gradient(135deg, #FFD700, #F5C542)", color: "#1A1A1A" }}
+                className="ml-3 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none"
+                style={{
+                  background: "linear-gradient(135deg, #FFD700 0%, #F5C542 40%, #E0AC00 100%)",
+                  color: "#1A1A1A",
+                  letterSpacing: "0.3px",
+                  boxShadow: "0 0 0 1px rgba(245, 197, 66, 0.4), 0 2px 6px rgba(245, 197, 66, 0.25)",
+                }}
               >
                 👑 GOAT
               </span>
             )}
             {isAllTimeGoat && (
               <span
-                className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-600"
+                className="ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-600"
                 style={{ border: "1.5px solid #F5C542", background: "rgba(255, 215, 0, 0.04)" }}
               >
                 ALL-TIME

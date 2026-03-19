@@ -4,6 +4,7 @@ import type { PlayerStats, PlayerRating } from "@/lib/types";
 import { getGoatResult } from "@/lib/goat";
 import type { GoatCandidate } from "@/lib/goat";
 import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
+import RdrHelpModal from "@/lib/components/RdrHelpModal";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -179,7 +180,10 @@ export default async function ViewLeaderboardPage({ params, searchParams }: Page
           >
             &larr; {group.name}
           </Link>
-          <h1 className="mt-3 text-2xl font-bold">Leaderboard</h1>
+          <div className="mt-3 flex items-center gap-3">
+            <h1 className="text-2xl font-bold">Leaderboard</h1>
+            <RdrHelpModal />
+          </div>
         </div>
 
         {/* Toggle — 3 pills */}

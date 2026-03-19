@@ -171,7 +171,7 @@ describe("C. Preset rendering", () => {
 
 describe("D. Submit button visual state", () => {
   it("button shows gray styling when teams incomplete", () => {
-    const { container } = renderForm();
+    renderForm();
     const btn = screen.getByRole("button", { name: "Record Game" });
     // Gray when not ready
     expect(btn.className).toContain("bg-gray-200");

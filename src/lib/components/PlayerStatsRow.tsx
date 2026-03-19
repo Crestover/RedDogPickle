@@ -7,7 +7,7 @@
 
 import type { PlayerStats } from "@/lib/types";
 import { formatDiff } from "@/lib/formatting";
-import { getTier, tierColor, getConfidence, getConfidenceLabel, confidenceColor } from "@/lib/rdr";
+import { getTier, tierColor, getConfidence, getConfidenceLabel, confidenceColor, confidenceHint } from "@/lib/rdr";
 
 interface PlayerStatsRowProps {
   rank: number;
@@ -97,7 +97,10 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, rati
                   </span>
                 </div>
                 {confLabel && (
-                  <p className={`text-[10px] font-medium text-right ${confidenceColor(confLabel)}`}>
+                  <p
+                    className={`text-[10px] font-medium text-right ${confidenceColor(confLabel)}`}
+                    title={confidenceHint(confLabel)}
+                  >
                     {confLabel}
                   </p>
                 )}

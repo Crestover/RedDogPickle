@@ -36,6 +36,16 @@ export function getConfidenceLabel(confidence: number): ConfidenceLabel {
   return "Returning";
 }
 
+/** Short description for each confidence label (used in tooltips / title attrs). */
+export function confidenceHint(label: ConfidenceLabel): string {
+  switch (label) {
+    case "Locked In": return "Playing regularly. Rating is well-established.";
+    case "Active":    return "Playing often enough. Rating is reliable.";
+    case "Rusty":     return "Haven\u2019t played recently. Rating may adjust faster on return.";
+    case "Returning": return "Been away a while. Rating will adjust faster over the next few games.";
+  }
+}
+
 /** Tailwind text color classes for each confidence label. */
 export function confidenceColor(label: ConfidenceLabel): string {
   switch (label) {

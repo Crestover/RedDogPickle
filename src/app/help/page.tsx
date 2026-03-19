@@ -197,6 +197,30 @@ export default function HelpPage() {
           </p>
         </section>
 
+        {/* Confidence */}
+        <section className="space-y-2">
+          <h2 className="text-base font-semibold text-gray-900">
+            Confidence &amp; Inactivity
+          </h2>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Your rating <strong>never drops</strong> just because you stop
+            playing. Instead, the system tracks how confident it is in your
+            number. You&apos;ll see a small label on the leaderboard:
+          </p>
+          <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
+            <li><strong>Locked In</strong> &mdash; playing regularly, rating is well-established</li>
+            <li><strong>Active</strong> &mdash; playing often enough, rating is reliable</li>
+            <li><strong>Rusty</strong> &mdash; haven&apos;t played recently, rating may adjust faster</li>
+            <li><strong>Returning</strong> &mdash; been away a while, rating adjusts faster for the first few games back</li>
+          </ul>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            If you were a 1350 when you stopped and come back two months later,
+            you&apos;re still a 1350. The system just becomes less certain that
+            1350 is still right, so it adjusts faster &mdash; up or down &mdash;
+            based on how you actually play when you return.
+          </p>
+        </section>
+
         {/* Voids */}
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-gray-900">
@@ -264,6 +288,17 @@ export default function HelpPage() {
             <p className="text-sm text-gray-600">
               Yes. Duplicate detection helps prevent double entries across
               devices.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-gray-900">
+              Does my rating drop if I stop playing?
+            </h3>
+            <p className="text-sm text-gray-600">
+              No. Your rating stays the same. Only the system&apos;s confidence
+              in that number decreases. When you come back, it adjusts faster
+              to find your current level.
             </p>
           </div>
 

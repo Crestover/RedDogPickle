@@ -2,7 +2,7 @@ import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
 import { formatTime } from "@/lib/datetime";
-import type { PlayerStats, PlayerRating } from "@/lib/types";
+import type { PlayerStats, SessionRatingInfo } from "@/lib/types";
 import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -166,7 +166,7 @@ export default async function ViewSessionPage({ params, searchParams }: PageProp
   const activeTab = tab === "standings" ? "standings" : "games";
 
   let sessionStandings: PlayerStats[] = [];
-  const ratingsMap = new Map<string, PlayerRating>();
+  const ratingsMap = new Map<string, SessionRatingInfo>();
   if (activeTab === "standings") {
     const supabase = getServerClient();
     const { data: standingsData } = await supabase.rpc(
@@ -175,12 +175,13 @@ export default async function ViewSessionPage({ params, searchParams }: PageProp
     );
     sessionStandings = (standingsData ?? []) as PlayerStats[];
 
+    // SessionRatingInfo — no GOAT fields needed in session views
     const { data: ratingsData } = await supabase
       .from("player_ratings")
-      .select("group_id, player_id, rating, games_rated, provisional, rating_deviation, last_played_at, reacclimation_games_remaining")
+      .select("player_id, rating, games_rated, provisional, rating_deviation, last_played_at, reacclimation_games_remaining")
       .eq("group_id", group.id);
     for (const row of ratingsData ?? []) {
-      ratingsMap.set(row.player_id, row as PlayerRating);
+      ratingsMap.set(row.player_id, row as SessionRatingInfo);
     }
   }
 

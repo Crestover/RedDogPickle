@@ -49,6 +49,14 @@ async function getGroupStats(joinCode: string, days: number | null, sortBy: stri
   return (stats ?? []) as PlayerStats[];
 }
 
+/**
+ * Fetch full PlayerRating rows for the group.
+ *
+ * This is the authoritative source for current rating state (rating,
+ * RD, confidence, peak, reacclimation). Leaderboard pages need the
+ * full shape because GOAT computation requires peak_rating, games_rated,
+ * and updated_at. Session pages should use SessionRatingInfo instead.
+ */
 async function getGroupRatings(groupId: string): Promise<Map<string, PlayerRating>> {
   const supabase = getServerClient();
   const { data, error } = await supabase

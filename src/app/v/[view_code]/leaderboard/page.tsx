@@ -46,6 +46,7 @@ async function getGroupStats(joinCode: string, days: number | null, sortBy: stri
   return (stats ?? []) as PlayerStats[];
 }
 
+/** Full PlayerRating rows — needed for GOAT computation. See /g/ leaderboard. */
 async function getGroupRatings(groupId: string): Promise<Map<string, PlayerRating>> {
   const supabase = getServerClient();
   const { data, error } = await supabase

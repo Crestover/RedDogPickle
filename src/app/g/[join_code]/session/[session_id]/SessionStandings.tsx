@@ -7,9 +7,16 @@ import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 /**
  * Session Standings — Client Component (collapsible).
  *
- * Displays ranked player standings for a session using the same
- * card layout as the group leaderboard. Collapsed/expanded via
- * chevron toggle for fast courtside flow.
+ * ⚠️  CURRENTLY UNUSED — This component is not imported anywhere.
+ * The session detail page renders PlayerStatsRow directly.
+ * Kept for potential future use (e.g., dedicated standings route).
+ *
+ * If wiring this up, note that:
+ * - RatingInfo uses camelCase (`ratingDeviation`), but Supabase
+ *   returns snake_case (`rating_deviation`). The caller must map
+ *   fields when constructing the Record<string, RatingInfo>.
+ * - Consider using SessionRatingInfo from types.ts as the source
+ *   and mapping to RatingInfo at the boundary.
  */
 
 interface RatingInfo {

@@ -1188,7 +1188,7 @@ BEGIN
     pr.rating AS rdr,
     pr.peak_rating,
     pr.peak_rating_achieved_at,
-    pr.rating_deviation,
+    pr.rating_deviation,   -- currently unused by UI (reads from player_ratings directly); included for future confidence-based sorting/filtering
     pr.last_played_at
   FROM (
     SELECT

@@ -42,28 +42,32 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, rati
         <div className="flex-1 min-w-0">
           <p className={`text-gray-900 truncate ${isReigningGoat ? "font-semibold" : "font-medium"}`}>
             {player.display_name}
-            {isReigningGoat && (
-              <span
-                className="ml-3 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none"
-                style={{
-                  background: "linear-gradient(135deg, #FFD700 0%, #F5C542 40%, #E0AC00 100%)",
-                  color: "#1A1A1A",
-                  letterSpacing: "0.3px",
-                  boxShadow: "0 0 0 1px rgba(245, 197, 66, 0.4), 0 2px 6px rgba(245, 197, 66, 0.25)",
-                }}
-              >
-                👑 GOAT
-              </span>
-            )}
-            {isAllTimeGoat && (
-              <span
-                className="ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-600"
-                style={{ border: "1.5px solid #F5C542", background: "rgba(255, 215, 0, 0.04)" }}
-              >
-                ALL-TIME
-              </span>
-            )}
           </p>
+          {(isReigningGoat || isAllTimeGoat) && (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {isReigningGoat && (
+                <span
+                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none shrink-0"
+                  style={{
+                    background: "linear-gradient(135deg, #FFD700 0%, #F5C542 40%, #E0AC00 100%)",
+                    color: "#1A1A1A",
+                    letterSpacing: "0.3px",
+                    boxShadow: "0 0 0 1px rgba(245, 197, 66, 0.4), 0 2px 6px rgba(245, 197, 66, 0.25)",
+                  }}
+                >
+                  👑 GOAT
+                </span>
+              )}
+              {isAllTimeGoat && (
+                <span
+                  className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-600 shrink-0"
+                  style={{ border: "1.5px solid #F5C542", background: "rgba(255, 215, 0, 0.04)" }}
+                >
+                  ALL-TIME
+                </span>
+              )}
+            </div>
+          )}
           <p className="text-xs text-gray-500">
             {player.games_won}W–{losses}L
             <span className="mx-1.5 text-gray-300">·</span>

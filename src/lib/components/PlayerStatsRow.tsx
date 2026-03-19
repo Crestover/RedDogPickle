@@ -14,9 +14,11 @@ interface PlayerStatsRowProps {
   player: PlayerStats;
   rating?: number | null;
   provisional?: boolean;
+  isReigningGoat?: boolean;
+  isAllTimeGoat?: boolean;
 }
 
-export default function PlayerStatsRow({ rank, player, rating, provisional }: PlayerStatsRowProps) {
+export default function PlayerStatsRow({ rank, player, rating, provisional, isReigningGoat, isAllTimeGoat }: PlayerStatsRowProps) {
   const losses = player.games_played - player.games_won;
 
   return (
@@ -32,6 +34,16 @@ export default function PlayerStatsRow({ rank, player, rating, provisional }: Pl
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-900 truncate">
             {player.display_name}
+            {isReigningGoat && (
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-900">
+                GOAT
+              </span>
+            )}
+            {isAllTimeGoat && (
+              <span className="ml-1 inline-flex items-center rounded-full border border-amber-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-600">
+                ALL-TIME
+              </span>
+            )}
           </p>
           <p className="text-xs text-gray-500">
             {player.games_won}W–{losses}L

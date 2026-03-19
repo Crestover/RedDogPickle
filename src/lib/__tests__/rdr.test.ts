@@ -3,34 +3,34 @@ import { getTier, tierColor } from "../rdr";
 import type { RdrTier } from "../rdr";
 
 describe("getTier", () => {
-  it("returns Observer below 1100", () => {
-    expect(getTier(1099)).toBe("Observer");
-    expect(getTier(1000)).toBe("Observer");
+  it("returns Walk-On below 1100", () => {
+    expect(getTier(1099)).toBe("Walk-On");
+    expect(getTier(1000)).toBe("Walk-On");
   });
 
-  it("returns Practitioner at 1100", () => {
-    expect(getTier(1100)).toBe("Practitioner");
+  it("returns Challenger at 1100", () => {
+    expect(getTier(1100)).toBe("Challenger");
   });
 
-  it("returns Practitioner at 1199", () => {
-    expect(getTier(1199)).toBe("Practitioner");
+  it("returns Challenger at 1199", () => {
+    expect(getTier(1199)).toBe("Challenger");
   });
 
-  it("returns Strategist at 1200", () => {
-    expect(getTier(1200)).toBe("Strategist");
+  it("returns Contender at 1200", () => {
+    expect(getTier(1200)).toBe("Contender");
   });
 
-  it("returns Authority at 1300", () => {
-    expect(getTier(1300)).toBe("Authority");
+  it("returns All-Star at 1300", () => {
+    expect(getTier(1300)).toBe("All-Star");
   });
 
-  it("returns Architect at 1400", () => {
-    expect(getTier(1400)).toBe("Architect");
+  it("returns Elite at 1400", () => {
+    expect(getTier(1400)).toBe("Elite");
   });
 });
 
 describe("tierColor", () => {
-  const tiers: RdrTier[] = ["Observer", "Practitioner", "Strategist", "Authority", "Architect"];
+  const tiers: RdrTier[] = ["Walk-On", "Challenger", "Contender", "All-Star", "Elite"];
 
   for (const tier of tiers) {
     it(`returns non-empty string for ${tier}`, () => {

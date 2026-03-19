@@ -54,6 +54,9 @@ export interface PlayerRating {
   rating: number;
   games_rated: number;
   provisional: boolean;
+  peak_rating: number;
+  peak_rating_achieved_at: string | null;
+  updated_at?: string;
 }
 
 /** RDR delta returned by record_game / record_court_game. */

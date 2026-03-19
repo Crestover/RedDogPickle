@@ -1,6 +1,8 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import type { PlayerStats, PlayerRating } from "@/lib/types";
+import { getGoatResult } from "@/lib/goat";
+import type { GoatCandidate } from "@/lib/goat";
 import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -51,7 +53,7 @@ async function getGroupRatings(groupId: string): Promise<Map<string, PlayerRatin
   const supabase = getServerClient();
   const { data, error } = await supabase
     .from("player_ratings")
-    .select("group_id, player_id, rating, games_rated, provisional")
+    .select("group_id, player_id, rating, games_rated, provisional, peak_rating, peak_rating_achieved_at, updated_at")
     .eq("group_id", groupId);
 
   if (error) {
@@ -194,8 +196,31 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
   }
 
   // Fetch player ratings for display (needed for last-session mode which
-  // doesn't return rdr column, and for provisional flag)
+  // doesn't return rdr column, and for provisional flag + GOAT computation)
   const ratingsMap = await getGroupRatings(group.id);
+
+  // Compute GOAT designations (All-time mode only)
+  let reigningGoatPlayerId: string | null = null;
+  let allTimeGoatPlayerId: string | null = null;
+
+  if (mode === "all" && stats.length > 0) {
+    const goatCandidates: GoatCandidate[] = stats.map((s) => {
+      const pr = ratingsMap.get(s.player_id);
+      return {
+        player_id: s.player_id,
+        current_rdr: pr?.rating ?? 1200,
+        peak_rdr: pr?.peak_rating ?? 1200,
+        games_rated: pr?.games_rated ?? 0,
+        win_pct: s.win_pct,
+        point_diff: Number(s.point_diff),
+        peak_rating_achieved_at: pr?.peak_rating_achieved_at ?? null,
+        rating_achieved_at: pr?.updated_at ?? null,
+      };
+    });
+    const result = getGoatResult(goatCandidates);
+    reigningGoatPlayerId = result.reigningGoatPlayerId;
+    allTimeGoatPlayerId = result.allTimeGoatPlayerId;
+  }
 
   // Back link destination: context-aware
   const backHref = from
@@ -319,6 +344,8 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
                   player={player}
                   rating={rating}
                   provisional={pr?.provisional ?? false}
+                  isReigningGoat={player.player_id === reigningGoatPlayerId}
+                  isAllTimeGoat={player.player_id === allTimeGoatPlayerId}
                 />
               );
             })}

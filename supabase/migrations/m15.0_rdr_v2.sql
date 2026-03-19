@@ -962,7 +962,7 @@ BEGIN
            -- v2 fields: COALESCE for backward compat with v1 delta rows
            rating_deviation = COALESCE(v_delta_row.rd_before, rating_deviation),
            reacclimation_games_remaining = COALESCE(v_delta_row.reacclimation_before, reacclimation_games_remaining),
-           last_played_at = v_delta_row.last_played_before,
+           last_played_at = COALESCE(v_delta_row.last_played_before, last_played_at),
            updated_at  = now()
      WHERE group_id  = v_group_id
        AND player_id = v_delta_row.player_id;
@@ -1103,7 +1103,7 @@ BEGIN
            -- v2 fields: COALESCE for backward compat with v1 delta rows
            rating_deviation = COALESCE(v_delta_row.rd_before, rating_deviation),
            reacclimation_games_remaining = COALESCE(v_delta_row.reacclimation_before, reacclimation_games_remaining),
-           last_played_at = v_delta_row.last_played_before,
+           last_played_at = COALESCE(v_delta_row.last_played_before, last_played_at),
            updated_at  = now()
      WHERE group_id  = v_group_id
        AND player_id = v_delta_row.player_id;

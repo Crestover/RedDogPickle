@@ -72,7 +72,7 @@ export async function setupTestPlayers(admin: SupabaseClient, groupId: string, c
   const suffix = uniqueId();
 
   for (let i = 0; i < count; i++) {
-    const code = `T${suffix.slice(-4)}${String.fromCharCode(65 + i)}`; // e.g., T1234A
+    const code = `T${suffix.replace("-", "").slice(-6)}${String.fromCharCode(65 + i)}`; // e.g., T123456A
     const { data, error } = await admin
       .from("players")
       .insert({

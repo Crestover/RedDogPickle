@@ -26,6 +26,7 @@ import {
   setPlayerRD,
   setPlayerGamesRated,
   setPlayerRating,
+  setPlayerReacclimation,
   daysAgo,
 } from "./helpers";
 
@@ -191,11 +192,20 @@ describe("RDR v2 — inactivity & volatility", () => {
   it("inactive player gets larger delta than active player in same game", async () => {
     const { group, players, sessionId } = await freshGameEnv();
 
-    // Make player 0 inactive (90 days) with 5+ games
-    await setPlayerLastPlayedAt(admin, group.id, players[0].id, daysAgo(90));
-    await setPlayerGamesRated(admin, group.id, players[0].id, 10);
+    // Normalize all players to identical baseline state
+    for (const p of players) {
+      await setPlayerRating(admin, group.id, p.id, 1200);
+      await setPlayerRD(admin, group.id, p.id, 80);
+      await setPlayerGamesRated(admin, group.id, p.id, 10);
+      await setPlayerLastPlayedAt(admin, group.id, p.id, new Date().toISOString());
+      await setPlayerReacclimation(admin, group.id, p.id, 0);
+    }
 
-    // Player 2 is active (just played in freshGameEnv init)
+    // Make player 0 inactive (90 days) — but NOT 60+ days for reacclimation
+    // to avoid dampening confounding the volatility comparison.
+    // Use 45 days: past 14-day grace, gets RD inflation, but below 60-day
+    // reacclimation threshold.
+    await setPlayerLastPlayedAt(admin, group.id, players[0].id, daysAgo(45));
 
     const result = await recordGame(
       anon,
@@ -210,7 +220,7 @@ describe("RDR v2 — inactivity & volatility", () => {
     const inactiveDelta = Math.abs(deltas.find((d) => d.player_id === players[0].id)!.delta);
     const activeDelta = Math.abs(deltas.find((d) => d.player_id === players[2].id)!.delta);
 
-    // Core v2 promise: inactive players move more
+    // Core v2 promise: inactive players move more (higher volatility from RD inflation)
     expect(inactiveDelta).toBeGreaterThan(activeDelta);
   });
 
@@ -324,32 +334,43 @@ describe("RDR v2 — reacclimation buffer", () => {
   it("dampens volatility during reacclimation (game 1 < game 3 abs delta)", async () => {
     const { group, players, sessionId } = await freshGameEnv();
 
-    await setPlayerLastPlayedAt(admin, group.id, players[0].id, daysAgo(90));
-    await setPlayerGamesRated(admin, group.id, players[0].id, 10);
-
-    // Reset all to same rating for fair comparison
+    // Normalize all players to identical baseline
     for (const p of players) {
       await setPlayerRating(admin, group.id, p.id, 1200);
       await setPlayerRD(admin, group.id, p.id, 80);
+      await setPlayerGamesRated(admin, group.id, p.id, 10);
+      await setPlayerLastPlayedAt(admin, group.id, p.id, new Date().toISOString());
+      await setPlayerReacclimation(admin, group.id, p.id, 0);
     }
-    // Re-set player 0's state
-    await setPlayerRD(admin, group.id, players[0].id, 80);
+
+    // Trigger reacclimation for player 0: 90 days inactive, 10 games
     await setPlayerLastPlayedAt(admin, group.id, players[0].id, daysAgo(90));
 
+    // Game 1: reacclimation_games_remaining = 3 → factor 0.70
     const r1 = await recordGame(anon, sessionId,
       [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);
     const d1 = await getGameDeltas(admin, r1.game_id);
     const absDelta1 = Math.abs(d1.find((d) => d.player_id === players[0].id)!.delta);
 
-    // Reset player 0 rating to 1200 for game 3 comparison
-    // (games 2 is just to burn through reacclimation)
+    // Game 2: burn through reacclimation (factor 0.85)
+    // Reset all ratings and RDs to same baseline so conditions stay controlled
+    for (const p of players) {
+      await setPlayerRating(admin, group.id, p.id, 1200);
+      await setPlayerRD(admin, group.id, p.id, 80);
+    }
+    // Re-set player 0 inactive so inactivity inflation is the same as game 1
+    await setPlayerLastPlayedAt(admin, group.id, players[0].id, daysAgo(90));
     await recordGame(anon, sessionId,
       [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);
 
-    // Reset ratings again so game 3 has same starting conditions
+    // Game 3: reacclimation_games_remaining = 1 → factor 1.00 (no dampening)
+    // Reset all ratings and RDs again for apples-to-apples
     for (const p of players) {
       await setPlayerRating(admin, group.id, p.id, 1200);
+      await setPlayerRD(admin, group.id, p.id, 80);
     }
+    // Re-set player 0 inactive again so inactivity inflation matches game 1
+    await setPlayerLastPlayedAt(admin, group.id, players[0].id, daysAgo(90));
 
     const r3 = await recordGame(anon, sessionId,
       [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);

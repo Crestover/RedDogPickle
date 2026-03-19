@@ -131,7 +131,7 @@ export default async function RdrPage({ searchParams }: PageProps) {
             Built for real games with real people &mdash; not theoretical rankings.
           </p>
           <Link
-            href="/help#rdr"
+            href={from ? `/help?from=${encodeURIComponent(from)}#rdr` : "/help#rdr"}
             className="text-sm text-green-700 font-medium hover:text-green-800 transition-colors"
           >
             Full help guide →

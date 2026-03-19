@@ -6,16 +6,25 @@ export const metadata: Metadata = {
   title: "Help — Red Dog",
 };
 
-export default function HelpPage() {
+interface PageProps {
+  searchParams: Promise<{ from?: string }>;
+}
+
+export default async function HelpPage({ searchParams }: PageProps) {
+  const { from } = await searchParams;
+
+  const backHref = from ? decodeURIComponent(from) : "/";
+  const backLabel = from ? "Leaderboard" : "Home";
+
   return (
     <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-8">
         {/* Back link */}
         <Link
-          href="/"
+          href={backHref}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
-          &larr; Home
+          &larr; {backLabel}
         </Link>
 
         {/* Title */}

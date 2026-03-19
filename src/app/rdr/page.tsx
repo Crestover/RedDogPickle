@@ -10,17 +10,29 @@ export const metadata: Metadata = {
  *
  * Linked from leaderboard "What is RDR?" and confidence tooltips.
  * Follows the same layout pattern as /help.
+ *
+ * Accepts ?from= query param for context-aware back navigation
+ * (same pattern used by the leaderboard page).
  */
-export default function RdrPage() {
+
+interface PageProps {
+  searchParams: Promise<{ from?: string }>;
+}
+
+export default async function RdrPage({ searchParams }: PageProps) {
+  const { from } = await searchParams;
+
+  const backHref = from ? decodeURIComponent(from) : "/help";
+  const backLabel = from ? "Leaderboard" : "Help";
+
   return (
     <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
-        {/* Back link — goes to browser back since we don't know the source */}
         <Link
-          href="/help"
+          href={backHref}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
-          &larr; Help
+          &larr; {backLabel}
         </Link>
 
         <h1 className="text-2xl font-bold">Red Dog Rating (RDR)</h1>

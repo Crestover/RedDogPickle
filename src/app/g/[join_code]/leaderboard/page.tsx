@@ -255,7 +255,7 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           </Link>
           <div className="mt-3 flex items-center gap-3">
             <h1 className="text-2xl font-bold">Leaderboard</h1>
-            <RdrHelpLink />
+            <RdrHelpLink from={`/g/${group.join_code}/leaderboard`} />
           </div>
           <p className="mt-1.5 text-xs text-gray-400">
             Ratings update based on who you play and how you perform. More games = more accurate.

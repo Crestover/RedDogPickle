@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-03-17 — v0.5.1
+> Last updated: 2026-03-19 — v0.6.0
 
 ---
 
@@ -29,7 +29,9 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.5.1 — Multi-sport foundation (Phase 1) + test infrastructure.**
+**v0.6.0 — GOAT Badge System + Tier Renames.**
+
+v0.6.0: GOAT badge system — Reigning GOAT (👑 highest current RDR, 20+ games, Elite tier) and All-Time GOAT (highest peak RDR, 50+ games). Badges shown on All-time leaderboard tab only. Gold gradient pill with glow for Reigning GOAT, outlined gold pill for All-Time. GOAT row gets gold-tinted border + background. Deterministic tiebreaker chains (no ties). Peak rating tracked atomically in `record_game`, targeted peak repair on void/undo. Pure logic module `src/lib/goat.ts` (22 tests). Tier renames: Walk-On/Challenger/Contender/All-Star/Elite. Migration `m14.0_goat_peak_rating.sql`. Both `/g/` and `/v/` leaderboards updated.
 
 v0.5.1 (Phase 1): Sport abstraction layer (`SportConfig` interface, `getSportConfig()` registry). All pickleball-specific logic centralized in `src/lib/sports/pickleball.ts` — target presets, team sizes, court limits, validation, outcome derivation, rating inputs. Shared pure validators (`validators.ts`) used by both server actions and client components. DB migration adds `sport` column to `groups` table. Server actions fetch `group.sport` via joined query and validate through `sportConfig`. UI components receive serializable sport props (no function serialization). Deprecated `scoring.ts` removed — all callers migrated. Shared utilities: `pairKey()` deduplicated, `transformGameRecords()` centralized, `handleServerError()` structured logging, `constants/shared.ts` for app-wide timing constants. Vitest test infrastructure: 160 tests across 15 files covering scoring parity, server action validation, UI component behavior, and transformation backward compatibility. `robots.txt` blocks all crawling.
 
@@ -48,17 +50,17 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ### Git State
 - **Branch:** `dev` is 4 commits ahead of `main` (Phase 1 work)
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.5.1` (package.json → footer via next.config.ts, changelog)
+- **Version:** `0.6.0` (package.json → footer via next.config.ts, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
-- **Pending migration:** `m12.0_simplify_win_by.sql` (win-by removal) + `m13.0_sport_column.sql` (sport column) must be applied to Supabase before deploy
+- **Pending migration:** `m14.0_goat_peak_rating.sql` (peak_rating columns + RPC updates for GOAT system) must be applied to Supabase before deploy
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
 | Production  | `main`        | Production        | v0.5.0 (pushed, pending m12.0 migration) |
-| Dev/Preview | `dev`         | Dev               | v0.5.1 (Phase 1 multi-sport, m13.0 applied) |
+| Dev/Preview | `dev`         | Dev               | v0.6.0 (GOAT badges + tier renames, pending m14.0 migration) |
 
 ### Complete File Map
 
@@ -105,7 +107,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `g/[join_code]/players/new/page.tsx` | Server | Add player page: wraps AddPlayerForm |
 | `g/[join_code]/players/new/AddPlayerForm.tsx` | Client | Name + code input with auto-suggest code from name |
 | `g/[join_code]/sessions/page.tsx` | Server | Session history list with active/ended badges |
-| `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params. `from` param for context-aware back nav. `session_id` param for session browsing in Last Session mode with Previous/Next arrows. |
+| `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params. `from` param for context-aware back nav. `session_id` param for session browsing in Last Session mode with Previous/Next arrows. Computes GOAT designations on All-time view via `getGoatResult()`, passes `isReigningGoat`/`isAllTimeGoat` flags to `PlayerStatsRow`. |
 | `g/[join_code]/session/[session_id]/page.tsx` | Server | **Live Referee Console**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Ended sessions have Games/Standings tab toggle (`tab` query param); Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `PlayerStatsRow`. |
 | `g/[join_code]/session/[session_id]/ModeToggle.tsx` | Client | Segmented Manual/Courts toggle. **Stateless** — `mode` prop from route is source of truth, uses `<Link>`. Renders contextual subtitle ("Select teams directly" / "Manage multi-court rotation"). |
 | `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Receives `sportConfig: { targetPresets, playersPerTeam }` prop — no hardcoded sport constants. Uses shared `validateScores()`, `isSuspiciousScore()`, `isShutout()`, `deriveOutcome()` from `@/lib/sports/validators`. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). **M10.2**: Undo snackbar (8s countdown, LIFO queue), debounced refresh (1000ms). **v0.4.2**: Two-chip winner/loser preview (emerald/amber). **v0.5.0**: Suspicious score warning (`scoreWarningArmed` state, amber "Cancel"/"Record anyway" confirmation). |
@@ -121,7 +123,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `g/[join_code]/session/[session_id]/courts/CourtsManager.tsx` | Client | Full courts UI (1073+ lines). Receives `sportConfig: { targetPresets, playersPerTeam, maxCourts }` prop. Uses shared `isSuspiciousScore()` from `@/lib/sports/validators`. Global controls ABOVE court cards (Row 1: Courts ±count + Void; Row 2: Suggest All). Court cards, fairness summary, horizontal-scroll waiting chips with slot picker bottom sheet, On Court list, Inactive list. Inline pairing feedback in court cards. **v0.5.0**: Per-court suspicious score warning (`courtScoreWarnings` state). |
 | `g/[join_code]/session/[session_id]/courts/CourtsSetup.tsx` | Client | Initial court count selection. Receives `sportConfig: { playersPerCourt, maxCourts }` prop — no hardcoded 4/8 constants |
 | `v/[view_code]/page.tsx` | Server | **View-only dashboard**: Red Dog logo, group name display (with "Red Dog Group" fallback), "View-only link" label, active session banner, View Session + Leaderboard links, Session history link. No write CTAs. `join_code` pruned from `.select()` — never fetched or rendered. |
-| `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. Session browsing via `session_id` param with Previous/Next arrows. No "Start a Session" CTA. `join_code` kept in `.select()` for server-only RPC params (never rendered in JSX). |
+| `v/[view_code]/leaderboard/page.tsx` | Server | **View-only leaderboard**: Same data as `/g/` (3 range modes via `?range=`), `PlayerStatsRow`, ratings. Session browsing via `session_id` param with Previous/Next arrows. No "Start a Session" CTA. `join_code` kept in `.select()` for server-only RPC params (never rendered in JSX). Computes GOAT designations on All-time view. |
 | `v/[view_code]/sessions/page.tsx` | Server | **View-only session history**: Session list with active/ended badges. Links to `/v/` session detail. No "Start First Session" CTA. `join_code` pruned from `.select()`. |
 | `v/[view_code]/session/[session_id]/page.tsx` | Server | **View-only session detail**: Active (LIVE badge + "View-only" + last-game ticker + `EndedSessionGames`) and ended layouts with Games/Standings tab toggle. Mismatch protection: verifies session belongs to group. No write components. `join_code` pruned from `.select()`. |
 | `v/[view_code]/session/[session_id]/games/page.tsx` | Server | **View-only games list**: Wraps `<GamesList>` (already read-only). Back link to `/v/` session. `join_code` pruned from `.select()`. |
@@ -138,7 +140,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 #### `src/lib/` — Shared Utilities
 | File | Role |
 |------|------|
-| `types.ts` | Interfaces: PlayerStats, PairCount, Player, Group (includes `sport: Sport`), PlayerRating, Session, CourtData, AttendeeWithStatus, RpcResult<T>. Type: `Sport = "pickleball" \| "padel"` |
+| `types.ts` | Interfaces: PlayerStats, PairCount, Player, Group (includes `sport: Sport`), PlayerRating (includes `peak_rating`, `peak_rating_achieved_at`, `updated_at`), Session, CourtData, AttendeeWithStatus, RpcResult<T>. Type: `Sport = "pickleball" \| "padel"` |
 | `env.ts` | Environment variable validation (NEXT_PUBLIC_SUPABASE_URL, _ANON_KEY, optional NEXT_PUBLIC_SITE_URL) |
 | `datetime.ts` | Central timezone formatter: `APP_TIME_ZONE = "America/Chicago"`, `formatTime()`, `formatDate()`, `formatDateTime()`, `formatDateString()`. All UI time formatting must route through this file. Uses `Intl.DateTimeFormat` with explicit `timeZone`. |
 | `formatting.ts` | `formatDiff()` — formats numeric with +/- sign. `shortName()` — "first name + last initial" format |
@@ -157,8 +159,9 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
 | `supabase/rpc.ts` | RPC constant registry: 23 named constants (14 core incl `ENSURE_VIEW_CODE` + 9 courts) |
-| `rdr.ts` | Tier utility: `getTier(rdr)` → Observer/Practitioner/Strategist/Authority/Architect; `tierColor(tier)` → Tailwind classes |
-| `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier) |
+| `rdr.ts` | Tier utility: `getTier(rdr)` → Walk-On/Challenger/Contender/All-Star/Elite; `tierColor(tier)` → Tailwind classes |
+| `goat.ts` | GOAT logic: `GoatCandidate` interface, `isEligibleForReigningGoat()`, `isEligibleForAllTimeGoat()`, `getReigningGoat()`, `getAllTimeGoat()`, `getGoatResult()`. Pure functions with deterministic tiebreaker chains |
+| `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier). Optional `isReigningGoat`/`isAllTimeGoat` props for GOAT badge rendering (gold gradient pill + row highlight) |
 
 #### `src/app/globals.css`
 - Tailwind directives only (`@tailwind base/components/utilities`)
@@ -189,6 +192,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `migrations/m11.0_view_only_codes.sql` | View-only access codes: adds `view_code` + `view_code_created_at` columns to `groups`, unique index `idx_groups_view_code`, format constraint (`^[a-z0-9\-]+$`), `ensure_view_code(p_join_code)` SECURITY DEFINER RPC (generates `{join_code}-view` with collision handling, max 5 attempts). |
 | `migrations/m12.0_simplify_win_by.sql` | Simplify scoring: recreates `record_game` and `record_court_game` RPCs with relaxed validation — removes server-side win-by constraint. Target points still enforced. |
 | `migrations/m13.0_sport_column.sql` | Multi-sport foundation: adds `sport TEXT NOT NULL DEFAULT 'pickleball'` column to `groups` table with CHECK constraint `(sport IN ('pickleball', 'padel'))`. |
+| `migrations/m14.0_goat_peak_rating.sql` | GOAT badge system: adds `peak_rating` + `peak_rating_achieved_at` columns to `player_ratings`, backfills from `game_rdr_deltas`. Updates `record_game` with atomic peak tracking (`GREATEST`), `void_last_game` and `undo_game` with targeted peak repair, `get_group_stats` returns peak columns. Recreates `record_court_game` (unchanged, required due to DROP cascade). |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -203,6 +207,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 10. Run `m11.0_view_only_codes.sql` (view_code column + ensure_view_code RPC)
 11. Run `m12.0_simplify_win_by.sql` (relaxed score validation — removes win-by constraint from RPCs)
 12. Run `m13.0_sport_column.sql` (adds sport column to groups table)
+13. Run `m14.0_goat_peak_rating.sql` (peak_rating columns + GOAT RPC updates)
 
 ---
 
@@ -223,26 +228,29 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
    - K = 60 provisional (<20 games), 22 established
    - raw_delta = K * (actual - expected) * (1 + mov) * gap_mult
    - Clamped: ±40 provisional, ±25 established
-8. Persist to `game_rdr_deltas` (4 rows: game_id, player_id, delta, rdr_before, rdr_after, games_before, games_after)
-9. `search_path = public, extensions` (pgcrypto DIGEST lives in `extensions` schema on Supabase)
-10. Returns `{ status, game_id, target_points, win_by, undo_expires_at, deltas: [{player_id, delta, rdr_after}] }`
+8. **Peak tracking**: `peak_rating = GREATEST(peak_rating, new_rating)`, `peak_rating_achieved_at = CASE WHEN new > old THEN now() ELSE unchanged END`
+9. Persist to `game_rdr_deltas` (4 rows: game_id, player_id, delta, rdr_before, rdr_after, games_before, games_after)
+10. `search_path = public, extensions` (pgcrypto DIGEST lives in `extensions` schema on Supabase)
+11. Returns `{ status, game_id, target_points, win_by, undo_expires_at, deltas: [{player_id, delta, rdr_after}] }`
 
-### void_last_game (m10.0 — rating-correct LIFO)
+### void_last_game (m10.0, updated m14.0 — rating-correct LIFO + peak repair)
 1. Lock session row FOR UPDATE (concurrency safety)
 2. Find most recent non-voided game
 3. Verify exactly 4 un-voided delta rows in `game_rdr_deltas`
-4. Reverse ratings per player: `rating -= delta`, `games_rated = games_before`, `provisional = (games_before < 20)`
-5. Mark game `voided_at = now()` + mark delta rows `voided_at = now()`
-6. Return `{ status: 'voided', voided_game_id }`
+4. **Peak repair**: For each player, if voided game's `rdr_after >= peak_rating`, recompute peak from surviving non-voided deltas via `DISTINCT ON` query. If no surviving deltas, reset to 1200.
+5. Reverse ratings per player: `rating -= delta`, `games_rated = games_before`, `provisional = (games_before < 20)`
+6. Mark game `voided_at = now()` + mark delta rows `voided_at = now()`
+7. Return `{ status: 'voided', voided_game_id }`
 
-### undo_game (m10.2 — 8-second undo window)
+### undo_game (m10.2, updated m14.0 — 8-second undo window + peak repair)
 1. Lock game row FOR UPDATE (concurrency safety)
 2. Validate: not voided, `undo_expires_at IS NOT NULL`, `undo_expires_at >= now()`, session not ended
 3. Resolve group_id from session
-4. Reverse ALL non-voided deltas: loop `game_rdr_deltas WHERE voided_at IS NULL`, subtract delta from player rating, restore games_before
-5. Mark game `voided_at = now(), void_reason = 'undo'` + mark delta rows `voided_at = now()`
-6. Return `{ status: 'undone', game_id }`
-7. Idempotent: second concurrent caller finds voided_at set → rejects cleanly
+4. **Peak repair**: Same logic as void_last_game — recompute peak from surviving deltas if voided game matched peak
+5. Reverse ALL non-voided deltas: loop `game_rdr_deltas WHERE voided_at IS NULL`, subtract delta from player rating, restore games_before
+6. Mark game `voided_at = now(), void_reason = 'undo'` + mark delta rows `voided_at = now()`
+7. Return `{ status: 'undone', game_id }`
+8. Idempotent: second concurrent caller finds voided_at set → rejects cleanly
 
 ### Session Rules
 - **Session-level defaults**: `sessions.target_points_default` (11/15/21), `sessions.win_by_default` (columns still exist but win-by removed from UI in v0.5.0)
@@ -252,12 +260,19 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - **DB validation (m12.0)**: `record_game` and `record_court_game` RPCs no longer enforce win-by margin — only validates winner >= target_points.
 
 ### RDR Tier System (cosmetic, UI-only)
-- <1100: Observer (gray)
-- 1100-1199: Practitioner (blue)
-- 1200-1299: Strategist (green)
-- 1300-1399: Authority (yellow)
-- ≥1400: Architect (red)
+- <1100: Walk-On (gray)
+- 1100-1199: Challenger (blue)
+- 1200-1299: Contender (green)
+- 1300-1399: All-Star (yellow)
+- ≥1400: Elite (red)
 - Thresholds based on `Math.round(rating)` to avoid edge-case confusion
+
+### GOAT Badge System (v0.6.0)
+- **Reigning GOAT** (👑 GOAT): Highest current RDR. Eligibility: `games_rated >= 20` AND `Math.round(current_rdr) >= 1400` (Elite). Tiebreakers: current_rdr → games_rated → win_pct → point_diff → rating_achieved_at → player_id.
+- **All-Time GOAT** (ALL-TIME): Highest peak RDR ever. Eligibility: `games_rated >= 50`. Tiebreakers: peak_rdr → games_rated → current_rdr → win_pct → peak_rating_achieved_at → player_id.
+- Shown on All-time leaderboard tab only (not 30 Days or Last Session)
+- One player can hold both titles. Exactly one holder per title (deterministic, no ties)
+- Logic in `src/lib/goat.ts` — pure functions, no DB calls
 
 ### Rating Storage
 - `player_ratings.rating` is `numeric(7,2)` — stored with full precision
@@ -409,9 +424,9 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Apply m12.0 migration** — Run `m12.0_simplify_win_by.sql` on both Dev and Production Supabase instances. Required for v0.5.0 scoring changes.
+1. **Apply m14.0 migration** — Run `m14.0_goat_peak_rating.sql` on Dev Supabase instance. Required for GOAT badge system (peak_rating columns + RPC updates).
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code), all RPC function bodies (M7-M12.0), updated views, indexes.
+2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating), all RPC function bodies (M7-M14.0), updated views, indexes.
 
 3. **Decompose CourtsManager.tsx** — At 1073+ lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
 
@@ -479,7 +494,7 @@ src/
     *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest, pairingFeedback)
 supabase/
   schema.sql          # Canonical DB reference (STALE at ~M6)
-  migrations/         # Ordered SQL migrations (m0 → m11.0)
+  migrations/         # Ordered SQL migrations (m0 → m14.0)
 docs/                 # Architecture docs, how-tos, decisions, testing checklist
 ```
 
@@ -549,7 +564,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.5.0`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.6.0`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
@@ -578,6 +593,11 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Game cards in EndedSessionGames match GamesList layout (score + short names)
 - [ ] Player names in game cards show "Joe S." format (first name + last initial)
 - [ ] `/v/` routes mirror all new features (session tabs, leaderboard browsing) in read-only mode
+- [ ] Leaderboard All-time tab shows 👑 GOAT badge on Reigning GOAT (if eligible player exists)
+- [ ] Leaderboard All-time tab shows ALL-TIME badge (if eligible player exists)
+- [ ] GOAT row has gold-tinted border and background
+- [ ] GOAT badges do NOT appear on 30 Days or Last Session tabs
+- [ ] Tier badges show new names: Walk-On, Challenger, Contender, All-Star, Elite
 
 ---
 
@@ -655,7 +675,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `end_session` | DEFINER | `(p_session_id uuid)` | `void` | Sets ended_at + closed_reason='manual' |
 | `record_game` | DEFINER | `(p_session_id, p_team_a_ids[], p_team_b_ids[], p_team_a_score, p_team_b_score, p_force)` | `jsonb` | Atomic game recording with dedup. FOR UPDATE lock |
 | `get_session_stats` | INVOKER | `(p_session_id uuid)` | `TABLE(11 cols incl rdr)` | Session leaderboard. Sorted: win_pct → point_diff → rdr → name |
-| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?, p_sort_by text?)` | `TABLE(11 cols incl rdr)` | Group leaderboard. p_sort_by='rdr': rdr → win_pct → point_diff → name |
+| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?, p_sort_by text?)` | `TABLE(13 cols incl rdr, peak_rating, peak_rating_achieved_at)` | Group leaderboard. p_sort_by='rdr': rdr → win_pct → point_diff → name |
 | `get_last_session_id` | INVOKER | `(p_join_code text)` | `uuid` | Most recently ended session |
 | `get_session_pair_counts` | INVOKER | `(p_session_id uuid)` | `TABLE(5 cols)` | All attendee pairs + partner count |
 | `apply_ratings_for_game` | DEFINER | `(p_game_id uuid)` | `void` | Idempotent Elo update for one game |
@@ -691,7 +711,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `session_players` | session_id, player_id, **status**, inactive_effective_after_game | Status: ACTIVE or INACTIVE. Added in m8.0 |
 | `games` | id, session_id, sequence_num, scores, dedupe_key, voided_at, undo_expires_at | Immutable, soft-delete only. `undo_expires_at` for 8s undo window |
 | `game_players` | game_id, player_id, team ('A'/'B') | 4 rows per game |
-| `player_ratings` | group_id, player_id, rating, games_rated, provisional | Elo state |
+| `player_ratings` | group_id, player_id, rating, games_rated, provisional, peak_rating, peak_rating_achieved_at | Rating state + peak tracking for GOAT |
 | `rating_events` | game_id, player_id, pre/post_rating, delta, algo_version | Elo audit log, idempotent via UNIQUE |
 | `session_courts` | id, session_id, court_number, status, team_a_ids, team_b_ids | Added in m8.0. Status: OPEN or IN_PROGRESS |
 | `game_rdr_deltas` | game_id, player_id, group_id, delta, rdr_before, rdr_after, games_before, games_after, voided_at | Added in m10.0. Audit trail for rating-correct LIFO void |
@@ -719,6 +739,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.4.3 — View-Only Sharing | `3642fb7`→`2ec10b1` | View-only access codes (`/v/[view_code]` route tree, 5 pages), `ensure_view_code` RPC (m11.0), `AccessMode` guard on all write actions, "Copy view-only link" button, home page view_code redirect, Vercel Analytics `<Analytics />`. Security fix (`2ec10b1`): removed `join_code` from all `/v/` pages — dashboard shows `group.name`, `.select()` pruned in 4 files, leaderboard keeps `join_code` server-only for RPCs |
 | v0.5.0 — Session Browsing | `8981bf3`→`09d3427` | Suspicious score warning (Manual + Courts), End Session + footer nav in Courts Mode, context-aware leaderboard back nav (`from` param), session browsing in Last Session mode (`session_id` param + Prev/Next), Games/Standings tabs on ended sessions, unified game card layout (EndedSessionGames rewritten), "first name + last initial" name format, win-by removed from UI (m12.0 migration). All changes mirrored in `/v/` routes. |
 | v0.5.1 — Multi-Sport Phase 1 | `7233d8d`→`d98c410` | Sport abstraction layer (`SportConfig`, `getSportConfig()`, `validators.ts` shared pure validators), DB migration `m13.0` adds `sport` column, server actions use joined query for `group.sport`, UI components receive serializable sport props, deprecated `scoring.ts` removed, shared utilities (`pairKey`, `transformGameRecords`, `handleServerError`, `constants/shared.ts`), `robots.txt`, Vitest test infrastructure (160 tests/15 files). Zero UI/UX changes — internal refactor only. |
+| v0.6.0 — GOAT Badges + Tier Renames | `1d254a3`→`3e91e8c` | GOAT badge system: Reigning GOAT (👑 highest current RDR, 20+ games, Elite) + All-Time GOAT (highest peak RDR, 50+ games). Gold gradient pill with glow + row highlight. Peak rating tracked atomically in `record_game`, targeted peak repair on void/undo. Pure logic module `src/lib/goat.ts` (22 tests). Tier renames: Walk-On/Challenger/Contender/All-Star/Elite. Migration `m14.0`. Both `/g/` and `/v/` leaderboards updated. |
 
 ---
 

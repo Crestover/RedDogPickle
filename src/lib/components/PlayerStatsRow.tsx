@@ -34,31 +34,29 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, rati
           {player.code}
         </span>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 truncate">
-            {player.display_name}
-          </p>
-          {(isReigningGoat || isAllTimeGoat) && (
-            <div className="flex items-center gap-2 mt-0.5">
-              {isReigningGoat && (
-                <span className="inline-flex items-center text-xs font-semibold tracking-wide text-zinc-500 shrink-0">
-                  <svg className="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M2 4l3 12h14l3-12-5 4-5-4-5 4-1 0z" />
-                    <path d="M5 16h14v2H5z" />
-                  </svg>
-                  GOAT
-                </span>
-              )}
-              {isAllTimeGoat && (
-                <span className="inline-flex items-center text-xs font-semibold tracking-wide text-zinc-500 shrink-0">
-                  <svg className="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M2 4l3 12h14l3-12-5 4-5-4-5 4-1 0z" />
-                    <path d="M5 16h14v2H5z" />
-                  </svg>
-                  ALL-TIME
-                </span>
-              )}
-            </div>
-          )}
+          <div className="flex items-center min-w-0">
+            <span className="font-medium text-gray-900 truncate">
+              {player.display_name}
+            </span>
+            {isReigningGoat && (
+              <span className="inline-flex items-center ml-2 text-xs font-semibold tracking-wide text-zinc-700 shrink-0">
+                <svg className="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 4l3 12h14l3-12-5 4-5-4-5 4-1 0z" />
+                  <path d="M5 16h14v2H5z" />
+                </svg>
+                GOAT
+              </span>
+            )}
+            {isAllTimeGoat && (
+              <span className="inline-flex items-center ml-2 text-xs font-semibold tracking-wide text-zinc-700 shrink-0">
+                <svg className="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 4l3 12h14l3-12-5 4-5-4-5 4-1 0z" />
+                  <path d="M5 16h14v2H5z" />
+                </svg>
+                ALL-TIME
+              </span>
+            )}
+          </div>
           <p className="text-xs text-gray-500">
             {player.games_won}W–{losses}L
             <span className="mx-1.5 text-gray-300">·</span>

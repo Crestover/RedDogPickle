@@ -60,14 +60,14 @@ export function confidenceColor(label: ConfidenceLabel): string {
 export function tierColor(tier: RdrTier): string {
   switch (tier) {
     case "Walk-On":
-      return "bg-gray-100 text-gray-600";
+      return "bg-zinc-100 border border-zinc-200 text-zinc-500 font-medium";
     case "Challenger":
-      return "bg-blue-100 text-blue-700";
+      return "bg-zinc-100 border border-zinc-300 text-zinc-600 font-semibold";
     case "Contender":
-      return "bg-green-100 text-green-700";
+      return "bg-zinc-100 border border-zinc-300 text-zinc-700 font-semibold";
     case "All-Star":
-      return "bg-yellow-100 text-yellow-700";
+      return "bg-zinc-100 border border-zinc-400 text-zinc-900 font-semibold";
     case "Elite":
-      return "bg-red-100 text-red-700";
+      return "bg-zinc-100 border border-zinc-500 text-zinc-950 font-bold";
   }
 }

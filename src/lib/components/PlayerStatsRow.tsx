@@ -94,7 +94,7 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, rati
             return (
               <>
                 <div className="mt-0.5 flex items-center gap-1.5 justify-end">
-                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${tierColor(tier)}`}>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs leading-none ${tierColor(tier)}`}>
                     {tier}
                   </span>
                   <span className={`text-xs ${isReigningGoat ? "font-bold text-gray-700" : "text-gray-400"}`}>

@@ -67,7 +67,7 @@ export default function ConfidenceLabel({ label }: ConfidenceLabelProps) {
               {confidenceHint(label)}
             </p>
             <a
-              href="/help#rdr"
+              href="/rdr"
               className="mt-2 block text-[11px] text-green-700 font-medium hover:text-green-800"
             >
               Learn how ratings work →

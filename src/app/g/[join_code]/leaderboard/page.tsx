@@ -4,7 +4,7 @@ import type { PlayerStats, PlayerRating } from "@/lib/types";
 import { getGoatResult } from "@/lib/goat";
 import type { GoatCandidate } from "@/lib/goat";
 import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
-import RdrHelpModal from "@/lib/components/RdrHelpModal";
+import RdrHelpLink from "@/lib/components/RdrHelpLink";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -255,7 +255,7 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           </Link>
           <div className="mt-3 flex items-center gap-3">
             <h1 className="text-2xl font-bold">Leaderboard</h1>
-            <RdrHelpModal />
+            <RdrHelpLink />
           </div>
           <p className="mt-1.5 text-xs text-gray-400">
             Ratings update based on who you play and how you perform. More games = more accurate.

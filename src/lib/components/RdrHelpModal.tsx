@@ -15,10 +15,14 @@ export default function RdrHelpModal() {
   const [open, setOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to top whenever the modal opens
+  // Scroll to top whenever the modal opens (requestAnimationFrame
+  // ensures the DOM has laid out the content before scrolling)
   useEffect(() => {
     if (open && contentRef.current) {
-      contentRef.current.scrollTop = 0;
+      const el = contentRef.current;
+      requestAnimationFrame(() => {
+        el.scrollTop = 0;
+      });
     }
   }, [open]);
 

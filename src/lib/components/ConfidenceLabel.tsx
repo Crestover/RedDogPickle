@@ -60,7 +60,7 @@ export default function ConfidenceLabel({ label }: ConfidenceLabelProps) {
           />
           {/* Tooltip — fixed position to escape card overflow */}
           <div
-            className="fixed z-[70] w-56 rounded-xl bg-white border border-gray-200 px-3.5 py-3 shadow-lg"
+            className="fixed z-[70] w-60 rounded-xl bg-white border border-gray-200 px-4 py-3.5 shadow-lg"
             style={{ top: tooltipPos.top, right: tooltipPos.right }}
           >
             <p className="text-xs text-gray-700 leading-relaxed">

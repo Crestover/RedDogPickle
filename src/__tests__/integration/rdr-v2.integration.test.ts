@@ -350,7 +350,9 @@ describe("RDR v2 — reacclimation buffer", () => {
     const r1 = await recordGame(anon, sessionId,
       [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);
     const d1 = await getGameDeltas(admin, r1.game_id);
-    const absDelta1 = Math.abs(d1.find((d) => d.player_id === players[0].id)!.delta);
+    const p0d1 = d1.find((d) => d.player_id === players[0].id)!;
+    const absDelta1 = Math.abs(p0d1.delta);
+    const vol1 = p0d1.vol_multiplier;
 
     // Game 2: burn through reacclimation (factor 0.85)
     // Reset all ratings and RDs to same baseline so conditions stay controlled
@@ -375,10 +377,14 @@ describe("RDR v2 — reacclimation buffer", () => {
     const r3 = await recordGame(anon, sessionId,
       [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);
     const d3 = await getGameDeltas(admin, r3.game_id);
-    const absDelta3 = Math.abs(d3.find((d) => d.player_id === players[0].id)!.delta);
+    const p0d3 = d3.find((d) => d.player_id === players[0].id)!;
+    const absDelta3 = Math.abs(p0d3.delta);
+    const vol3 = p0d3.vol_multiplier;
 
-    // Game 3 should have larger delta (full volatility, no dampening)
-    // compared to game 1 (dampened by 0.70 factor)
+    // Direct vol_multiplier comparison: game 3 (no dampening) > game 1 (dampened 0.70)
+    expect(vol3).toBeGreaterThan(vol1);
+
+    // Delta comparison (consequence of above)
     expect(absDelta3).toBeGreaterThan(absDelta1);
   });
 
@@ -470,12 +476,14 @@ describe("RDR v2 — void/undo restoration", () => {
     const voidResult = await voidLastGame(anon, sessionId);
     expect(voidResult.status).toBe("voided");
 
-    // Verify full restoration
+    // Verify full restoration (including last_played_at)
     const afterVoid = await getPlayerRating(admin, group.id, players[0].id);
     expect(afterVoid.rating).toBeCloseTo(before.rating, 2);
     expect(afterVoid.games_rated).toBe(before.games_rated);
     expect(afterVoid.rating_deviation).toBeCloseTo(before.rating_deviation, 2);
     expect(afterVoid.reacclimation_games_remaining).toBe(before.reacclimation_games_remaining);
+    // last_played_at should restore to the pre-game value
+    expect(afterVoid.last_played_at).toBe(before.last_played_at);
   });
 
   it("undo restores rating, RD, and last_played_at", async () => {
@@ -495,11 +503,13 @@ describe("RDR v2 — void/undo restoration", () => {
     const undoResult = await undoGame(anon, result.game_id);
     expect(undoResult.status).toBe("undone");
 
-    // Verify restoration
+    // Verify restoration (including last_played_at)
     const afterUndo = await getPlayerRating(admin, group.id, players[0].id);
     expect(afterUndo.rating).toBeCloseTo(before.rating, 2);
     expect(afterUndo.games_rated).toBe(before.games_rated);
     expect(afterUndo.rating_deviation).toBeCloseTo(before.rating_deviation, 2);
+    expect(afterUndo.reacclimation_games_remaining).toBe(before.reacclimation_games_remaining);
+    expect(afterUndo.last_played_at).toBe(before.last_played_at);
   });
 });
 
@@ -513,28 +523,105 @@ describe("RDR v2 — new player", () => {
     const players = await setupTestPlayers(admin, group.id, 4);
     const sessionId = await setupTestSession(anon, group.join_code, players.map((p) => p.id));
 
-    // First game — all players are new (RD=120)
-    const result = await recordGame(
-      anon, sessionId,
-      [players[0].id, players[1].id],
-      [players[2].id, players[3].id],
-      11, 9,
-    );
+    // First game — creates player_ratings rows (all start with RD=120)
+    await recordGame(anon, sessionId,
+      [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);
+
+    // Make players 1-3 "established" (low RD, many games, recent play)
+    for (const p of [players[1], players[2], players[3]]) {
+      await setPlayerRD(admin, group.id, p.id, 55);
+      await setPlayerGamesRated(admin, group.id, p.id, 30);
+      await setPlayerLastPlayedAt(admin, group.id, p.id, new Date().toISOString());
+    }
+
+    // Reset player 0 to fresh new-player state (RD=120, 0 games)
+    await setPlayerRating(admin, group.id, players[0].id, 1200);
+    await setPlayerRD(admin, group.id, players[0].id, 120);
+    await setPlayerGamesRated(admin, group.id, players[0].id, 0);
+    await setPlayerLastPlayedAt(admin, group.id, players[0].id, null as unknown as string);
+    await setPlayerReacclimation(admin, group.id, players[0].id, 0);
+
+    // Set established player 2 to same rating for fair comparison
+    await setPlayerRating(admin, group.id, players[2].id, 1200);
+
+    const result = await recordGame(anon, sessionId,
+      [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);
 
     const deltas = await getGameDeltas(admin, result.game_id);
-    const d = deltas.find((d) => d.player_id === players[0].id)!;
+    const newPlayerDelta = deltas.find((d) => d.player_id === players[0].id)!;
+    const estPlayerDelta = deltas.find((d) => d.player_id === players[2].id)!;
 
-    // Started with RD=120 (column default)
-    expect(d.rd_before).toBe(120);
+    // New player started with RD=120
+    expect(newPlayerDelta.rd_before).toBe(120);
 
-    // Volatility should be > 1 (120/80 = 1.5, clamped to 1.5)
-    expect(d.vol_multiplier).toBeGreaterThan(1.0);
+    // Established player has low RD
+    expect(estPlayerDelta.rd_before).toBe(55);
 
-    // No reacclimation (< 5 games)
-    expect(d.reacclimation_before).toBe(0);
-    expect(d.reacclimation_after).toBe(0);
+    // New player's vol_multiplier should be higher
+    expect(newPlayerDelta.vol_multiplier).toBeGreaterThan(estPlayerDelta.vol_multiplier);
+
+    // New player's absolute delta should be larger
+    expect(Math.abs(newPlayerDelta.delta)).toBeGreaterThan(Math.abs(estPlayerDelta.delta));
+
+    // No reacclimation for new player (< 5 games)
+    expect(newPlayerDelta.reacclimation_before).toBe(0);
+    expect(newPlayerDelta.reacclimation_after).toBe(0);
 
     // RD decreased after game
-    expect(d.rd_after).toBeLessThan(120);
+    expect(newPlayerDelta.rd_after).toBeLessThan(120);
+  });
+});
+
+// ══════════════════════════════════════════════════════════════
+// 7. BACKWARD COMPATIBILITY — V1 DELTA ROWS
+// ══════════════════════════════════════════════════════════════
+
+describe("RDR v2 — v1 backward compatibility", () => {
+  it("void handles legacy delta rows with NULL v2 fields gracefully", async () => {
+    const { group, players, sessionId } = await freshGameEnv();
+
+    // Capture pre-game state
+    const before = await getPlayerRating(admin, group.id, players[0].id);
+
+    // Record a normal v2 game
+    const result = await recordGame(anon, sessionId,
+      [players[0].id, players[1].id], [players[2].id, players[3].id], 11, 9);
+
+    // Simulate a v1 delta row by NULLing out the v2-specific columns
+    // This mimics what legacy data looks like after migration
+    const { error: nullifyError } = await admin
+      .from("game_rdr_deltas")
+      .update({
+        rd_before: null,
+        rd_after: null,
+        vol_multiplier: null,
+        reacclimation_before: null,
+        reacclimation_after: null,
+        last_played_before: null,
+        last_played_after: null,
+        effective_rd_before: null,
+        algo_version: "rdr_v1",
+      })
+      .eq("game_id", result.game_id);
+
+    if (nullifyError) throw new Error(`Failed to nullify v2 fields: ${nullifyError.message}`);
+
+    // Capture state after game (but before void)
+    const afterGame = await getPlayerRating(admin, group.id, players[0].id);
+
+    // Void the game — should not crash, should restore rating and games_rated
+    const voidResult = await voidLastGame(anon, sessionId);
+    expect(voidResult.status).toBe("voided");
+
+    // Rating and games_rated should be restored (via delta subtraction)
+    const afterVoid = await getPlayerRating(admin, group.id, players[0].id);
+    expect(afterVoid.rating).toBeCloseTo(before.rating, 2);
+    expect(afterVoid.games_rated).toBe(before.games_rated);
+
+    // RD should be preserved (COALESCE keeps current value when rd_before is NULL)
+    expect(afterVoid.rating_deviation).toBe(afterGame.rating_deviation);
+
+    // Reacclimation should default to 0 (COALESCE fallback)
+    expect(afterVoid.reacclimation_games_remaining).toBe(0);
   });
 });

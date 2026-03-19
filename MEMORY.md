@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-03-19 — v0.6.0
+> Last updated: 2026-03-19 — v0.7.0
 
 ---
 
@@ -12,7 +12,7 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 - No login required (trust-based group access via join_code)
 - Immutable game history (soft-delete only via voided_at)
 - Cross-device duplicate prevention (SHA-256 fingerprint, 15-min window)
-- Session + group leaderboards with RDR (Red Dog Rating) — MOV + partner gap dampener
+- Session + group leaderboards with RDR v2 (Red Dog Rating) — confidence-based system with rating deviation, inactivity inflation, volatility multipliers, reacclimation buffer, and partner gap dampener
 - Courts Mode for multi-court auto-assignment with fairness algorithm
 - Live Referee Console — zero-scroll scoring with explicit A/B team buttons
 - Inline pairing feedback shows partner/matchup history during team selection
@@ -29,7 +29,9 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.6.0 — GOAT Badge System + Tier Renames.**
+**v0.7.0 — RDR v2: Confidence-Based Rating System.**
+
+v0.7.0: RDR v2 replaces binary K-factor with confidence-based volatility. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve (14-day grace, capped at 50). Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)` replaces K=60/22. Reacclimation buffer (3 games, 60-day trigger, 5-game minimum) dampens first-game whiplash on return. Informative RD recovery based on opponent confidence and game closeness. Tiered margin factor (0.95/1.00/1.08/1.10) replaces ln-based MOV. Uniform ±32 clamping. Confidence labels in UI: Locked In / Active / Rusty / Returning. Delta logging extended with `rd_before/after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after`. Migration `m15.0_rdr_v2.sql`. All leaderboard and session pages updated.
 
 v0.6.0: GOAT badge system — Reigning GOAT (👑 highest current RDR, 20+ games, Elite tier) and All-Time GOAT (highest peak RDR, 50+ games). Badges shown on All-time leaderboard tab only. Gold gradient pill with glow for Reigning GOAT, outlined gold pill for All-Time. GOAT row gets gold-tinted border + background. Deterministic tiebreaker chains (no ties). Peak rating tracked atomically in `record_game`, targeted peak repair on void/undo. Pure logic module `src/lib/goat.ts` (22 tests). Tier renames: Walk-On/Challenger/Contender/All-Star/Elite. Migration `m14.0_goat_peak_rating.sql`. Both `/g/` and `/v/` leaderboards updated.
 
@@ -50,17 +52,17 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ### Git State
 - **Branch:** `dev` is 4 commits ahead of `main` (Phase 1 work)
 - **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.6.0` (package.json → footer via next.config.ts, changelog)
+- **Version:** `0.7.0` (package.json → footer via next.config.ts, changelog)
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
-- **Pending migration:** `m14.0_goat_peak_rating.sql` (peak_rating columns + RPC updates for GOAT system) must be applied to Supabase before deploy
+- **Pending migration:** `m15.0_rdr_v2.sql` (RD columns, backfill, RPC updates for confidence-based rating system) must be applied to Supabase before deploy
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
 | Production  | `main`        | Production        | v0.5.0 (pushed, pending m12.0 migration) |
-| Dev/Preview | `dev`         | Dev               | v0.6.0 (GOAT badges + tier renames, pending m14.0 migration) |
+| Dev/Preview | `dev`         | Dev               | v0.7.0 (RDR v2 confidence system, pending m15.0 migration) |
 
 ### Complete File Map
 
@@ -159,9 +161,9 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
 | `supabase/helpers.ts` | `one()` — normalize FK join results (array or single object) |
 | `supabase/rpc.ts` | RPC constant registry: 23 named constants (14 core incl `ENSURE_VIEW_CODE` + 9 courts) |
-| `rdr.ts` | Tier utility: `getTier(rdr)` → Walk-On/Challenger/Contender/All-Star/Elite; `tierColor(tier)` → Tailwind classes |
+| `rdr.ts` | Tier + confidence utilities: `getTier(rdr)` → Walk-On/Challenger/Contender/All-Star/Elite; `tierColor(tier)` → Tailwind classes; `getConfidence(rd)` → 0–1 score; `getConfidenceLabel(conf)` → Locked In/Active/Rusty/Returning; `confidenceColor(label)` → Tailwind text classes |
 | `goat.ts` | GOAT logic: `GoatCandidate` interface, `isEligibleForReigningGoat()`, `isEligibleForAllTimeGoat()`, `getReigningGoat()`, `getAllTimeGoat()`, `getGoatResult()`. Pure functions with deterministic tiebreaker chains |
-| `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier). Optional `isReigningGoat`/`isAllTimeGoat` props for GOAT badge rendering (gold gradient pill + row highlight) |
+| `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier + confidence label). Optional `ratingDeviation` prop for confidence display, `isReigningGoat`/`isAllTimeGoat` props for GOAT badge rendering (gold gradient pill + row highlight) |
 
 #### `src/app/globals.css`
 - Tailwind directives only (`@tailwind base/components/utilities`)
@@ -193,6 +195,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `migrations/m12.0_simplify_win_by.sql` | Simplify scoring: recreates `record_game` and `record_court_game` RPCs with relaxed validation — removes server-side win-by constraint. Target points still enforced. |
 | `migrations/m13.0_sport_column.sql` | Multi-sport foundation: adds `sport TEXT NOT NULL DEFAULT 'pickleball'` column to `groups` table with CHECK constraint `(sport IN ('pickleball', 'padel'))`. |
 | `migrations/m14.0_goat_peak_rating.sql` | GOAT badge system: adds `peak_rating` + `peak_rating_achieved_at` columns to `player_ratings`, backfills from `game_rdr_deltas`. Updates `record_game` with atomic peak tracking (`GREATEST`), `void_last_game` and `undo_game` with targeted peak repair, `get_group_stats` returns peak columns. Recreates `record_court_game` (unchanged, required due to DROP cascade). |
+| `migrations/m15.0_rdr_v2.sql` | RDR v2 confidence system: adds `rating_deviation`, `last_played_at`, `reacclimation_games_remaining` to `player_ratings`. Adds `rd_before/after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after` to `game_rdr_deltas`. Backfills last_played_at from game history, initializes RD from inactivity formula. Replaces `record_game` (v2 algorithm: continuous RD inflation, volatility multiplier, reacclimation buffer, informative RD recovery, tiered margin factor, ±32 clamping), `void_last_game` + `undo_game` (restore RD state via COALESCE for v1 compat), `get_group_stats` (returns RD columns), `record_court_game` (unchanged, DROP cascade). |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -208,6 +211,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 11. Run `m12.0_simplify_win_by.sql` (relaxed score validation — removes win-by constraint from RPCs)
 12. Run `m13.0_sport_column.sql` (adds sport column to groups table)
 13. Run `m14.0_goat_peak_rating.sql` (peak_rating columns + GOAT RPC updates)
+14. Run `m15.0_rdr_v2.sql` (RD columns, backfill, v2 rating algorithm)
 
 ---
 
@@ -220,16 +224,20 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 4. SHA-256 fingerprint: sorted teams + min:max score + target_points + win_by (order-invariant, no time bucket)
 5. Duplicate check: same fingerprint within 15 min → returns `{ status: 'possible_duplicate', existing_game_id, existing_created_at }`
 6. Atomic sequence_num increment + INSERT games (with target_points, win_by) + 4 game_players
-7. **RDR math** (inline, atomic):
+7. **RDR v2 math** (inline, atomic):
+   - Read `rating`, `games_rated`, `rating_deviation`, `last_played_at`, `reacclimation_games_remaining` for all 4 players
+   - Compute effective RD for ALL 4 players first (inactivity inflation): `eff_rd = min(140, rd + min(50, 18 * ln(1 + max(0, days_inactive - 14) / 10)))`
    - Team avg = (p1_rating + p2_rating) / 2
    - Expected = 1 / (1 + 10^((opponent_avg - team_avg) / 400))
-   - MOV: d_norm = LEAST(abs_diff / target_points, 0.75), mov = LN(d_norm * 10 + 1)
-   - Partner gap dampener: <50→1.00, <100→0.85, <200→0.70, ≥200→0.55
-   - K = 60 provisional (<20 games), 22 established
-   - raw_delta = K * (actual - expected) * (1 + mov) * gap_mult
-   - Clamped: ±40 provisional, ±25 established
+   - Margin factor (replaces MOV): ≤2→0.95, 3-5→1.00, 6-8→1.08, ≥9→1.10
+   - Partner gap dampener (unchanged): <50→1.00, <100→0.85, <200→0.70, ≥200→0.55
+   - Volatility: `raw_vol = clamp(eff_rd / 80, 0.85, 1.60)`. Reacclimation dampening for returning players (60+ days, 5+ games): factor = 0.70/0.85/1.00 for games remaining 3/2/1+. `eff_vol = 1 + ((raw_vol - 1) * factor)`
+   - raw_delta = 20 * eff_vol * (actual - expected) * margin_factor * gap_mult
+   - Clamped: ±32 (uniform)
+   - RD recovery: `clamp(6 * opp_confidence * closeness, 4, 10)`, guarded by `<= eff_rd - 50`. `opp_confidence = clamp(80 / avg_opp_eff_rd, 0.75, 1.25)`, `closeness = 1.10/1.00/0.90`
+   - Update: `rating_deviation = new_rd`, `last_played_at = now()`, decrement reacclimation counter
 8. **Peak tracking**: `peak_rating = GREATEST(peak_rating, new_rating)`, `peak_rating_achieved_at = CASE WHEN new > old THEN now() ELSE unchanged END`
-9. Persist to `game_rdr_deltas` (4 rows: game_id, player_id, delta, rdr_before, rdr_after, games_before, games_after)
+9. Persist to `game_rdr_deltas` (4 rows: game_id, player_id, delta, rdr_before, rdr_after, games_before, games_after, algo_version='rdr_v2', rd_before, rd_after, effective_rd_before, vol_multiplier, reacclimation_before/after, last_played_before/after)
 10. `search_path = public, extensions` (pgcrypto DIGEST lives in `extensions` schema on Supabase)
 11. Returns `{ status, game_id, target_points, win_by, undo_expires_at, deltas: [{player_id, delta, rdr_after}] }`
 
@@ -238,7 +246,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 2. Find most recent non-voided game
 3. Verify exactly 4 un-voided delta rows in `game_rdr_deltas`
 4. **Peak repair**: For each player, if voided game's `rdr_after >= peak_rating`, recompute peak from surviving non-voided deltas via `DISTINCT ON` query. If no surviving deltas, reset to 1200.
-5. Reverse ratings per player: `rating -= delta`, `games_rated = games_before`, `provisional = (games_before < 20)`
+5. Reverse ratings + RD state per player: `rating -= delta`, `games_rated = games_before`, `provisional = (games_before < 20)`, `rating_deviation = COALESCE(rd_before, current)`, `reacclimation = COALESCE(reacclimation_before, current)`, `last_played_at = last_played_before`
 6. Mark game `voided_at = now()` + mark delta rows `voided_at = now()`
 7. Return `{ status: 'voided', voided_game_id }`
 
@@ -247,7 +255,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 2. Validate: not voided, `undo_expires_at IS NOT NULL`, `undo_expires_at >= now()`, session not ended
 3. Resolve group_id from session
 4. **Peak repair**: Same logic as void_last_game — recompute peak from surviving deltas if voided game matched peak
-5. Reverse ALL non-voided deltas: loop `game_rdr_deltas WHERE voided_at IS NULL`, subtract delta from player rating, restore games_before
+5. Reverse ALL non-voided deltas + RD state: loop `game_rdr_deltas WHERE voided_at IS NULL`, subtract delta from player rating, restore games_before, restore RD/reacclimation/last_played via COALESCE (v1 backward compat)
 6. Mark game `voided_at = now(), void_reason = 'undo'` + mark delta rows `voided_at = now()`
 7. Return `{ status: 'undone', game_id }`
 8. Idempotent: second concurrent caller finds voided_at set → rejects cleanly
@@ -274,6 +282,17 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - One player can hold both titles. Exactly one holder per title (deterministic, no ties)
 - Logic in `src/lib/goat.ts` — pure functions, no DB calls
 
+### RDR v2 Confidence System (v0.7.0)
+- **Rating deviation (RD)**: Hidden uncertainty per player. Range: 50 (Locked In) → 140 (max uncertainty). Stored in `player_ratings.rating_deviation`.
+- **Inactivity inflation**: After 14-day grace, `rd_bump = min(50, 18 * ln(1 + (days_inactive - 14) / 10))`. Logarithmic = fast rise early, slow later, capped.
+- **Volatility**: `raw_vol = clamp(eff_rd / 80, 0.85, 1.60)`. Replaces binary K=60/22. BASE_K = 20.
+- **Reacclimation**: 60+ days inactive AND games_rated >= 5 → 3-game buffer. Factor = 0.70 → 0.85 → 1.00. Applied as `eff_vol = 1 + ((raw_vol - 1) * factor)`.
+- **RD recovery**: `clamp(6 * opp_conf * closeness, 4, 10)` per game. `opp_conf = clamp(80 / avg_opp_eff_rd, 0.75, 1.25)`. `closeness = 1.10 (≤2) / 1.00 (3-5) / 0.90 (6+)`. Guard: `recovery <= eff_rd - 50`.
+- **Margin factor**: 0.95 (≤2 pts) / 1.00 (3-5) / 1.08 (6-8) / 1.10 (≥9). Replaces ln-based MOV.
+- **Confidence labels** (UI): Locked In (≥0.85) / Active (≥0.65) / Rusty (≥0.40) / Returning (<0.40). Computed as `1 - (rd - 50) / 90`.
+- **New player RD**: 120 (column default). Settles in ~5-8 games.
+- **Void/undo**: Restores RD, reacclimation, last_played_at from delta row's "before" values. COALESCE for v1 backward compat (NULL → keep current).
+
 ### Rating Storage
 - `player_ratings.rating` is `numeric(7,2)` — stored with full precision
 - UI displays `Math.round(rating)` everywhere (leaderboard, PlayerStatsRow, tier input)
@@ -283,7 +302,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - `apply_ratings_for_game` still exists but is no longer called (fire-and-forget removed)
 - `recompute_session_ratings` still exists but is no longer called (void uses LIFO reversal)
 - `rating_events` table still exists (not modified, no DELETE); cold start reset player_ratings only
-- K=40/20, no MOV, no partner gap — replaced by K=60/22 + MOV + gap dampener
+- K=40/20, no MOV, no partner gap — replaced by K=60/22 + MOV + gap dampener in v1, then by BASE_K=20 + volatility + margin factor in v2
 
 ### autoSuggest algorithm (autoSuggest.ts)
 1. Sort players by (games_played ASC, lastPlayedAt ASC)
@@ -332,6 +351,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - Streak tracking (win/loss streaks)
 - Rating history graph over time
 - Opponent pairing feedback (currently only partner counts)
+- Form 30 / Form 90 (recent performance metrics): minimum 3/5 games, "Who's Hot" leaderboard — deferred to v2+ after confidence system stabilizes
+- Per-player expectation vs opposing team (instead of team average) — accepted as v2 limitation, revisit if rating noise in mixed-skill pairings becomes a real product problem
 
 ### Structural Extensions
 - Player join/leave mid-session tracking
@@ -424,9 +445,9 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Apply m14.0 migration** — Run `m14.0_goat_peak_rating.sql` on Dev Supabase instance. Required for GOAT badge system (peak_rating columns + RPC updates).
+1. **Apply m15.0 migration** — Run `m15.0_rdr_v2.sql` on Dev Supabase instance. Required for RDR v2 confidence system (RD columns, backfill, v2 RPCs). Verify backfill: active players should have RD ~80, inactive players higher RD proportional to days since last game.
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating), all RPC function bodies (M7-M14.0), updated views, indexes.
+2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining), all RPC function bodies (M7-M15.0), updated views, indexes.
 
 3. **Decompose CourtsManager.tsx** — At 1073+ lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
 
@@ -494,7 +515,7 @@ src/
     *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest, pairingFeedback)
 supabase/
   schema.sql          # Canonical DB reference (STALE at ~M6)
-  migrations/         # Ordered SQL migrations (m0 → m14.0)
+  migrations/         # Ordered SQL migrations (m0 → m15.0)
 docs/                 # Architecture docs, how-tos, decisions, testing checklist
 ```
 
@@ -564,7 +585,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.6.0`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.7.0`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
@@ -598,6 +619,15 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] GOAT row has gold-tinted border and background
 - [ ] GOAT badges do NOT appear on 30 Days or Last Session tabs
 - [ ] Tier badges show new names: Walk-On, Challenger, Contender, All-Star, Elite
+- [ ] Confidence labels (Locked In / Active / Rusty / Returning) appear below RDR on leaderboard cards
+- [ ] Confidence labels appear on session standings pages
+- [ ] Confidence labels appear on `/v/` view-only leaderboard and session pages
+- [ ] Record a game: player `rating_deviation` decreases, `last_played_at` updates
+- [ ] Void a game: `rating_deviation`, `reacclimation_games_remaining`, `last_played_at` all restored to pre-game values
+- [ ] Undo a game (within 8s): same RD state restoration as void
+- [ ] New player gets RD = 120 on first game (column default)
+- [ ] Player inactive 60+ days with 5+ games: first game back shows dampened delta (reacclimation)
+- [ ] Footer shows `v0.7.0`, "Changes" link shows v0.7.0 entry
 
 ---
 
@@ -630,6 +660,12 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 13. **View-only route isolation**: `/v/` pages MUST NOT import any write components (RecordGameForm, EndSessionButton, VoidLastGameButton, StaleBanner, StartSessionForm, CourtsManager, CourtsSetup) or server actions from `@/app/actions`. They reuse read-only components (`EndedSessionGames`, `GamesList`, `PlayerStatsRow`) from `/g/`. All `<Link>` hrefs in `/v/` point to `/v/{view_code}/...` — never `/g/`. Defense-in-depth: all write actions require `AccessMode = "full"` as first param via `requireFullAccess()` guard.
 
 14. **`ensure_view_code` RPC normalizes input**: Always calls `lower(p_join_code)` internally. Never trust caller casing. SECURITY DEFINER with `SET search_path = public`.
+
+15. **RDR v2: Effective RD must be computed for ALL 4 players BEFORE any deltas or RD recovery**: If you compute them inline per-player, opponent RD values will be inconsistent. The `record_game` RPC computes `v_eff_rd_a1/a2/b1/b2` in a first pass, then uses those values for both volatility and opponent confidence calculations.
+
+16. **RDR v2: COALESCE on void/undo for v1 backward compat**: `game_rdr_deltas` rows from v1 have NULL for `rd_before`, `reacclimation_before`, `last_played_before`. The void/undo RPCs use `COALESCE(rd_before, rating_deviation)` to preserve current state when voiding v1 games. Removing the COALESCE would corrupt RD state.
+
+17. **RDR v2: Column default 120 on `rating_deviation`**: This is `NEW_PLAYER_RD`, not `RD_DEFAULT` (80). The upsert in `record_game` uses `ON CONFLICT DO NOTHING`, so new players automatically get RD=120 from the column default. Changing this default to 80 would make new players appear overly confident.
 
 ---
 
@@ -740,6 +776,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.5.0 — Session Browsing | `8981bf3`→`09d3427` | Suspicious score warning (Manual + Courts), End Session + footer nav in Courts Mode, context-aware leaderboard back nav (`from` param), session browsing in Last Session mode (`session_id` param + Prev/Next), Games/Standings tabs on ended sessions, unified game card layout (EndedSessionGames rewritten), "first name + last initial" name format, win-by removed from UI (m12.0 migration). All changes mirrored in `/v/` routes. |
 | v0.5.1 — Multi-Sport Phase 1 | `7233d8d`→`d98c410` | Sport abstraction layer (`SportConfig`, `getSportConfig()`, `validators.ts` shared pure validators), DB migration `m13.0` adds `sport` column, server actions use joined query for `group.sport`, UI components receive serializable sport props, deprecated `scoring.ts` removed, shared utilities (`pairKey`, `transformGameRecords`, `handleServerError`, `constants/shared.ts`), `robots.txt`, Vitest test infrastructure (160 tests/15 files). Zero UI/UX changes — internal refactor only. |
 | v0.6.0 — GOAT Badges + Tier Renames | `1d254a3`→`3e91e8c` | GOAT badge system: Reigning GOAT (👑 highest current RDR, 20+ games, Elite) + All-Time GOAT (highest peak RDR, 50+ games). Gold gradient pill with glow + row highlight. Peak rating tracked atomically in `record_game`, targeted peak repair on void/undo. Pure logic module `src/lib/goat.ts` (22 tests). Tier renames: Walk-On/Challenger/Contender/All-Star/Elite. Migration `m14.0`. Both `/g/` and `/v/` leaderboards updated. |
+| v0.7.0 — RDR v2 Confidence System | `ebeeb80`→`eba7a15` | Confidence-based rating system replacing binary K-factor. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve. Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)`. Reacclimation buffer (3 games) for 60-day returners. Informative RD recovery based on opponent confidence + game closeness. Tiered margin factor replaces ln-based MOV. Uniform ±32 clamping. Confidence labels: Locked In/Active/Rusty/Returning. Extended delta logging for observability. Migration `m15.0`. All leaderboard + session pages updated. |
 
 ---
 

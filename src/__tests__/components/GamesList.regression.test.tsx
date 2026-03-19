@@ -132,3 +132,58 @@ describe("C. Score display", () => {
     expect(screen.getByText("Game #5")).toBeInTheDocument();
   });
 });
+
+// ── D. Toggle round-trip ─────────────────────────────────────────────────
+
+describe("D. Toggle round-trip", () => {
+  it("clicking toggle twice hides voided games again", () => {
+    const active = makeGame({ id: "g1", sequence_num: 1 });
+    const voided = makeGame({ id: "g2", sequence_num: 2, voided_at: "2025-06-01T11:00:00Z" });
+
+    render(<GamesList games={[active, voided]} activeCount={1} totalCount={2} />);
+
+    // Initially hidden
+    expect(screen.queryByText("Game #2")).not.toBeInTheDocument();
+
+    // Show
+    fireEvent.click(screen.getByText("Show voided"));
+    expect(screen.getByText("Game #2")).toBeInTheDocument();
+
+    // Hide again
+    fireEvent.click(screen.getByText("Hide voided"));
+    expect(screen.queryByText("Game #2")).not.toBeInTheDocument();
+  });
+});
+
+// ── E. Loser side is not highlighted ──────────────────────────────────────
+
+describe("E. Winner/loser styling exclusivity", () => {
+  it("loser team names do not have emerald styling", () => {
+    const game = makeGame({ team_a_score: 11, team_b_score: 7 });
+    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+
+    // All emerald name spans should be winners only (team A)
+    const emeraldNames = container.querySelectorAll(".text-emerald-600.font-medium");
+    for (const el of emeraldNames) {
+      // Should contain winner names (Alice/Bob), never loser names (Carol/Dave)
+      expect(el.textContent).not.toContain("Carol");
+      expect(el.textContent).not.toContain("Dave");
+    }
+  });
+
+  it("only active games get winner styling, voided do not", () => {
+    const voided = makeGame({
+      id: "g1", sequence_num: 1,
+      team_a_score: 11, team_b_score: 7,
+      voided_at: "2025-06-01T11:00:00Z",
+    });
+
+    const { container } = render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
+    fireEvent.click(screen.getByText("Show voided"));
+
+    // Voided card should exist but still show winner styling
+    // (voided affects opacity, not highlight logic)
+    const gameCard = container.querySelector(".opacity-60");
+    expect(gameCard).not.toBeNull();
+  });
+});

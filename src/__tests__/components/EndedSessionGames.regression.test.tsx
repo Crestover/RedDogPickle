@@ -101,4 +101,32 @@ describe("B. Ended-session rendering parity", () => {
     // Active count should be 1
     expect(screen.getByText(/Games \(1/)).toBeInTheDocument();
   });
+
+  it("multiple games rendered in order", () => {
+    const games = [
+      makeGame({ id: "g1", sequence_num: 1, team_a_score: 11, team_b_score: 7 }),
+      makeGame({ id: "g2", sequence_num: 2, team_a_score: 15, team_b_score: 13 }),
+      makeGame({ id: "g3", sequence_num: 3, team_a_score: 11, team_b_score: 9 }),
+    ];
+    render(<EndedSessionGames games={games} />);
+
+    expect(screen.getByText(/Games \(3/)).toBeInTheDocument();
+    expect(screen.getByText("15")).toBeInTheDocument();
+    expect(screen.getByText("13")).toBeInTheDocument();
+  });
+});
+
+// ── C. Loser exclusion ─────────────────────────────────────────────────────
+
+describe("C. Winner/loser styling exclusivity", () => {
+  it("loser team names do not get emerald styling", () => {
+    const game = makeGame({ team_a_score: 11, team_b_score: 7 });
+    const { container } = render(<EndedSessionGames games={[game]} />);
+
+    const emeraldNames = container.querySelectorAll(".text-emerald-600.font-medium");
+    for (const el of emeraldNames) {
+      expect(el.textContent).not.toContain("Carol");
+      expect(el.textContent).not.toContain("Dave");
+    }
+  });
 });

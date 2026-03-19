@@ -1,13 +1,14 @@
 /**
  * RecordGameForm Regression Tests
  *
- * Proves winner preview, team-size enforcement, and preset rendering
- * remain correct after Phase 1 sport abstraction.
+ * Proves winner preview, team-size enforcement, preset rendering,
+ * submit gating, and validation remain correct.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import RecordGameForm from "@/app/g/[join_code]/session/[session_id]/RecordGameForm";
+import { recordGameAction } from "@/app/actions/games";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -163,5 +164,140 @@ describe("C. Preset rendering", () => {
     expect(screen.getByRole("button", { name: "11" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "15" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "21" })).not.toBeInTheDocument();
+  });
+});
+
+// ── D. Submit button visual state ─────────────────────────────────────────
+
+describe("D. Submit button visual state", () => {
+  it("button shows gray styling when teams incomplete", () => {
+    const { container } = renderForm();
+    const btn = screen.getByRole("button", { name: "Record Game" });
+    // Gray when not ready
+    expect(btn.className).toContain("bg-gray-200");
+    expect(btn.className).not.toContain("bg-green-600");
+  });
+
+  it("button shows gray styling when teams complete but scores empty", () => {
+    renderForm();
+
+    // Assign full teams
+    const aButtons = screen.getAllByRole("button", { name: "A" });
+    const bButtons = screen.getAllByRole("button", { name: "B" });
+    fireEvent.click(aButtons[0]);
+    fireEvent.click(aButtons[1]);
+    fireEvent.click(bButtons[2]);
+    fireEvent.click(bButtons[3]);
+
+    const btn = screen.getByRole("button", { name: "Record Game" });
+    expect(btn.className).toContain("bg-gray-200");
+  });
+
+  it("button turns green when teams complete and scores entered", () => {
+    renderForm();
+
+    const aButtons = screen.getAllByRole("button", { name: "A" });
+    const bButtons = screen.getAllByRole("button", { name: "B" });
+    fireEvent.click(aButtons[0]);
+    fireEvent.click(aButtons[1]);
+    fireEvent.click(bButtons[2]);
+    fireEvent.click(bButtons[3]);
+
+    fireEvent.change(screen.getByLabelText("Team A Score"), { target: { value: "11" } });
+    fireEvent.change(screen.getByLabelText("Team B Score"), { target: { value: "7" } });
+
+    const btn = screen.getByRole("button", { name: "Record Game" });
+    expect(btn.className).toContain("bg-green-600");
+    expect(btn.className).not.toContain("bg-gray-200");
+  });
+});
+
+// ── E. Validation errors on submit ─────────────────────────────────────────
+
+describe("E. Validation errors on submit", () => {
+  it("shows error when submitting with incomplete teams", () => {
+    renderForm();
+
+    // Only assign 1 player to team A
+    const aButtons = screen.getAllByRole("button", { name: "A" });
+    fireEvent.click(aButtons[0]);
+
+    fireEvent.change(screen.getByLabelText("Team A Score"), { target: { value: "11" } });
+    fireEvent.change(screen.getByLabelText("Team B Score"), { target: { value: "7" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
+
+    // Should show team validation error
+    expect(screen.getByText(/needs exactly 2 players/)).toBeInTheDocument();
+  });
+
+  it("shows error when submitting with missing scores", () => {
+    renderForm();
+
+    const aButtons = screen.getAllByRole("button", { name: "A" });
+    const bButtons = screen.getAllByRole("button", { name: "B" });
+    fireEvent.click(aButtons[0]);
+    fireEvent.click(aButtons[1]);
+    fireEvent.click(bButtons[2]);
+    fireEvent.click(bButtons[3]);
+
+    // No scores entered
+    fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
+
+    expect(screen.getByText(/Enter scores/i)).toBeInTheDocument();
+  });
+
+  it("does not call recordGameAction when validation fails", () => {
+    renderForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
+
+    expect(recordGameAction).not.toHaveBeenCalled();
+  });
+});
+
+// ── F. Successful submit calls action with correct payload ──────────────────
+
+describe("F. Submit action payload", () => {
+  it("calls recordGameAction with correct players and scores", async () => {
+    const mockResult = {
+      success: true,
+      gameId: "g1",
+      deltas: [],
+      targetPoints: 11,
+      winBy: 1,
+      undoExpiresAt: new Date(Date.now() + 8000).toISOString(),
+    };
+    vi.mocked(recordGameAction).mockResolvedValue(mockResult);
+
+    renderForm();
+
+    // Assign teams
+    const aButtons = screen.getAllByRole("button", { name: "A" });
+    const bButtons = screen.getAllByRole("button", { name: "B" });
+    fireEvent.click(aButtons[0]); // p1 → A
+    fireEvent.click(aButtons[1]); // p2 → A
+    fireEvent.click(bButtons[2]); // p3 → B
+    fireEvent.click(bButtons[3]); // p4 → B
+
+    // Enter scores
+    fireEvent.change(screen.getByLabelText("Team A Score"), { target: { value: "11" } });
+    fireEvent.change(screen.getByLabelText("Team B Score"), { target: { value: "7" } });
+
+    // Submit
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
+    });
+
+    expect(recordGameAction).toHaveBeenCalledWith(
+      "full",
+      "s1",          // sessionId
+      "abc",         // joinCode
+      ["p1", "p2"],  // teamA
+      ["p3", "p4"],  // teamB
+      11,            // scoreA
+      7,             // scoreB
+      false          // force
+    );
   });
 });

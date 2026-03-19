@@ -7,18 +7,19 @@
 
 import type { PlayerStats } from "@/lib/types";
 import { formatDiff } from "@/lib/formatting";
-import { getTier, tierColor } from "@/lib/rdr";
+import { getTier, tierColor, getConfidence, getConfidenceLabel, confidenceColor } from "@/lib/rdr";
 
 interface PlayerStatsRowProps {
   rank: number;
   player: PlayerStats;
   rating?: number | null;
   provisional?: boolean;
+  ratingDeviation?: number | null;
   isReigningGoat?: boolean;
   isAllTimeGoat?: boolean;
 }
 
-export default function PlayerStatsRow({ rank, player, rating, provisional, isReigningGoat, isAllTimeGoat }: PlayerStatsRowProps) {
+export default function PlayerStatsRow({ rank, player, rating, provisional, ratingDeviation, isReigningGoat, isAllTimeGoat }: PlayerStatsRowProps) {
   const losses = player.games_played - player.games_won;
 
   return (
@@ -83,15 +84,24 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, isRe
           <p className="text-xs text-gray-400">pt diff</p>
           {rating != null && (() => {
             const tier = getTier(rating);
+            const conf = ratingDeviation != null ? getConfidence(ratingDeviation) : null;
+            const confLabel = conf != null ? getConfidenceLabel(conf) : null;
             return (
-              <div className="mt-0.5 flex items-center gap-1.5 justify-end">
-                <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${tierColor(tier)}`}>
-                  {tier}
-                </span>
-                <span className={`text-xs ${isReigningGoat ? "font-bold text-gray-700" : "text-gray-400"}`}>
-                  {Math.round(rating)}{provisional ? "*" : ""} RDR
-                </span>
-              </div>
+              <>
+                <div className="mt-0.5 flex items-center gap-1.5 justify-end">
+                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${tierColor(tier)}`}>
+                    {tier}
+                  </span>
+                  <span className={`text-xs ${isReigningGoat ? "font-bold text-gray-700" : "text-gray-400"}`}>
+                    {Math.round(rating)}{provisional && ratingDeviation == null ? "*" : ""} RDR
+                  </span>
+                </div>
+                {confLabel && (
+                  <p className={`text-[10px] font-medium text-right ${confidenceColor(confLabel)}`}>
+                    {confLabel}
+                  </p>
+                )}
+              </>
             );
           })()}
         </div>

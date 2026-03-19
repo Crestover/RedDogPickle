@@ -15,6 +15,7 @@ import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 interface RatingInfo {
   rating: number;
   provisional: boolean;
+  ratingDeviation?: number;
 }
 
 interface SessionStandingsProps {
@@ -54,6 +55,7 @@ export default function SessionStandings({ standings, ratings }: SessionStanding
                 player={player}
                 rating={pr?.rating ?? null}
                 provisional={pr?.provisional ?? false}
+                ratingDeviation={pr?.ratingDeviation ?? null}
               />
             );
           })}

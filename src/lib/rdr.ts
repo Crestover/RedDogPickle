@@ -1,11 +1,17 @@
 /**
- * RDR (Red Dog Rating) tier utilities.
+ * RDR (Red Dog Rating) tier and confidence utilities.
  *
  * Cosmetic tier system based on player rating.
  * Thresholds use Math.round(rating) to avoid "Elite at 1399.6" confusion.
+ *
+ * Confidence system (v2) based on rating deviation (RD).
+ * RD is a hidden uncertainty measure: lower = more confident.
+ * Constants: RD_MIN=50, RD_MAX=140.
  */
 
 export type RdrTier = "Walk-On" | "Challenger" | "Contender" | "All-Star" | "Elite";
+
+export type ConfidenceLabel = "Locked In" | "Active" | "Rusty" | "Returning";
 
 /** Map a numeric RDR rating to its cosmetic tier. */
 export function getTier(rdr: number): RdrTier {
@@ -15,6 +21,29 @@ export function getTier(rdr: number): RdrTier {
   if (rounded < 1300) return "Contender";
   if (rounded < 1400) return "All-Star";
   return "Elite";
+}
+
+/** Compute confidence score (0–1) from rating deviation. Higher = more confident. */
+export function getConfidence(rd: number): number {
+  return Math.max(0, Math.min(1, 1 - (rd - 50) / 90));
+}
+
+/** Map confidence score to a human-readable label. */
+export function getConfidenceLabel(confidence: number): ConfidenceLabel {
+  if (confidence >= 0.85) return "Locked In";
+  if (confidence >= 0.65) return "Active";
+  if (confidence >= 0.40) return "Rusty";
+  return "Returning";
+}
+
+/** Tailwind text color classes for each confidence label. */
+export function confidenceColor(label: ConfidenceLabel): string {
+  switch (label) {
+    case "Locked In": return "text-green-600";
+    case "Active":    return "text-gray-500";
+    case "Rusty":     return "text-yellow-600";
+    case "Returning": return "text-orange-500";
+  }
 }
 
 /** Tailwind classes for each tier's badge. */

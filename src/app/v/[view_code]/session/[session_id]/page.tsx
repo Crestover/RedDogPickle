@@ -177,7 +177,7 @@ export default async function ViewSessionPage({ params, searchParams }: PageProp
 
     const { data: ratingsData } = await supabase
       .from("player_ratings")
-      .select("group_id, player_id, rating, games_rated, provisional")
+      .select("group_id, player_id, rating, games_rated, provisional, rating_deviation, last_played_at, reacclimation_games_remaining")
       .eq("group_id", group.id);
     for (const row of ratingsData ?? []) {
       ratingsMap.set(row.player_id, row as PlayerRating);
@@ -259,6 +259,7 @@ export default async function ViewSessionPage({ params, searchParams }: PageProp
                       player={player}
                       rating={rating}
                       provisional={pr?.provisional ?? false}
+                      ratingDeviation={pr?.rating_deviation ?? null}
                     />
                   );
                 })}

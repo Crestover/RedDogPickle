@@ -18,6 +18,8 @@ export interface PlayerStats {
   point_diff: number;
   avg_point_diff: number;
   rdr?: number | null;
+  rating_deviation?: number | null;
+  last_played_at?: string | null;
 }
 
 /** Returned by get_session_pair_counts RPC. */
@@ -56,6 +58,9 @@ export interface PlayerRating {
   provisional: boolean;
   peak_rating: number;
   peak_rating_achieved_at: string | null;
+  rating_deviation: number;
+  last_played_at: string | null;
+  reacclimation_games_remaining: number;
   updated_at?: string;
 }
 

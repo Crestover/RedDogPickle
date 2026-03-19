@@ -50,7 +50,7 @@ async function getGroupRatings(groupId: string): Promise<Map<string, PlayerRatin
   const supabase = getServerClient();
   const { data, error } = await supabase
     .from("player_ratings")
-    .select("group_id, player_id, rating, games_rated, provisional, peak_rating, peak_rating_achieved_at, updated_at")
+    .select("group_id, player_id, rating, games_rated, provisional, peak_rating, peak_rating_achieved_at, rating_deviation, last_played_at, reacclimation_games_remaining, updated_at")
     .eq("group_id", groupId);
 
   if (error) {
@@ -267,6 +267,7 @@ export default async function ViewLeaderboardPage({ params, searchParams }: Page
                   player={player}
                   rating={rating}
                   provisional={pr?.provisional ?? false}
+                  ratingDeviation={pr?.rating_deviation ?? null}
                   isReigningGoat={player.player_id === reigningGoatPlayerId}
                   isAllTimeGoat={player.player_id === allTimeGoatPlayerId}
                 />

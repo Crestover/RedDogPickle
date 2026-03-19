@@ -1030,6 +1030,79 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [v0.7.0] — RDR v2: Confidence-Based Rating System (2026-03-19)
+
+### Added
+- **Rating deviation (RD)** — Hidden uncertainty measure per player (`rating_deviation` column on `player_ratings`). Lower RD = more confident rating. Range: 50 (locked in) to 140 (max uncertainty).
+- **Continuous inactivity inflation** — RD increases smoothly after a 14-day grace period using a logarithmic curve: `min(50, 18 * ln(1 + days_inactive_eff / 10))`. No cliff effects at day boundaries.
+- **Volatility multiplier** — Replaces the binary K-factor system (60/22). New formula: `BASE_K(20) * clamp(effective_rd / 80, 0.85, 1.60)`. Higher RD = bigger rating moves.
+- **Reacclimation buffer** — Players returning after 60+ days of inactivity (with 5+ games) get a 3-game dampening window. Volatility excess is scaled by 0.70 → 0.85 → 1.00 to reduce first-game whiplash.
+- **Informative RD recovery** — RD decreases per game based on game quality, not a flat constant. Formula: `clamp(6 * opponent_confidence * closeness, 4, 10)`. Close games against well-known opponents restore confidence faster.
+- **Confidence labels** — UI shows player confidence state on all leaderboards and session standings:
+  - **Locked In** (green, RD ≤ ~58): Highly stable rating
+  - **Active** (gray, RD ≤ ~77): Normal confidence
+  - **Rusty** (yellow, RD ≤ ~94): Hasn't played recently
+  - **Returning** (orange, RD > ~94): Long break, rating will adjust quickly
+- **Precise margin factor** — Replaces the v1 `ln(d_norm * 10 + 1)` MOV formula with explicit tiers tied to point differential:
+  - ≤2 pts: 0.95 (close game dampening)
+  - 3–5 pts: 1.00 (neutral)
+  - 6–8 pts: 1.08 (moderate blowout)
+  - ≥9 pts: 1.10 (cap — reduced from 1.12 for stability)
+- **Rating event observability** — `game_rdr_deltas` now logs `rd_before`, `rd_after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after`, and `algo_version = 'rdr_v2'` for debugging and auditing.
+- **Confidence utilities** (`src/lib/rdr.ts`): `getConfidence()`, `getConfidenceLabel()`, `confidenceColor()` pure functions for UI rendering.
+- **`last_played_at`** column on `player_ratings` — Tracks when each player last played for inactivity computation.
+- **`reacclimation_games_remaining`** column on `player_ratings` — Persists reacclimation buffer state across games.
+
+### Changed
+- **`record_game` RPC** — Complete rewrite of the rating computation section (step 12). Key differences from v1:
+  - All 4 players' effective RDs computed before any deltas (consistent opponent RD values)
+  - Margin factor replaces MOV
+  - Volatility multiplier replaces binary K-factor
+  - Reacclimation dampening applied for returning players
+  - RD recovery replaces flat constant
+  - Uniform ±32 clamping (was ±40 provisional / ±25 established)
+  - Writes RD state + observability columns to `game_rdr_deltas`
+- **`void_last_game` RPC** — Extended to restore `rating_deviation`, `reacclimation_games_remaining`, and `last_played_at` from delta row's "before" values. Uses COALESCE for backward compatibility with v1 delta rows.
+- **`undo_game` RPC** — Same RD state restoration as `void_last_game`.
+- **`get_group_stats` RPC** — Now returns `rating_deviation` and `last_played_at` columns.
+- **`PlayerStatsRow`** — New `ratingDeviation` prop; displays confidence label below RDR tier badge. Provisional asterisk only shown as fallback when RD is unavailable.
+- **Leaderboard pages** (`/g/` and `/v/`): `getGroupRatings` query extended to include `rating_deviation`, `last_played_at`, `reacclimation_games_remaining`. Passes `ratingDeviation` to `PlayerStatsRow`.
+- **Session detail pages** (`/g/` and `/v/`): Same query and prop extensions.
+- **`SessionStandings`**: `RatingInfo` interface extended with optional `ratingDeviation` field.
+- **`PlayerRating` type** (`src/lib/types.ts`): Added `rating_deviation`, `last_played_at`, `reacclimation_games_remaining`.
+- **`PlayerStats` type** (`src/lib/types.ts`): Added optional `rating_deviation`, `last_played_at`.
+- **`package.json`**: Version bumped to `0.7.0`.
+
+### Constants
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| BASE_K | 20 | Base rating adjustment per game |
+| RD_MIN | 50 | Minimum rating deviation (most confident) |
+| RD_DEFAULT | 80 | Steady-state RD for active players |
+| RD_MAX | 140 | Maximum rating deviation (least confident) |
+| NEW_PLAYER_RD | 120 | Starting RD for new players |
+| INACTIVITY_GRACE_DAYS | 14 | Days before RD inflation begins |
+| RD_INACTIVITY_SCALE | 18 | Logarithmic inflation coefficient |
+| RD_INACTIVITY_DIVISOR | 10 | Logarithmic inflation divisor |
+| RD_INACTIVITY_CAP | 50 | Maximum RD bump from inactivity |
+| VOL_MULT_MIN | 0.85 | Minimum volatility multiplier |
+| VOL_MULT_MAX | 1.60 | Maximum volatility multiplier |
+| DELTA_CLAMP | ±32 | Maximum rating change per game |
+| REACCLIMATION_THRESHOLD | 60 days | Inactivity threshold to trigger buffer |
+| REACCLIMATION_MIN_GAMES | 5 | Minimum games to qualify for reacclimation |
+
+### Migration required
+- `m15.0_rdr_v2.sql` must be applied to Supabase — adds RD columns, backfills from game history, replaces `record_game`, `record_court_game`, `void_last_game`, `undo_game`, and `get_group_stats` RPCs.
+
+### Design decisions
+- **Confidence decays, not rating** — Player RDR is never reduced due to inactivity. Only RD (hidden uncertainty) increases, causing faster adjustment when they return.
+- **Continuous over piecewise** — Logarithmic inactivity curve avoids cliff effects at day boundaries.
+- **Symmetric volatility with reacclimation** — Wins and losses are treated equally, but a short dampening window prevents extreme first-game swings after long breaks.
+- **No retroactive recomputation** — All existing ratings preserved. Only future games use v2 logic. v1 delta rows remain valid for void/undo via COALESCE fallbacks.
+- **Team average limitation accepted** — Per-player expectation against opposing team deferred to a future version.
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

@@ -2,6 +2,20 @@
 
 ---
 
+## v0.7.0 — Smarter Ratings
+
+### Improved
+- **Ratings now know when you've been away.** If you haven't played in a while, your rating stays the same — but the system knows it's less certain about where you stand. When you come back, your rating will adjust faster to match your current level.
+- **Confidence labels on the leaderboard.** Each player now shows a status below their rating: **Locked In**, **Active**, **Rusty**, or **Returning**. This tells you how confident the system is in that player's rating right now.
+- **Smoother first games back.** If you return after a long break, the first couple of games ease you back in instead of causing huge rating swings right away.
+- **Better game quality matters.** Close games against players with solid ratings now count for more when building confidence. Blowouts and games against uncertain players count for a little less.
+- **Tighter rating swings.** Maximum rating change per game has been reduced to keep things stable. The old system could occasionally produce outsized moves — this one stays more predictable.
+
+### Changed
+- The old rating system used a simple on/off switch between "new player" and "established player" to decide how much your rating moves. The new system uses a smooth scale based on how recently and how often you've been playing.
+
+---
+
 ## v0.6.0 — GOAT Badges + New Tier Names
 
 ### Added

@@ -8,6 +8,8 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
+    // Exclude integration tests from default test run (they need a live DB)
+    exclude: ["**/integration/**", "**/node_modules/**"],
   },
   resolve: {
     alias: {

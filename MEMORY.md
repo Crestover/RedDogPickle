@@ -29,7 +29,7 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.7.0 — RDR v2: Confidence-Based Rating System.**
+**v0.7.0 — RDR v2: Confidence-Based Rating System + Test Infrastructure.**
 
 v0.7.0: RDR v2 replaces binary K-factor with confidence-based volatility. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve (14-day grace, capped at 50). Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)` replaces K=60/22. Reacclimation buffer (3 games, 60-day trigger, 5-game minimum) dampens first-game whiplash on return. Informative RD recovery based on opponent confidence and game closeness. Tiered margin factor (0.95/1.00/1.08/1.10) replaces ln-based MOV. Uniform ±32 clamping. Confidence labels in UI: Locked In / Active / Rusty / Returning. Delta logging extended with `rd_before/after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after`. Migration `m15.0_rdr_v2.sql`. All leaderboard and session pages updated.
 
@@ -69,8 +69,9 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.5.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch |
+| `package.json` | v0.7.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
 | `vitest.config.ts` | Vitest config: `@vitejs/plugin-react`, jsdom environment, `@/` alias, setup file `src/test-setup.ts` |
+| `vitest.integration.config.ts` | Separate config for SQL/RPC integration tests (dotenv, no jsdom). Run via `npm run test:integration` |
 | `public/robots.txt` | Blocks all crawling: `User-agent: * / Disallow: /` |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
@@ -776,7 +777,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.5.0 — Session Browsing | `8981bf3`→`09d3427` | Suspicious score warning (Manual + Courts), End Session + footer nav in Courts Mode, context-aware leaderboard back nav (`from` param), session browsing in Last Session mode (`session_id` param + Prev/Next), Games/Standings tabs on ended sessions, unified game card layout (EndedSessionGames rewritten), "first name + last initial" name format, win-by removed from UI (m12.0 migration). All changes mirrored in `/v/` routes. |
 | v0.5.1 — Multi-Sport Phase 1 | `7233d8d`→`d98c410` | Sport abstraction layer (`SportConfig`, `getSportConfig()`, `validators.ts` shared pure validators), DB migration `m13.0` adds `sport` column, server actions use joined query for `group.sport`, UI components receive serializable sport props, deprecated `scoring.ts` removed, shared utilities (`pairKey`, `transformGameRecords`, `handleServerError`, `constants/shared.ts`), `robots.txt`, Vitest test infrastructure (160 tests/15 files). Zero UI/UX changes — internal refactor only. |
 | v0.6.0 — GOAT Badges + Tier Renames | `1d254a3`→`3e91e8c` | GOAT badge system: Reigning GOAT (👑 highest current RDR, 20+ games, Elite) + All-Time GOAT (highest peak RDR, 50+ games). Gold gradient pill with glow + row highlight. Peak rating tracked atomically in `record_game`, targeted peak repair on void/undo. Pure logic module `src/lib/goat.ts` (22 tests). Tier renames: Walk-On/Challenger/Contender/All-Star/Elite. Migration `m14.0`. Both `/g/` and `/v/` leaderboards updated. |
-| v0.7.0 — RDR v2 Confidence System | `ebeeb80`→`eba7a15` | Confidence-based rating system replacing binary K-factor. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve. Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)`. Reacclimation buffer (3 games) for 60-day returners. Informative RD recovery based on opponent confidence + game closeness. Tiered margin factor replaces ln-based MOV. Uniform ±32 clamping. Confidence labels: Locked In/Active/Rusty/Returning. Extended delta logging for observability. Migration `m15.0`. All leaderboard + session pages updated. |
+| v0.7.0 — RDR v2 Confidence System | `ebeeb80`→`bab1fd8` | Confidence-based rating system replacing binary K-factor. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve. Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)`. Reacclimation buffer (3 games) for 60-day returners. Informative RD recovery based on opponent confidence + game closeness. Tiered margin factor replaces ln-based MOV. Uniform ±32 clamping. Confidence labels: Locked In/Active/Rusty/Returning. Extended delta logging for observability. Migration `m15.0`. All leaderboard + session pages updated. Type boundaries tightened (`SessionRatingInfo`, data-source comments). SQL/RPC integration test suite (15 tests: core behavior, inactivity, reacclimation, RD recovery, void/undo restoration, new player, v1 backward compat). Component regression tests strengthened (36 tests: submit gating, validation errors, payload verification, toggle round-trip, loser exclusion). Unit tests added for `formatting.ts` and `rdr.ts` confidence functions. Total: 239 tests (69 unit + 36 component + 15 integration + 119 existing). |
 
 ---
 

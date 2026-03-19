@@ -1101,6 +1101,29 @@ No functional changes (refactor + docs only).
 - **No retroactive recomputation** — All existing ratings preserved. Only future games use v2 logic. v1 delta rows remain valid for void/undo via COALESCE fallbacks.
 - **Team average limitation accepted** — Per-player expectation against opposing team deferred to a future version.
 
+### Refactored
+- **Type boundaries tightened** — New `SessionRatingInfo` narrower type for session pages (avoids querying unused GOAT fields). Data-source-of-truth comments added at key boundaries.
+- **`void_last_game` / `undo_game` backward compat** — `COALESCE(last_played_before, last_played_at)` fix ensures void/undo works correctly for both v1 and v2 delta rows.
+
+### Test infrastructure
+- **SQL/RPC integration tests** (`src/__tests__/integration/rdr-v2.integration.test.ts`) — 15 tests against live dev Supabase:
+  - Core behavior: game recording, delta clamping (±32), margin factor tiers, partner gap dampener
+  - Inactivity: inactive vs active movement, RD inflation/recovery logging, grace period
+  - Reacclimation: trigger conditions, dampened vs full volatility (vol_multiplier comparison), new player exclusion
+  - RD recovery: opponent confidence effect
+  - Void/undo: full state restoration (rating, RD, reacclimation, last_played_at)
+  - New player: RD=120 default, higher vol_multiplier vs established player
+  - Backward compat: void handles v1 delta rows with NULL v2 fields
+- **Component regression tests strengthened** (36 total):
+  - `RecordGameForm`: submit button visual state (gray→green), validation errors (incomplete teams, missing scores), `recordGameAction` not called on failure, correct payload on valid submit
+  - `GamesList`: toggle round-trip (show→hide), loser names not highlighted, voided game styling
+  - `EndedSessionGames`: multi-game ordering, loser exclusion from emerald styling
+- **Unit tests added** (69 total):
+  - `formatting.test.ts`: `formatDiff` (+/-/zero/decimal), `shortName` (all name formats, edge cases)
+  - `rdr.test.ts`: `getConfidence` (boundaries, clamping), `getConfidenceLabel` (all 4 labels), `confidenceColor` (Tailwind class validation)
+- **Test runner config**: `vitest.integration.config.ts` for DB tests (dotenv, no jsdom). `npm run test:integration` script added.
+- **Test totals**: 239 tests (69 unit + 36 component + 15 integration + 119 existing)
+
 ---
 
 <!-- Template for future entries:

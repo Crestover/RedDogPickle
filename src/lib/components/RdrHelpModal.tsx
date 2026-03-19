@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 /**
@@ -13,6 +13,14 @@ import Link from "next/link";
 
 export default function RdrHelpModal() {
   const [open, setOpen] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to top whenever the modal opens
+  useEffect(() => {
+    if (open && contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [open]);
 
   return (
     <>
@@ -29,6 +37,7 @@ export default function RdrHelpModal() {
           onClick={() => setOpen(false)}
         >
           <div
+            ref={contentRef}
             className="relative w-full max-w-sm max-h-[85vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white px-5 py-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >

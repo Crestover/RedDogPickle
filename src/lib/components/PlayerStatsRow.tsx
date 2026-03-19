@@ -35,12 +35,18 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, isRe
           <p className="font-medium text-gray-900 truncate">
             {player.display_name}
             {isReigningGoat && (
-              <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-900">
-                GOAT
+              <span
+                className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none"
+                style={{ background: "linear-gradient(135deg, #FFD700, #F5C542)", color: "#1A1A1A" }}
+              >
+                👑 GOAT
               </span>
             )}
             {isAllTimeGoat && (
-              <span className="ml-1 inline-flex items-center rounded-full border border-amber-400 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-600">
+              <span
+                className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-600"
+                style={{ border: "1.5px solid #F5C542", background: "rgba(255, 215, 0, 0.04)" }}
+              >
                 ALL-TIME
               </span>
             )}
@@ -71,7 +77,7 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, isRe
                 <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${tierColor(tier)}`}>
                   {tier}
                 </span>
-                <span className="text-xs text-gray-400">
+                <span className={`text-xs ${isReigningGoat ? "font-bold text-gray-700" : "text-gray-400"}`}>
                   {Math.round(rating)}{provisional ? "*" : ""} RDR
                 </span>
               </div>

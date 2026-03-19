@@ -988,6 +988,48 @@ No functional changes (refactor + docs only).
 
 ---
 
+## [v0.6.0] — GOAT Badge System + Tier Renames (2026-03-19)
+
+### Added
+- **GOAT badge system** — Two distinct titles displayed on the All-time leaderboard:
+  - **Reigning GOAT** (👑 GOAT): Highest current RDR among players with 20+ games rated and Elite tier (≥1400). Gold gradient pill with glow effect.
+  - **All-Time GOAT** (ALL-TIME): Highest peak RDR ever recorded among players with 50+ games rated. Subtle outlined gold pill.
+  - Deterministic tiebreaker chains ensure exactly one holder per title (no ties, no ambiguity)
+  - Same player can hold both titles simultaneously
+  - Badges shown on All-time leaderboard tab only (not 30 Days or Last Session)
+- **GOAT logic module** (`src/lib/goat.ts`): Pure functions with full tiebreaker chains:
+  - Reigning GOAT: current_rdr → games_rated → win_pct → point_diff → rating_achieved_at → player_id
+  - All-Time GOAT: peak_rdr → games_rated → current_rdr → win_pct → peak_rating_achieved_at → player_id
+- **Peak rating tracking** (`m14.0_goat_peak_rating.sql`):
+  - `peak_rating` and `peak_rating_achieved_at` columns on `player_ratings`
+  - Backfill from `game_rdr_deltas` for existing data
+  - Atomic peak update inside `record_game` RPC (GREATEST comparison)
+  - Targeted peak repair in `void_last_game` and `undo_game` RPCs — only recomputes when the voided game's `rdr_after` matched the player's peak
+- **GOAT test suite** (`src/lib/__tests__/goat.test.ts`): 22 test cases covering eligibility, all tiebreaker levels, edge cases (no eligible players, same player holds both, different players hold each)
+- **`get_group_stats` RPC** updated to return `peak_rating` and `peak_rating_achieved_at` columns
+
+### Changed
+- **Tier renames** — Cosmetic tier labels updated across the app:
+  - Observer → **Walk-On** (< 1100)
+  - Practitioner → **Challenger** (1100–1199)
+  - Strategist → **Contender** (1200–1299)
+  - Authority → **All-Star** (1300–1399)
+  - Architect → **Elite** (1400+)
+- **PlayerStatsRow** (`src/lib/components/PlayerStatsRow.tsx`):
+  - Added `isReigningGoat` and `isAllTimeGoat` optional props
+  - GOAT badge: crown emoji + 3-stop gold gradient + subtle glow box-shadow
+  - ALL-TIME badge: outlined gold pill with transparent fill
+  - GOAT holder row: gold-tinted border + background, semibold name, bold RDR value
+- **Leaderboard pages** (`/g/` and `/v/`): Compute GOAT designations from `player_ratings` + stats data, pass flags to `PlayerStatsRow` on All-time view only
+- **`PlayerRating` type** (`src/lib/types.ts`): Added `peak_rating`, `peak_rating_achieved_at`, `updated_at` fields
+- **`rdr.test.ts`**: Updated for new tier names
+- **`package.json`**: Version bumped to `0.6.0`
+
+### Migration required
+- `m14.0_goat_peak_rating.sql` must be applied to Supabase — adds peak_rating columns, updates `record_game`, `void_last_game`, `undo_game`, and `get_group_stats` RPCs
+
+---
+
 <!-- Template for future entries:
 
 ## [Milestone N] — Title (YYYY-MM-DD)

@@ -2,6 +2,19 @@
 
 ---
 
+## v0.6.0 — GOAT Badges + New Tier Names
+
+### Added
+- **GOAT badges on the leaderboard**: The top-rated player now gets a gold 👑 GOAT badge next to their name on the All-time leaderboard. If someone has achieved the highest rating ever recorded (with 50+ games), they earn the ALL-TIME badge. One player can hold both.
+- **GOAT row highlight**: The Reigning GOAT's card gets a subtle gold border and background so it stands out at a glance.
+
+### Changed
+- **New tier names**: The rating tiers have been renamed to feel more sports-native:
+  - Walk-On → Challenger → Contender → All-Star → Elite
+- The old names (Observer, Practitioner, Strategist, Authority, Architect) are retired.
+
+---
+
 ## v0.5.1 — Under the Hood
 
 ### Improved

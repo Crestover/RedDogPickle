@@ -57,15 +57,15 @@ export default async function RdrPage({ searchParams }: PageProps) {
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-gray-900">Tiers</h2>
           <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold bg-gray-100 text-gray-600">Walk-On</span>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs bg-zinc-100 border border-zinc-200 text-zinc-500 font-medium">Walk-On</span>
             <span className="text-gray-300 text-xs">→</span>
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold bg-blue-100 text-blue-700">Challenger</span>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs bg-zinc-100 border border-zinc-300 text-zinc-600 font-semibold">Challenger</span>
             <span className="text-gray-300 text-xs">→</span>
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold bg-green-100 text-green-700">Contender</span>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs bg-zinc-100 border border-zinc-300 text-zinc-700 font-semibold">Contender</span>
             <span className="text-gray-300 text-xs">→</span>
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold bg-yellow-100 text-yellow-700">All-Star</span>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs bg-zinc-100 border border-zinc-400 text-zinc-900 font-semibold">All-Star</span>
             <span className="text-gray-300 text-xs">→</span>
-            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold bg-red-100 text-red-700">Elite</span>
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs bg-zinc-100 border border-zinc-500 text-zinc-950 font-bold">Elite</span>
           </div>
           <p className="text-xs text-gray-500">
             Quick labels so you don&apos;t have to compare numbers.

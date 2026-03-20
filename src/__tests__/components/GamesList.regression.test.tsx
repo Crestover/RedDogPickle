@@ -77,12 +77,15 @@ describe("B. Score styling", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    const greenScore = container.querySelector(".text-green-600");
-    const grayScore = container.querySelector("span.text-gray-400");
-    expect(greenScore).not.toBeNull();
-    expect(greenScore!.textContent).toBe("11");
-    expect(grayScore).not.toBeNull();
-    expect(grayScore!.textContent).toBe("07");
+    // Score container is text-base font-bold tabular-nums
+    const scoreContainer = container.querySelector(".text-base.font-bold.tabular-nums");
+    expect(scoreContainer).not.toBeNull();
+    const scoreSpans = scoreContainer!.querySelectorAll("span");
+    // First span = winner score (emerald), second = separator, third = loser score (gray)
+    expect(scoreSpans[0].textContent).toBe("11");
+    expect(scoreSpans[0].classList.contains("text-emerald-700")).toBe(true);
+    expect(scoreSpans[2].textContent).toBe("07");
+    expect(scoreSpans[2].classList.contains("text-gray-400")).toBe(true);
   });
 
   it("scores are zero-padded", () => {
@@ -107,7 +110,7 @@ describe("C. Game badge", () => {
     const game = makeGame({ sequence_num: 12 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    const badge = container.querySelector(".bg-green-100.text-green-700");
+    const badge = container.querySelector(".bg-emerald-50.text-emerald-700");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toBe("G12");
   });
@@ -184,9 +187,12 @@ describe("D. Voided-game behavior", () => {
     const { container } = render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
     fireEvent.click(screen.getByText("Show voided"));
 
-    // Should NOT have green score when voided
-    const greenScore = container.querySelector(".opacity-60 .text-green-600");
-    expect(greenScore).toBeNull();
+    // Score container inside voided card should use gray, not emerald
+    const scoreContainer = container.querySelector(".opacity-60 .text-base.font-bold.tabular-nums");
+    expect(scoreContainer).not.toBeNull();
+    const winnerScoreSpan = scoreContainer!.querySelectorAll("span")[0];
+    expect(winnerScoreSpan.classList.contains("text-gray-500")).toBe(true);
+    expect(winnerScoreSpan.classList.contains("text-emerald-700")).toBe(false);
   });
 });
 

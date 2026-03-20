@@ -1,8 +1,8 @@
 /**
  * GamesList Regression Tests
  *
- * Proves winner/loser hierarchy and voided-game behavior remain correct
- * after v2 card layout update.
+ * Proves scoreboard layout, winner/loser hierarchy, colored scores,
+ * and voided-game behavior remain correct.
  */
 
 import { describe, it, expect } from "vitest";
@@ -44,7 +44,6 @@ describe("A. Winner/loser hierarchy", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    // Winner line should be font-semibold and dark
     const winnerLine = container.querySelector(".text-sm.font-semibold.text-gray-900");
     expect(winnerLine).not.toBeNull();
     expect(winnerLine!.textContent).toContain("Alice");
@@ -59,18 +58,64 @@ describe("A. Winner/loser hierarchy", () => {
     expect(winnerLine!.textContent).toContain("Carol");
   });
 
-  it("winner score appears before loser score", () => {
+  it("loser names appear in muted style below winner", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
-    render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    // Score should render as "11 - 7" (winner first)
-    expect(screen.getByText("11 - 7")).toBeInTheDocument();
+    const gameCard = container.querySelector(".rounded-xl");
+    const loserLine = gameCard?.querySelector(".text-xs.text-gray-500");
+    expect(loserLine).not.toBeNull();
+    expect(loserLine!.textContent).toContain("Carol");
+    expect(loserLine!.textContent).not.toContain("Alice");
   });
 });
 
-// ── B. Voided-game behavior ─────────────────────────────────────────────────
+// ── B. Score styling ────────────────────────────────────────────────────────
 
-describe("B. Voided-game behavior", () => {
+describe("B. Score styling", () => {
+  it("winner score is green, loser score is gray", () => {
+    const game = makeGame({ team_a_score: 11, team_b_score: 7 });
+    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+
+    const greenScore = container.querySelector(".text-green-600");
+    const grayScore = container.querySelector("span.text-gray-400");
+    expect(greenScore).not.toBeNull();
+    expect(greenScore!.textContent).toBe("11");
+    expect(grayScore).not.toBeNull();
+    expect(grayScore!.textContent).toBe("07");
+  });
+
+  it("scores are zero-padded", () => {
+    const game = makeGame({ team_a_score: 11, team_b_score: 3 });
+    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+
+    const grayScore = container.querySelector("span.text-base span.text-gray-400");
+    expect(grayScore!.textContent).toBe("03");
+  });
+
+  it("does not use 'vs' between teams", () => {
+    const game = makeGame();
+    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+    expect(container.textContent).not.toContain(" vs ");
+  });
+});
+
+// ── C. Game badge ───────────────────────────────────────────────────────────
+
+describe("C. Game badge", () => {
+  it("renders green game badge with G prefix", () => {
+    const game = makeGame({ sequence_num: 12 });
+    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+
+    const badge = container.querySelector(".bg-green-100.text-green-700");
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toBe("G12");
+  });
+});
+
+// ── D. Voided-game behavior ─────────────────────────────────────────────────
+
+describe("D. Voided-game behavior", () => {
   it("voided games are hidden by default", () => {
     const active = makeGame({ id: "g1", sequence_num: 1 });
     const voided = makeGame({ id: "g2", sequence_num: 2, voided_at: "2025-06-01T11:00:00Z" });
@@ -106,7 +151,7 @@ describe("B. Voided-game behavior", () => {
     const { container } = render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
     fireEvent.click(screen.getByText("Show voided"));
 
-    const gameCard = container.querySelector(".opacity-50");
+    const gameCard = container.querySelector(".opacity-60");
     expect(gameCard).not.toBeNull();
   });
 
@@ -120,76 +165,16 @@ describe("B. Voided-game behavior", () => {
     render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
     fireEvent.click(screen.getByText("Show voided"));
 
-    // Score visible
-    expect(screen.getByText("11 - 7")).toBeInTheDocument();
+    // Score visible (padded)
+    expect(screen.getByText("11")).toBeInTheDocument();
+    expect(screen.getByText("07")).toBeInTheDocument();
     // Winner names visible
     expect(screen.getByText(/Alice/)).toBeInTheDocument();
     // Loser names visible
     expect(screen.getByText(/Carol/)).toBeInTheDocument();
   });
-});
 
-// ── C. Score display ────────────────────────────────────────────────────────
-
-describe("C. Score display", () => {
-  it("renders score as winner-loser with hyphen", () => {
-    const game = makeGame({ team_a_score: 15, team_b_score: 13 });
-    render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
-
-    expect(screen.getByText("15 - 13")).toBeInTheDocument();
-  });
-
-  it("renders game badge with G prefix", () => {
-    const game = makeGame({ sequence_num: 5 });
-    render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
-    expect(screen.getByText("G5")).toBeInTheDocument();
-  });
-
-  it("does not use 'vs' between teams", () => {
-    const game = makeGame();
-    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
-    expect(container.textContent).not.toContain(" vs ");
-  });
-});
-
-// ── D. Toggle round-trip ─────────────────────────────────────────────────
-
-describe("D. Toggle round-trip", () => {
-  it("clicking toggle twice hides voided games again", () => {
-    const active = makeGame({ id: "g1", sequence_num: 1 });
-    const voided = makeGame({ id: "g2", sequence_num: 2, voided_at: "2025-06-01T11:00:00Z" });
-
-    render(<GamesList games={[active, voided]} activeCount={1} totalCount={2} />);
-
-    // Initially hidden
-    expect(screen.queryByText("G2")).not.toBeInTheDocument();
-
-    // Show
-    fireEvent.click(screen.getByText("Show voided"));
-    expect(screen.getByText("G2")).toBeInTheDocument();
-
-    // Hide again
-    fireEvent.click(screen.getByText("Hide voided"));
-    expect(screen.queryByText("G2")).not.toBeInTheDocument();
-  });
-});
-
-// ── E. Winner/loser styling exclusivity ──────────────────────────────────
-
-describe("E. Winner/loser styling exclusivity", () => {
-  it("loser team names appear in muted style below winner", () => {
-    const game = makeGame({ team_a_score: 11, team_b_score: 7 });
-    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
-
-    // Loser names in muted text-xs style (inside game card, not header)
-    const gameCard = container.querySelector(".rounded-xl");
-    const loserLine = gameCard?.querySelector("p.text-xs");
-    expect(loserLine).not.toBeNull();
-    expect(loserLine!.textContent).toContain("Carol");
-    expect(loserLine!.textContent).not.toContain("Alice");
-  });
-
-  it("voided cards use muted styling for both winner and loser", () => {
+  it("voided cards use muted styling for scores (no green)", () => {
     const voided = makeGame({
       id: "g1", sequence_num: 1,
       team_a_score: 11, team_b_score: 7,
@@ -199,12 +184,27 @@ describe("E. Winner/loser styling exclusivity", () => {
     const { container } = render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
     fireEvent.click(screen.getByText("Show voided"));
 
-    // Voided card should have opacity and muted text
-    const gameCard = container.querySelector(".opacity-50");
-    expect(gameCard).not.toBeNull();
+    // Should NOT have green score when voided
+    const greenScore = container.querySelector(".opacity-60 .text-green-600");
+    expect(greenScore).toBeNull();
+  });
+});
 
-    // Winner line uses gray-500 (muted) instead of gray-900
-    const winnerLine = container.querySelector(".text-sm.font-semibold.text-gray-500");
-    expect(winnerLine).not.toBeNull();
+// ── E. Toggle round-trip ─────────────────────────────────────────────────
+
+describe("E. Toggle round-trip", () => {
+  it("clicking toggle twice hides voided games again", () => {
+    const active = makeGame({ id: "g1", sequence_num: 1 });
+    const voided = makeGame({ id: "g2", sequence_num: 2, voided_at: "2025-06-01T11:00:00Z" });
+
+    render(<GamesList games={[active, voided]} activeCount={1} totalCount={2} />);
+
+    expect(screen.queryByText("G2")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Show voided"));
+    expect(screen.getByText("G2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Hide voided"));
+    expect(screen.queryByText("G2")).not.toBeInTheDocument();
   });
 });

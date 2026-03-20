@@ -4,10 +4,9 @@
  * GamesList — Client component for displaying session games
  * with a toggle to show/hide voided games.
  *
- * Card layout (v2):
- *   [G#] badge top-left, timestamp top-right
- *   Winner names (bold) + score right-aligned
- *   Loser names (muted) below
+ * Card layout (scoreboard v2):
+ *   [G#] badge left | Winner names + score (green/gray) right-aligned
+ *                    | Loser names + timestamp right-aligned
  *
  * Default: voided games hidden.
  * Toggle: "Show voided" reveals voided games with reduced opacity + badge.
@@ -61,6 +60,11 @@ function teamNames(gamePlayers: GamePlayer[], team: "A" | "B"): string[] {
     .sort();
 }
 
+/** Zero-pad a score to 2 digits. */
+function padScore(n: number): string {
+  return n < 10 ? `0${n}` : `${n}`;
+}
+
 export default function GamesList({ games, activeCount, totalCount }: Props) {
   const [showVoided, setShowVoided] = useState(false);
 
@@ -94,7 +98,7 @@ export default function GamesList({ games, activeCount, totalCount }: Props) {
           No games recorded yet.
         </p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {displayGames.map((game) => {
             const isVoided = !!game.voided_at;
             const gamePlayers = Array.isArray(game.game_players)
@@ -118,37 +122,44 @@ export default function GamesList({ games, activeCount, totalCount }: Props) {
             return (
               <div
                 key={game.id}
-                className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-50" : ""}`}
+                className={`rounded-xl bg-white border border-gray-200 px-3 py-2.5${isVoided ? " opacity-60" : ""}`}
               >
-                {/* Header row: Game badge + voided tag + time */}
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-500">
+                <div className="flex items-center gap-3">
+                  {/* Game badge — left anchor */}
+                  <div className="flex flex-col items-center gap-1 shrink-0">
+                    <span className="inline-flex items-center justify-center rounded-md bg-green-100 px-2 py-1 text-xs font-semibold text-green-700">
                       G{game.sequence_num}
                     </span>
                     {isVoided && (
-                      <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
+                      <span className="inline-flex items-center rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-500 uppercase">
                         Voided
                       </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-gray-400">{time}</span>
-                </div>
 
-                {/* Winner row: names + score */}
-                <div className="flex items-baseline justify-between">
-                  <span className={`text-sm font-semibold ${isVoided ? "text-gray-500" : "text-gray-900"}`}>
-                    {winnerNames.join(" / ")}
-                  </span>
-                  <span className={`text-lg font-bold tabular-nums ${isVoided ? "text-gray-500" : "text-gray-900"}`}>
-                    {winnerScore} - {loserScore}
-                  </span>
-                </div>
+                  {/* Content — names + score + time */}
+                  <div className="flex-1 min-w-0">
+                    {/* Winner row */}
+                    <div className="flex items-baseline justify-between">
+                      <span className={`text-sm font-semibold truncate ${isVoided ? "text-gray-500" : "text-gray-900"}`}>
+                        {winnerNames.join(" / ")}
+                      </span>
+                      <span className="text-base font-bold tabular-nums shrink-0 ml-2">
+                        <span className={isVoided ? "text-gray-500" : "text-green-600"}>{padScore(winnerScore)}</span>
+                        <span className="text-gray-300"> - </span>
+                        <span className={isVoided ? "text-gray-400" : "text-gray-400"}>{padScore(loserScore)}</span>
+                      </span>
+                    </div>
 
-                {/* Loser row */}
-                <p className={`text-xs mt-0.5 ${isVoided ? "text-gray-400" : "text-gray-400"}`}>
-                  {loserNames.join(" / ")}
-                </p>
+                    {/* Loser row */}
+                    <div className="flex items-baseline justify-between mt-0.5">
+                      <span className={`text-xs truncate ${isVoided ? "text-gray-400" : "text-gray-500"}`}>
+                        {loserNames.join(" / ")}
+                      </span>
+                      <span className="text-[11px] text-gray-400 shrink-0 ml-2">{time}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             );
           })}

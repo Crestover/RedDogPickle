@@ -122,7 +122,7 @@ export default function LeaderboardCard({
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {/* Rank */}
         <span
-          style={{ fontSize: 18, fontWeight: 700, color: "#2B2F33", width: 28, textAlign: "right", flexShrink: 0 }}
+          style={{ fontSize: 18, fontWeight: 800, color: "#2B2F33", width: 28, textAlign: "right", flexShrink: 0, letterSpacing: "-0.025em" }}
         >
           {rank}
         </span>
@@ -210,7 +210,8 @@ export default function LeaderboardCard({
             <span
               style={{
                 fontSize: 18,
-                fontWeight: 700,
+                fontWeight: 800,
+                letterSpacing: "-0.025em",
                 color: player.avg_point_diff > 0
                   ? "#0F7B53"
                   : player.avg_point_diff < 0

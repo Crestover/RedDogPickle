@@ -1,8 +1,8 @@
 /**
  * EndedSessionGames Regression Tests
  *
- * Proves winner highlighting and score rendering remain correct
- * after Phase 1 sport abstraction.
+ * Proves winner/loser hierarchy and score rendering remain correct
+ * after scoreboard v2 layout update.
  */
 
 import { describe, it, expect } from "vitest";
@@ -37,27 +37,25 @@ function makeGame(overrides: Partial<{
   };
 }
 
-// ── A. Winner highlighting parity ───────────────────────────────────────────
+// ── A. Winner/loser hierarchy ───────────────────────────────────────────
 
-describe("A. Winner highlighting parity", () => {
-  it("11-7 → team A winner styling (emerald)", () => {
+describe("A. Winner/loser hierarchy", () => {
+  it("11-7 → team A names shown as winner (bold, first line)", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
     const { container } = render(<EndedSessionGames games={[game]} />);
 
-    const emeraldNames = container.querySelectorAll(".text-emerald-600.font-medium");
-    expect(emeraldNames).toHaveLength(1);
-    // Team A names (Alice / Bob)
-    expect(emeraldNames[0].textContent).toContain("Alice");
+    const winnerLine = container.querySelector(".text-sm.font-semibold.text-gray-900");
+    expect(winnerLine).not.toBeNull();
+    expect(winnerLine!.textContent).toContain("Alice");
   });
 
-  it("7-11 → team B winner styling (emerald)", () => {
+  it("7-11 → team B names shown as winner (bold, first line)", () => {
     const game = makeGame({ team_a_score: 7, team_b_score: 11 });
     const { container } = render(<EndedSessionGames games={[game]} />);
 
-    const emeraldNames = container.querySelectorAll(".text-emerald-600.font-medium");
-    expect(emeraldNames).toHaveLength(1);
-    // Team B names (Carol / Dave)
-    expect(emeraldNames[0].textContent).toContain("Carol");
+    const winnerLine = container.querySelector(".text-sm.font-semibold.text-gray-900");
+    expect(winnerLine).not.toBeNull();
+    expect(winnerLine!.textContent).toContain("Carol");
   });
 });
 
@@ -76,7 +74,6 @@ describe("B. Ended-session rendering parity", () => {
     const game = makeGame();
     render(<EndedSessionGames games={[game]} />);
 
-    // shortName extracts first names
     expect(screen.getByText(/Alice/)).toBeInTheDocument();
     expect(screen.getByText(/Carol/)).toBeInTheDocument();
   });
@@ -98,7 +95,6 @@ describe("B. Ended-session rendering parity", () => {
     ];
     render(<EndedSessionGames games={games} />);
 
-    // Active count should be 1
     expect(screen.getByText(/Games \(1/)).toBeInTheDocument();
   });
 
@@ -116,17 +112,17 @@ describe("B. Ended-session rendering parity", () => {
   });
 });
 
-// ── C. Loser exclusion ─────────────────────────────────────────────────────
+// ── C. Winner/loser styling exclusivity ─────────────────────────────────────
 
 describe("C. Winner/loser styling exclusivity", () => {
-  it("loser team names do not get emerald styling", () => {
+  it("loser team names appear in muted style, not bold", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
     const { container } = render(<EndedSessionGames games={[game]} />);
 
-    const emeraldNames = container.querySelectorAll(".text-emerald-600.font-medium");
-    for (const el of emeraldNames) {
-      expect(el.textContent).not.toContain("Carol");
-      expect(el.textContent).not.toContain("Dave");
-    }
+    const gameCard = container.querySelector(".rounded-xl");
+    const loserLine = gameCard?.querySelector(".text-xs.text-gray-500");
+    expect(loserLine).not.toBeNull();
+    expect(loserLine!.textContent).toContain("Carol");
+    expect(loserLine!.textContent).not.toContain("Alice");
   });
 });

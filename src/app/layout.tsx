@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Analytics } from "@vercel/analytics/next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
@@ -55,8 +58,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased flex flex-col">
+    <html lang="en" className={inter.variable}>
+      <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased flex flex-col font-sans">
         <Analytics />
         <main className="flex-1 flex flex-col">{children}</main>
         <footer className="mt-auto pb-6 pt-8 text-center text-xs text-gray-400">

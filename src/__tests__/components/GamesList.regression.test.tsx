@@ -77,13 +77,13 @@ describe("B. Score styling", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    // Score container is text-base font-bold tabular-nums
-    const scoreContainer = container.querySelector(".text-base.font-bold.tabular-nums");
+    // Score container is text-lg font-extrabold tabular-nums
+    const scoreContainer = container.querySelector(".text-lg.font-extrabold.tabular-nums");
     expect(scoreContainer).not.toBeNull();
     const scoreSpans = scoreContainer!.querySelectorAll("span");
     // First span = winner score (emerald), second = separator, third = loser score (gray)
     expect(scoreSpans[0].textContent).toBe("11");
-    expect(scoreSpans[0].classList.contains("text-emerald-700")).toBe(true);
+    expect((scoreSpans[0] as HTMLElement).style.color).toBe("rgb(22, 118, 89)");
     expect(scoreSpans[2].textContent).toBe("07");
     expect(scoreSpans[2].classList.contains("text-gray-400")).toBe(true);
   });
@@ -92,7 +92,7 @@ describe("B. Score styling", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 3 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    const grayScore = container.querySelector("span.text-base span.text-gray-400");
+    const grayScore = container.querySelector("span.text-lg span.text-gray-400");
     expect(grayScore!.textContent).toBe("03");
   });
 
@@ -110,9 +110,11 @@ describe("C. Game badge", () => {
     const game = makeGame({ sequence_num: 12 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    const badge = container.querySelector(".bg-emerald-50.text-emerald-700");
+    const badge = container.querySelector(".rounded-lg.font-extrabold.tracking-tight");
     expect(badge).not.toBeNull();
     expect(badge!.textContent).toBe("G12");
+    expect((badge as HTMLElement).style.backgroundColor).toBe("rgb(213, 230, 236)");
+    expect((badge as HTMLElement).style.color).toBe("rgb(22, 118, 89)");
   });
 });
 
@@ -188,11 +190,12 @@ describe("D. Voided-game behavior", () => {
     fireEvent.click(screen.getByText("Show voided"));
 
     // Score container inside voided card should use gray, not emerald
-    const scoreContainer = container.querySelector(".opacity-60 .text-base.font-bold.tabular-nums");
+    const scoreContainer = container.querySelector(".opacity-60 .text-lg.font-extrabold.tabular-nums");
     expect(scoreContainer).not.toBeNull();
     const winnerScoreSpan = scoreContainer!.querySelectorAll("span")[0];
     expect(winnerScoreSpan.classList.contains("text-gray-500")).toBe(true);
-    expect(winnerScoreSpan.classList.contains("text-emerald-700")).toBe(false);
+    // Should NOT have inline green color when voided
+    expect((winnerScoreSpan as HTMLElement).style.color).toBe("");
   });
 });
 

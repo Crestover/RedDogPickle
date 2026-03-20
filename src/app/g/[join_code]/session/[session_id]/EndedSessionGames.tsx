@@ -112,7 +112,10 @@ export default function EndedSessionGames({ games }: Props) {
               <div className="flex items-center gap-3">
                 {/* Game badge — left anchor */}
                 <div className="flex flex-col items-center gap-1 shrink-0">
-                  <span className="inline-flex items-center justify-center rounded-lg bg-emerald-50 px-3 py-1.5 text-base font-bold text-emerald-700">
+                  <span
+                    className="inline-flex items-center justify-center rounded-lg text-base font-extrabold tracking-tight"
+                    style={{ backgroundColor: "#d5e6ec", color: "#167659", minWidth: "44px", minHeight: "44px" }}
+                  >
                     G{game.sequence_num}
                   </span>
                   {isVoided && (
@@ -129,8 +132,8 @@ export default function EndedSessionGames({ games }: Props) {
                     <span className={`text-sm font-semibold truncate ${isVoided ? "text-gray-500" : "text-gray-900"}`}>
                       {winnerNames.join(" / ")}
                     </span>
-                    <span className="text-base font-bold tabular-nums shrink-0 ml-2">
-                      <span className={isVoided ? "text-gray-500" : "text-emerald-700"}>{padScore(winnerScore)}</span>
+                    <span className="text-lg font-extrabold tabular-nums tracking-tight shrink-0 ml-2">
+                      <span className={isVoided ? "text-gray-500" : ""} style={isVoided ? undefined : { color: "#167659" }}>{padScore(winnerScore)}</span>
                       <span className="text-gray-300"> - </span>
                       <span className={isVoided ? "text-gray-400" : "text-gray-400"}>{padScore(loserScore)}</span>
                     </span>

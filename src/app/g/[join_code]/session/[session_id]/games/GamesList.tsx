@@ -4,6 +4,11 @@
  * GamesList — Client component for displaying session games
  * with a toggle to show/hide voided games.
  *
+ * Card layout (v2):
+ *   [G#] badge top-left, timestamp top-right
+ *   Winner names (bold) + score right-aligned
+ *   Loser names (muted) below
+ *
  * Default: voided games hidden.
  * Toggle: "Show voided" reveals voided games with reduced opacity + badge.
  *
@@ -104,42 +109,45 @@ export default function GamesList({ games, activeCount, totalCount }: Props) {
             const aWins = winner === "A";
             const bWins = winner === "B";
 
-            // Color classes for winner highlighting (non-voided only)
-            const scoreAClass = !isVoided && aWins ? "text-emerald-600" : "text-gray-700";
-            const scoreBClass = !isVoided && bWins ? "text-emerald-600" : "text-gray-700";
-            const namesAClass = !isVoided && aWins ? "text-emerald-600 font-medium" : "text-gray-700";
-            const namesBClass = !isVoided && bWins ? "text-emerald-600 font-medium" : "text-gray-700";
+            // Determine winner/loser teams and scores
+            const winnerNames = aWins ? aNamesArr : bWins ? bNamesArr : aNamesArr;
+            const loserNames = aWins ? bNamesArr : bWins ? aNamesArr : bNamesArr;
+            const winnerScore = aWins ? game.team_a_score : bWins ? game.team_b_score : game.team_a_score;
+            const loserScore = aWins ? game.team_b_score : bWins ? game.team_a_score : game.team_b_score;
 
             return (
               <div
                 key={game.id}
-                className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-60" : ""}`}
+                className={`rounded-xl bg-white border border-gray-200 px-4 py-3${isVoided ? " opacity-50" : ""}`}
               >
-                {/* Header row: Game # + badge + time */}
+                {/* Header row: Game badge + voided tag + time */}
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">
-                    Game #{game.sequence_num}
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-500">
+                      G{game.sequence_num}
+                    </span>
                     {isVoided && (
-                      <span className="ml-1.5 inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
+                      <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-500 uppercase">
                         Voided
                       </span>
                     )}
-                  </span>
-                  <span className="text-xs text-gray-400">{time}</span>
+                  </div>
+                  <span className="text-[11px] text-gray-400">{time}</span>
                 </div>
 
-                {/* Score */}
-                <p className="text-xl font-semibold font-mono mb-1">
-                  <span className={scoreAClass}>{game.team_a_score}</span>
-                  <span className="text-gray-300">&ndash;</span>
-                  <span className={scoreBClass}>{game.team_b_score}</span>
-                </p>
+                {/* Winner row: names + score */}
+                <div className="flex items-baseline justify-between">
+                  <span className={`text-sm font-semibold ${isVoided ? "text-gray-500" : "text-gray-900"}`}>
+                    {winnerNames.join(" / ")}
+                  </span>
+                  <span className={`text-lg font-bold tabular-nums ${isVoided ? "text-gray-500" : "text-gray-900"}`}>
+                    {winnerScore} - {loserScore}
+                  </span>
+                </div>
 
-                {/* Teams (first names) */}
-                <p className="text-sm leading-snug">
-                  <span className={namesAClass}>{aNamesArr.join(" / ")}</span>
-                  <span className="text-gray-400"> vs </span>
-                  <span className={namesBClass}>{bNamesArr.join(" / ")}</span>
+                {/* Loser row */}
+                <p className={`text-xs mt-0.5 ${isVoided ? "text-gray-400" : "text-gray-400"}`}>
+                  {loserNames.join(" / ")}
                 </p>
               </div>
             );

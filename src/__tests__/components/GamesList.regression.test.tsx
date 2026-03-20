@@ -1,8 +1,8 @@
 /**
  * GamesList Regression Tests
  *
- * Proves winner highlighting and voided-game behavior remain correct
- * after Phase 1 sport abstraction.
+ * Proves winner/loser hierarchy and voided-game behavior remain correct
+ * after v2 card layout update.
  */
 
 import { describe, it, expect } from "vitest";
@@ -37,38 +37,34 @@ function makeGame(overrides: Partial<{
   };
 }
 
-// ── A. Winner highlighting ──────────────────────────────────────────────────
+// ── A. Winner/loser hierarchy ─────────────────────────────────────────────
 
-describe("A. Winner highlighting", () => {
-  it("11-7 highlights team A names with emerald", () => {
+describe("A. Winner/loser hierarchy", () => {
+  it("11-7 shows team A names as winner (bold, first line)", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    // Team A names should have emerald class
-    const teamANames = container.querySelector(".text-emerald-600.font-medium");
-    expect(teamANames).not.toBeNull();
-    expect(teamANames!.textContent).toContain("Alice");
+    // Winner line should be font-semibold and dark
+    const winnerLine = container.querySelector(".text-sm.font-semibold.text-gray-900");
+    expect(winnerLine).not.toBeNull();
+    expect(winnerLine!.textContent).toContain("Alice");
   });
 
-  it("7-11 highlights team B names with emerald", () => {
+  it("7-11 shows team B names as winner (bold, first line)", () => {
     const game = makeGame({ team_a_score: 7, team_b_score: 11 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    // Find all emerald-colored name spans
-    const emeraldNames = container.querySelectorAll(".text-emerald-600.font-medium");
-    expect(emeraldNames).toHaveLength(1);
-    expect(emeraldNames[0].textContent).toContain("Carol");
+    const winnerLine = container.querySelector(".text-sm.font-semibold.text-gray-900");
+    expect(winnerLine).not.toBeNull();
+    expect(winnerLine!.textContent).toContain("Carol");
   });
 
-  it("winner score is emerald, loser score is gray", () => {
+  it("winner score appears before loser score", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
-    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+    render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    // Score display: emerald for winner, gray for loser
-    const emeraldScores = container.querySelectorAll(".text-emerald-600");
-    const grayScores = container.querySelectorAll("span.text-gray-700");
-    expect(emeraldScores.length).toBeGreaterThan(0);
-    expect(grayScores.length).toBeGreaterThan(0);
+    // Score should render as "11 - 7" (winner first)
+    expect(screen.getByText("11 - 7")).toBeInTheDocument();
   });
 });
 
@@ -81,8 +77,8 @@ describe("B. Voided-game behavior", () => {
 
     render(<GamesList games={[active, voided]} activeCount={1} totalCount={2} />);
 
-    expect(screen.getByText("Game #1")).toBeInTheDocument();
-    expect(screen.queryByText("Game #2")).not.toBeInTheDocument();
+    expect(screen.getByText("G1")).toBeInTheDocument();
+    expect(screen.queryByText("G2")).not.toBeInTheDocument();
   });
 
   it("shows voided games when toggle is clicked", () => {
@@ -92,7 +88,7 @@ describe("B. Voided-game behavior", () => {
     render(<GamesList games={[active, voided]} activeCount={1} totalCount={2} />);
 
     fireEvent.click(screen.getByText("Show voided"));
-    expect(screen.getByText("Game #2")).toBeInTheDocument();
+    expect(screen.getByText("G2")).toBeInTheDocument();
   });
 
   it("voided games show Voided badge", () => {
@@ -110,26 +106,49 @@ describe("B. Voided-game behavior", () => {
     const { container } = render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
     fireEvent.click(screen.getByText("Show voided"));
 
-    const gameCard = container.querySelector(".opacity-60");
+    const gameCard = container.querySelector(".opacity-50");
     expect(gameCard).not.toBeNull();
+  });
+
+  it("voided cards still show player names and score", () => {
+    const voided = makeGame({
+      id: "g1", sequence_num: 1,
+      team_a_score: 11, team_b_score: 7,
+      voided_at: "2025-06-01T11:00:00Z",
+    });
+
+    render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
+    fireEvent.click(screen.getByText("Show voided"));
+
+    // Score visible
+    expect(screen.getByText("11 - 7")).toBeInTheDocument();
+    // Winner names visible
+    expect(screen.getByText(/Alice/)).toBeInTheDocument();
+    // Loser names visible
+    expect(screen.getByText(/Carol/)).toBeInTheDocument();
   });
 });
 
 // ── C. Score display ────────────────────────────────────────────────────────
 
 describe("C. Score display", () => {
-  it("renders score text correctly", () => {
+  it("renders score as winner-loser with hyphen", () => {
     const game = makeGame({ team_a_score: 15, team_b_score: 13 });
     render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    expect(screen.getByText("15")).toBeInTheDocument();
-    expect(screen.getByText("13")).toBeInTheDocument();
+    expect(screen.getByText("15 - 13")).toBeInTheDocument();
   });
 
-  it("renders game sequence number", () => {
+  it("renders game badge with G prefix", () => {
     const game = makeGame({ sequence_num: 5 });
     render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
-    expect(screen.getByText("Game #5")).toBeInTheDocument();
+    expect(screen.getByText("G5")).toBeInTheDocument();
+  });
+
+  it("does not use 'vs' between teams", () => {
+    const game = makeGame();
+    const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
+    expect(container.textContent).not.toContain(" vs ");
   });
 });
 
@@ -143,35 +162,34 @@ describe("D. Toggle round-trip", () => {
     render(<GamesList games={[active, voided]} activeCount={1} totalCount={2} />);
 
     // Initially hidden
-    expect(screen.queryByText("Game #2")).not.toBeInTheDocument();
+    expect(screen.queryByText("G2")).not.toBeInTheDocument();
 
     // Show
     fireEvent.click(screen.getByText("Show voided"));
-    expect(screen.getByText("Game #2")).toBeInTheDocument();
+    expect(screen.getByText("G2")).toBeInTheDocument();
 
     // Hide again
     fireEvent.click(screen.getByText("Hide voided"));
-    expect(screen.queryByText("Game #2")).not.toBeInTheDocument();
+    expect(screen.queryByText("G2")).not.toBeInTheDocument();
   });
 });
 
-// ── E. Loser side is not highlighted ──────────────────────────────────────
+// ── E. Winner/loser styling exclusivity ──────────────────────────────────
 
 describe("E. Winner/loser styling exclusivity", () => {
-  it("loser team names do not have emerald styling", () => {
+  it("loser team names appear in muted style below winner", () => {
     const game = makeGame({ team_a_score: 11, team_b_score: 7 });
     const { container } = render(<GamesList games={[game]} activeCount={1} totalCount={1} />);
 
-    // All emerald name spans should be winners only (team A)
-    const emeraldNames = container.querySelectorAll(".text-emerald-600.font-medium");
-    for (const el of emeraldNames) {
-      // Should contain winner names (Alice/Bob), never loser names (Carol/Dave)
-      expect(el.textContent).not.toContain("Carol");
-      expect(el.textContent).not.toContain("Dave");
-    }
+    // Loser names in muted text-xs style (inside game card, not header)
+    const gameCard = container.querySelector(".rounded-xl");
+    const loserLine = gameCard?.querySelector("p.text-xs");
+    expect(loserLine).not.toBeNull();
+    expect(loserLine!.textContent).toContain("Carol");
+    expect(loserLine!.textContent).not.toContain("Alice");
   });
 
-  it("only active games get winner styling, voided do not", () => {
+  it("voided cards use muted styling for both winner and loser", () => {
     const voided = makeGame({
       id: "g1", sequence_num: 1,
       team_a_score: 11, team_b_score: 7,
@@ -181,9 +199,12 @@ describe("E. Winner/loser styling exclusivity", () => {
     const { container } = render(<GamesList games={[voided]} activeCount={0} totalCount={1} />);
     fireEvent.click(screen.getByText("Show voided"));
 
-    // Voided card should exist but still show winner styling
-    // (voided affects opacity, not highlight logic)
-    const gameCard = container.querySelector(".opacity-60");
+    // Voided card should have opacity and muted text
+    const gameCard = container.querySelector(".opacity-50");
     expect(gameCard).not.toBeNull();
+
+    // Winner line uses gray-500 (muted) instead of gray-900
+    const winnerLine = container.querySelector(".text-sm.font-semibold.text-gray-500");
+    expect(winnerLine).not.toBeNull();
   });
 });

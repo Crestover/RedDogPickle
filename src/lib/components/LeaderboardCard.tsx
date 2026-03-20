@@ -51,11 +51,11 @@ function statusDot(label: ConfidenceLabelType): { color: string; text: string } 
   switch (label) {
     case "Locked In":
     case "Active":
-      return { color: "bg-[#22C55E]", text: "Active" };
+      return { color: "bg-green-500", text: "Active" };
     case "Rusty":
-      return { color: "bg-[#F59E0B]", text: "Rusty" };
+      return { color: "bg-amber-400", text: "Rusty" };
     case "Returning":
-      return { color: "bg-[#F59E0B]", text: "Returning" };
+      return { color: "bg-amber-400", text: "Returning" };
   }
 }
 
@@ -79,27 +79,34 @@ export default function LeaderboardCard({
   return (
     <div
       onClick={onToggle}
-      className={`
-        bg-white border rounded-[14px] transition-all duration-200 cursor-pointer
-        ${isFirst ? "border-l-4 border-l-[#0F7B53] border-t border-r border-b border-t-[rgba(17,17,17,0.05)] border-r-[rgba(17,17,17,0.05)] border-b-[rgba(17,17,17,0.05)] pl-3 pr-4 py-[14px]" : "border-[rgba(17,17,17,0.05)] px-4 py-[14px]"}
-        hover:bg-[#FAFAFA]
-      `}
-      style={{ marginBottom: 10 }}
+      className="bg-white rounded-[14px] cursor-pointer hover:bg-[#FAFAFA] transition-all duration-200"
+      style={{
+        border: "1px solid rgba(17,17,17,0.05)",
+        borderLeft: isFirst ? "4px solid #0F7B53" : "1px solid rgba(17,17,17,0.05)",
+        padding: isFirst ? "14px 16px 14px 12px" : "14px 16px",
+        marginBottom: 10,
+      }}
     >
       {/* Collapsed row */}
       <div className="flex items-center gap-3">
         {/* Rank */}
-        <span className="text-[18px] font-bold text-[#2B2F33] w-7 text-right shrink-0">
+        <span
+          className="font-bold text-right shrink-0"
+          style={{ fontSize: 18, color: "#2B2F33", width: 28 }}
+        >
           {rank}
         </span>
 
         {/* Avatar */}
         <div
-          className={`w-[38px] h-[38px] rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-            isFirst
-              ? "bg-[#DDEBE4] text-[#1E5E47]"
-              : "bg-[#F1F3F5] text-[#6B7280]"
-          }`}
+          className="rounded-full flex items-center justify-center font-bold shrink-0"
+          style={{
+            width: 38,
+            height: 38,
+            fontSize: 12,
+            backgroundColor: isFirst ? "#DDEBE4" : "#F1F3F5",
+            color: isFirst ? "#1E5E47" : "#6B7280",
+          }}
         >
           {getInitials(player.display_name)}
         </div>
@@ -107,12 +114,15 @@ export default function LeaderboardCard({
         {/* Name + Tier */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center min-w-0 gap-1.5">
-            <span className="text-[16px] font-bold text-[#1C1F23] leading-[1.2] truncate">
+            <span
+              className="font-bold truncate"
+              style={{ fontSize: 16, color: "#1C1F23", lineHeight: 1.2 }}
+            >
               {player.display_name}
             </span>
             {isReigningGoat && (
               <span className="inline-flex items-center text-xs font-semibold tracking-wide text-zinc-700 shrink-0">
-                <svg className="w-3.5 h-3.5 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg style={{ width: 14, height: 14, marginRight: 2 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
                   <path d="M5 21h14" />
                 </svg>
@@ -121,7 +131,7 @@ export default function LeaderboardCard({
             )}
             {isAllTimeGoat && (
               <span className="inline-flex items-center text-xs font-semibold tracking-wide text-zinc-700 shrink-0">
-                <svg className="w-3.5 h-3.5 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg style={{ width: 14, height: 14, marginRight: 2 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
                   <path d="M5 21h14" />
                 </svg>
@@ -131,7 +141,8 @@ export default function LeaderboardCard({
           </div>
           {tier && (
             <span
-              className={`inline-flex items-center h-5 px-2 rounded-full text-[10px] font-bold tracking-[0.02em] mt-1 ${tierBadgeClasses(tier)}`}
+              className={`inline-flex items-center rounded-full font-bold ${tierBadgeClasses(tier)}`}
+              style={{ height: 20, padding: "0 8px", fontSize: 10, letterSpacing: "0.02em", marginTop: 4 }}
             >
               {tier}
             </span>
@@ -142,26 +153,28 @@ export default function LeaderboardCard({
         <div className="text-right shrink-0">
           <div className="flex items-baseline justify-end">
             <span
-              className={`text-[18px] font-bold ${
-                player.avg_point_diff > 0
-                  ? "text-[#0F7B53]"
+              className="font-bold"
+              style={{
+                fontSize: 18,
+                color: player.avg_point_diff > 0
+                  ? "#0F7B53"
                   : player.avg_point_diff < 0
-                  ? "text-[#B42318]"
-                  : "text-[#6B7280]"
-              }`}
+                  ? "#B42318"
+                  : "#6B7280",
+              }}
             >
               {formatDiff(player.avg_point_diff)}
             </span>
-            <span className="text-[11px] text-[#9CA3AF] ml-1">avg</span>
+            <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: 4 }}>avg</span>
           </div>
-          <p className="text-xs text-[#6B7280] mt-1">
+          <p style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
             {player.win_pct}% win
           </p>
         </div>
 
         {/* Chevron */}
         <svg
-          className={`w-4 h-4 text-[#9CA3AF] shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+          style={{ width: 16, height: 16, flexShrink: 0, color: "#9CA3AF", transition: "transform 0.2s ease", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -175,53 +188,59 @@ export default function LeaderboardCard({
 
       {/* Expanded content */}
       {expanded && (
-        <div className="mt-3 pt-3 border-t border-[#F3F4F6]">
-          <div className="grid grid-cols-2 gap-y-[10px] gap-x-4">
-            {/* Left column */}
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #F3F4F6" }}>
+          <div className="grid grid-cols-2" style={{ gap: "10px 16px" }}>
             <div>
-              <p className="text-[11px] text-[#9CA3AF]">Games</p>
-              <p className="text-sm font-semibold text-[#1F2937]">{player.games_played}</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Games</p>
+              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.games_played}</p>
             </div>
             <div>
-              <p className="text-[11px] text-[#9CA3AF]">Points For</p>
-              <p className="text-sm font-semibold text-[#1F2937]">{player.points_for}</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Points For</p>
+              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.points_for}</p>
             </div>
             <div>
-              <p className="text-[11px] text-[#9CA3AF]">Record</p>
-              <p className="text-sm font-semibold text-[#1F2937]">{player.games_won}W&ndash;{losses}L</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Record</p>
+              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.games_won}W&ndash;{losses}L</p>
             </div>
             <div>
-              <p className="text-[11px] text-[#9CA3AF]">Points Against</p>
-              <p className="text-sm font-semibold text-[#1F2937]">{player.points_against}</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Points Against</p>
+              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.points_against}</p>
             </div>
             <div>
-              <p className="text-[11px] text-[#9CA3AF]">Win %</p>
-              <p className="text-sm font-semibold text-[#1F2937]">{player.win_pct}%</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Win %</p>
+              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.win_pct}%</p>
             </div>
             <div>
-              <p className="text-[11px] text-[#9CA3AF]">Avg Diff</p>
-              <p className={`text-sm font-semibold ${
-                player.avg_point_diff > 0
-                  ? "text-[#0F7B53]"
-                  : player.avg_point_diff < 0
-                  ? "text-[#B42318]"
-                  : "text-[#1F2937]"
-              }`}>
+              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Avg Diff</p>
+              <p
+                className="font-semibold"
+                style={{
+                  fontSize: 14,
+                  color: player.avg_point_diff > 0
+                    ? "#0F7B53"
+                    : player.avg_point_diff < 0
+                    ? "#B42318"
+                    : "#1F2937",
+                }}
+              >
                 {formatDiff(player.avg_point_diff)}
               </p>
             </div>
           </div>
 
           {/* Footer: Status + RDR */}
-          <div className="mt-[10px] flex items-center justify-between">
+          <div className="flex items-center justify-between" style={{ marginTop: 10 }}>
             {status && (
               <div className="flex items-center">
-                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${status.color}`} />
-                <span className="text-xs text-[#6B7280]">{status.text}</span>
+                <span
+                  className={`rounded-full ${status.color}`}
+                  style={{ width: 6, height: 6, marginRight: 6 }}
+                />
+                <span style={{ fontSize: 12, color: "#6B7280" }}>{status.text}</span>
               </div>
             )}
             {rating != null && (
-              <span className="text-xs font-medium text-[#6B7280]">
+              <span style={{ fontSize: 12, fontWeight: 500, color: "#6B7280" }}>
                 {Math.round(rating)} RDR
               </span>
             )}

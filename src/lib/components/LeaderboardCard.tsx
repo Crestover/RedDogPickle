@@ -3,8 +3,8 @@
 /**
  * LeaderboardCard — Expandable card for leaderboard rankings.
  *
- * Collapsed: Rank, Avatar, Name + Tier, Avg Diff, Win %
- * Expanded: Full stat grid, status indicator, RDR
+ * Collapsed: Rank, Avatar, Name + Tier + GOAT, Avg Diff, Win %, Chevron
+ * Expanded: 2-column stat grid, status indicator, RDR
  *
  * Used by LeaderboardCardList which manages accordion state.
  */
@@ -32,18 +32,48 @@ function getInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function tierBadgeClasses(tier: RdrTier): string {
+/** Crown icon SVG for GOAT badges — monochrome, 12px. */
+function CrownIcon() {
+  return (
+    <svg
+      style={{ width: 12, height: 12 }}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+
+function tierBadgeStyle(tier: RdrTier): React.CSSProperties {
+  const base: React.CSSProperties = {
+    height: 20,
+    padding: "0 8px",
+    borderRadius: 999,
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.02em",
+    display: "inline-flex",
+    alignItems: "center",
+    marginTop: 4,
+  };
   switch (tier) {
     case "Elite":
-      return "bg-[#E8F3ED] text-[#17684A]";
+      return { ...base, backgroundColor: "#E6F2EC", color: "#17684A" };
     case "All-Star":
-      return "bg-[#F3F4F6] text-[#374151]";
+      return { ...base, backgroundColor: "#F3F4F6", color: "#374151" };
     case "Contender":
-      return "bg-[#F8F8F8] text-[#6B7280]";
+      return { ...base, backgroundColor: "#F3F4F6", color: "#4B5563" };
     case "Challenger":
-      return "bg-[#F8F8F8] text-[#6B7280]";
+      return { ...base, backgroundColor: "transparent", border: "1px solid rgba(17,17,17,0.08)", color: "#4B5563" };
     case "Walk-On":
-      return "bg-transparent border border-[rgba(17,17,17,0.08)] text-[#8B949E]";
+      return { ...base, backgroundColor: "transparent", border: "1px solid rgba(17,17,17,0.06)", color: "#6B7280", opacity: 0.85 };
   }
 }
 
@@ -51,11 +81,11 @@ function statusDot(label: ConfidenceLabelType): { color: string; text: string } 
   switch (label) {
     case "Locked In":
     case "Active":
-      return { color: "bg-green-500", text: "Active" };
+      return { color: "#22C55E", text: "Active" };
     case "Rusty":
-      return { color: "bg-amber-400", text: "Rusty" };
+      return { color: "#F59E0B", text: "Rusty" };
     case "Returning":
-      return { color: "bg-amber-400", text: "Returning" };
+      return { color: "#F59E0B", text: "Returning" };
   }
 }
 
@@ -79,83 +109,108 @@ export default function LeaderboardCard({
   return (
     <div
       onClick={onToggle}
-      className="bg-white rounded-[14px] cursor-pointer hover:bg-[#FAFAFA] transition-all duration-200"
+      className="bg-white cursor-pointer hover:bg-[#FAFAFA] transition-all duration-200"
       style={{
         border: "1px solid rgba(17,17,17,0.05)",
         borderLeft: isFirst ? "4px solid #0F7B53" : "1px solid rgba(17,17,17,0.05)",
-        padding: isFirst ? "14px 16px 14px 12px" : "14px 16px",
+        borderRadius: isFirst ? "14px" : 14,
+        padding: isFirst ? "12px 16px 12px 12px" : "12px 16px",
         marginBottom: 10,
       }}
     >
-      {/* Collapsed row */}
-      <div className="flex items-center gap-3">
+      {/* Collapsed row — 3-zone: Left (rank+avatar) | Center (name+tier) | Right (metrics+chevron) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {/* Rank */}
         <span
-          className="font-bold text-right shrink-0"
-          style={{ fontSize: 18, color: "#2B2F33", width: 28 }}
+          style={{ fontSize: 18, fontWeight: 700, color: "#2B2F33", width: 28, textAlign: "right", flexShrink: 0 }}
         >
           {rank}
         </span>
 
         {/* Avatar */}
         <div
-          className="rounded-full flex items-center justify-center font-bold shrink-0"
           style={{
             width: 38,
             height: 38,
+            borderRadius: 999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             fontSize: 12,
-            backgroundColor: isFirst ? "#DDEBE4" : "#F1F3F5",
+            fontWeight: 700,
+            flexShrink: 0,
+            backgroundColor: isFirst ? "#DDEBE4" : "#ECEFF1",
             color: isFirst ? "#1E5E47" : "#6B7280",
           }}
         >
           {getInitials(player.display_name)}
         </div>
 
-        {/* Name + Tier */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center min-w-0 gap-1.5">
+        {/* Center: Name + Tier + GOAT */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
             <span
-              className="font-bold truncate"
-              style={{ fontSize: 16, color: "#1C1F23", lineHeight: 1.2 }}
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#111111",
+                lineHeight: 1.2,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
             >
               {player.display_name}
             </span>
             {isReigningGoat && (
-              <span className="inline-flex items-center text-xs font-semibold tracking-wide text-zinc-700 shrink-0">
-                <svg style={{ width: 14, height: 14, marginRight: 2 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
-                  <path d="M5 21h14" />
-                </svg>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  marginLeft: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  color: "#111111",
+                  opacity: 0.8,
+                  flexShrink: 0,
+                }}
+              >
+                <CrownIcon />
                 GOAT
               </span>
             )}
             {isAllTimeGoat && (
-              <span className="inline-flex items-center text-xs font-semibold tracking-wide text-zinc-700 shrink-0">
-                <svg style={{ width: 14, height: 14, marginRight: 2 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z" />
-                  <path d="M5 21h14" />
-                </svg>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  marginLeft: 6,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  color: "#111111",
+                  opacity: 0.8,
+                  flexShrink: 0,
+                }}
+              >
+                <CrownIcon />
                 ALL-TIME
               </span>
             )}
           </div>
-          {tier && (
-            <span
-              className={`inline-flex items-center rounded-full font-bold ${tierBadgeClasses(tier)}`}
-              style={{ height: 20, padding: "0 8px", fontSize: 10, letterSpacing: "0.02em", marginTop: 4 }}
-            >
-              {tier}
-            </span>
-          )}
+          {tier && <span style={tierBadgeStyle(tier)}>{tier}</span>}
         </div>
 
-        {/* Right side: Avg Diff + Win % */}
-        <div className="text-right shrink-0">
-          <div className="flex items-baseline justify-end">
+        {/* Right: Metrics + Chevron */}
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "flex-end" }}>
             <span
-              className="font-bold"
               style={{
                 fontSize: 18,
+                fontWeight: 700,
                 color: player.avg_point_diff > 0
                   ? "#0F7B53"
                   : player.avg_point_diff < 0
@@ -167,14 +222,23 @@ export default function LeaderboardCard({
             </span>
             <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: 4 }}>avg</span>
           </div>
-          <p style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>
+          <p style={{ fontSize: 12, color: "#6B7280", marginTop: 2, margin: 0, marginBlockStart: 2 }}>
             {player.win_pct}% win
           </p>
         </div>
 
         {/* Chevron */}
         <svg
-          style={{ width: 16, height: 16, flexShrink: 0, color: "#9CA3AF", transition: "transform 0.2s ease", transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
+          style={{
+            width: 16,
+            height: 16,
+            flexShrink: 0,
+            color: "#9CA3AF",
+            opacity: 0.6,
+            marginLeft: 8,
+            transition: "transform 0.2s ease",
+            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+          }}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -189,33 +253,40 @@ export default function LeaderboardCard({
       {/* Expanded content */}
       {expanded && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #F3F4F6" }}>
-          <div className="grid grid-cols-2" style={{ gap: "10px 16px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "10px 16px",
+            }}
+          >
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Games</p>
-              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.games_played}</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Games</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.games_played}</p>
             </div>
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Points For</p>
-              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.points_for}</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Points For</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.points_for}</p>
             </div>
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Record</p>
-              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.games_won}W&ndash;{losses}L</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Record</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.games_won}W&ndash;{losses}L</p>
             </div>
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Points Against</p>
-              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.points_against}</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Points Against</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.points_against}</p>
             </div>
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Win %</p>
-              <p className="font-semibold" style={{ fontSize: 14, color: "#1F2937" }}>{player.win_pct}%</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Win %</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.win_pct}%</p>
             </div>
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF" }}>Avg Diff</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Avg Diff</p>
               <p
-                className="font-semibold"
                 style={{
                   fontSize: 14,
+                  fontWeight: 600,
+                  margin: 0,
                   color: player.avg_point_diff > 0
                     ? "#0F7B53"
                     : player.avg_point_diff < 0
@@ -229,12 +300,24 @@ export default function LeaderboardCard({
           </div>
 
           {/* Footer: Status + RDR */}
-          <div className="flex items-center justify-between" style={{ marginTop: 10 }}>
+          <div
+            style={{
+              marginTop: 10,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
             {status && (
-              <div className="flex items-center">
+              <div style={{ display: "flex", alignItems: "center" }}>
                 <span
-                  className={`rounded-full ${status.color}`}
-                  style={{ width: 6, height: 6, marginRight: 6 }}
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 999,
+                    marginRight: 6,
+                    backgroundColor: status.color,
+                  }}
                 />
                 <span style={{ fontSize: 12, color: "#6B7280" }}>{status.text}</span>
               </div>

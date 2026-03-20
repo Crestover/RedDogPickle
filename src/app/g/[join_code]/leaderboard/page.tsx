@@ -3,7 +3,7 @@ import { RPC } from "@/lib/supabase/rpc";
 import type { PlayerStats, PlayerRating } from "@/lib/types";
 import { getGoatResult } from "@/lib/goat";
 import type { GoatCandidate } from "@/lib/goat";
-import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
+import LeaderboardCardList from "@/lib/components/LeaderboardCardList";
 import RdrHelpLink from "@/lib/components/RdrHelpLink";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -345,27 +345,24 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
             </Link>
           </div>
         ) : (
-          <div className="space-y-2">
-            {stats.map((player, index) => {
+          <LeaderboardCardList
+            cards={stats.map((player, index) => {
               const pr = ratingsMap.get(player.player_id);
-              // All RPCs now return rdr; fall back to ratings table if null
               const rating = player.rdr != null
                 ? Number(player.rdr)
                 : (pr?.rating ?? null);
-              return (
-                <PlayerStatsRow
-                  key={player.player_id}
-                  rank={index + 1}
-                  player={player}
-                  rating={rating}
-                  provisional={pr?.provisional ?? false}
-                  ratingDeviation={pr?.rating_deviation ?? null}
-                  isReigningGoat={player.player_id === reigningGoatPlayerId}
-                  isAllTimeGoat={player.player_id === allTimeGoatPlayerId}
-                />
-              );
+              return {
+                playerId: player.player_id,
+                rank: index + 1,
+                player,
+                rating,
+                provisional: pr?.provisional ?? false,
+                ratingDeviation: pr?.rating_deviation ?? null,
+                isReigningGoat: player.player_id === reigningGoatPlayerId,
+                isAllTimeGoat: player.player_id === allTimeGoatPlayerId,
+              };
             })}
-          </div>
+          />
         )}
       </div>
     </div>

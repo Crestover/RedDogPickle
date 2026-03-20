@@ -2,6 +2,20 @@
 
 ---
 
+## v0.7.1 — Fresh Look for the Leaderboard and Games Feed
+
+### Improved
+- **New leaderboard cards.** The leaderboard now uses clean, expandable cards. You can see rank, name, tier, and key stats at a glance — tap any card to see the full breakdown.
+- **Redesigned games feed.** Game cards now look like a real sports scoreboard. The winning team is bold on top with their score in green, the losing team sits below in lighter text. Much faster to scan courtside.
+- **Better typography.** The app now uses Inter, a clean modern font, across the board. Key numbers like rank and point differential use a tighter, bolder style for that athletic feel.
+
+### Changed
+- Game badges now show "G12" instead of "Game #12" — compact and easy to spot.
+- Voided games still show all the details (players, score, time) instead of a generic placeholder.
+- Scores now display with a simple dash (11 - 04) instead of "vs".
+
+---
+
 ## v0.7.0 — Smarter Ratings
 
 ### Improved

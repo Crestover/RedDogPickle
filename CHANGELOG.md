@@ -6,6 +6,37 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
+## [0.7.1] — Leaderboard Cards + Games Feed Redesign (2026-03-20)
+
+### Added
+- New expandable card-based leaderboard replacing the old stats row layout
+- Accordion interaction — tap a card to see full stats, only one open at a time
+- Leaderboard cards show rank, avatar initials, name, tier badge, GOAT designation, avg diff, and win %
+- Expanded view shows 2-column stat grid (games, record, win %, PF, PA, avg diff), status indicator, and RDR
+- Inter font (Google) added as the default app font via `next/font`
+
+### Changed
+- Games feed redesigned as a sports scoreboard layout
+  - Winner names bold on top, loser names muted below
+  - Score right-aligned with winner score in green, loser score in gray
+  - Game badge changed from "Game #12" text to compact green "G12" pill
+  - Timestamp moved to bottom right aligned with loser row
+  - Removed "vs" separator between teams
+  - Removed emerald highlight system in favor of bold/muted hierarchy
+- Game badge uses custom brand colors (#d5e6ec background, #167659 text)
+- Winner score uses matching #167659 green
+- Scores are zero-padded (e.g. "07" not "7")
+- Voided game cards now show full info (names, score, timestamp) instead of generic placeholder
+- Voided card opacity adjusted to 60%
+- Leaderboard rank number and avg diff use Inter extrabold (800) with tight letter-spacing for athletic look
+- Tailwind config extended with Inter as default `font-sans`
+
+### Fixed
+- EndedSessionGames component now matches GamesList scoreboard layout exactly
+- Updated all regression tests for new card layouts
+
+---
+
 ## [Pre-M0] — Spec & Project Foundation (2026-02-19)
 
 ### Added

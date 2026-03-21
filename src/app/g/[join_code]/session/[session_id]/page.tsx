@@ -159,10 +159,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         <div className="w-full max-w-sm mx-auto space-y-6">
           {/* Back link */}
           <Link
-            href={`/g/${group.join_code}`}
+            href={`/g/${group.join_code}/sessions`}
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
-            &larr; {group.name}
+            &larr; Session History
           </Link>
 
           {/* Session header */}
@@ -282,10 +282,10 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
       <div className="w-full max-w-sm mx-auto space-y-6">
         {/* Back link */}
         <Link
-          href={`/g/${group.join_code}`}
+          href={`/g/${group.join_code}/sessions`}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
-          &larr; {group.name}
+          &larr; Session History
         </Link>
 
         {/* Session header */}

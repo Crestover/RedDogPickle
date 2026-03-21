@@ -6,7 +6,7 @@ import type { PairCount, Player, PlayerStats, SessionRatingInfo, Sport } from "@
 import { getSportConfig } from "@/lib/sports";
 import { transformGameRecords } from "@/lib/results/transformGameRecord";
 import { STALE_SESSION_MS } from "@/lib/constants/shared";
-import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
+import LeaderboardCardList from "@/lib/components/LeaderboardCardList";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
@@ -339,24 +339,24 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
         ) : (
           <>
             {sessionStandings.length > 0 ? (
-              <div className="space-y-2">
-                {sessionStandings.map((player, index) => {
+              <LeaderboardCardList
+                cards={sessionStandings.map((player, index) => {
                   const pr = ratingsMap.get(player.player_id);
                   const rating = player.rdr != null
                     ? Number(player.rdr)
                     : (pr?.rating ?? null);
-                  return (
-                    <PlayerStatsRow
-                      key={player.player_id}
-                      rank={index + 1}
-                      player={player}
-                      rating={rating}
-                      provisional={pr?.provisional ?? false}
-                      ratingDeviation={pr?.rating_deviation ?? null}
-                    />
-                  );
+                  return {
+                    playerId: player.player_id,
+                    rank: index + 1,
+                    player,
+                    rating,
+                    provisional: pr?.provisional ?? false,
+                    ratingDeviation: pr?.rating_deviation ?? null,
+                    isReigningGoat: false,
+                    isAllTimeGoat: false,
+                  };
                 })}
-              </div>
+              />
             ) : (
               <p className="text-sm text-gray-400 text-center py-4">No standings data.</p>
             )}

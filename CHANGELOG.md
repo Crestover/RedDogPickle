@@ -34,6 +34,8 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 ### Fixed
 - EndedSessionGames component now matches GamesList scoreboard layout exactly
 - Updated all regression tests for new card layouts
+- Session standings tab now uses `LeaderboardCardList` (expandable cards) instead of old `PlayerStatsRow`
+- Back button on session detail page now returns to Session History (`/g/[join_code]/sessions`) instead of group home screen
 
 ---
 

@@ -1,8 +1,8 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import type { Player, Sport } from "@/lib/types";
+import type { Sport } from "@/lib/types";
 import { getSportConfig } from "@/lib/sports";
+import type { PlayerOption } from "@/lib/components/PlayerPicker";
 import SessionPlayerPicker from "./SessionPlayerPicker";
 
 interface PageProps {
@@ -13,7 +13,6 @@ interface PageProps {
 async function getData(joinCode: string, sessionId: string) {
   const supabase = getServerClient();
 
-  // Fetch group (need sport for playersPerTeam)
   const { data: group } = await supabase
     .from("groups")
     .select("id, name, join_code, sport")
@@ -47,7 +46,7 @@ async function getData(joinCode: string, sessionId: string) {
 
   const attendeeIds = new Set((attendees ?? []).map((a) => a.player_id));
 
-  // Recency data — sort recently-active players to the top
+  // Recency data — most recently active players float to the top
   const { data: ratings } = await supabase
     .from("player_ratings")
     .select("player_id, last_played_at")
@@ -57,17 +56,18 @@ async function getData(joinCode: string, sessionId: string) {
     (ratings ?? []).map((r) => [r.player_id, r.last_played_at as string | null])
   );
 
-  // Available = active group members not yet in session, sorted by recency
-  const available = ((groupPlayers ?? []) as Player[])
+  // Available = in group, not yet in session, sorted most-recent-first
+  const available: PlayerOption[] = ((groupPlayers ?? []) as { id: string; display_name: string; code: string }[])
     .filter((p) => !attendeeIds.has(p.id))
     .sort((a, b) => {
       const da = lastPlayed.get(a.id);
       const db = lastPlayed.get(b.id);
       if (!da && !db) return 0;
-      if (!da) return 1;  // never played → bottom
+      if (!da) return 1;
       if (!db) return -1;
-      return new Date(db).getTime() - new Date(da).getTime(); // most recent first
-    });
+      return new Date(db).getTime() - new Date(da).getTime();
+    })
+    .map((p) => ({ id: p.id, name: p.display_name, initials: p.code }));
 
   return { group, available };
 }
@@ -86,46 +86,20 @@ export default async function SessionPlayersPage({ params, searchParams }: PageP
   const currentSelected = Math.min(parseInt(selected ?? "0", 10) || 0, totalNeeded);
   const slotsNeeded = Math.max(0, totalNeeded - currentSelected);
 
-  const sessionUrl = `/g/${group.join_code}/session/${session_id}`;
-
-  // After creating a new player: enroll in this session and jump straight
-  // back to the Quick Game screen — the picker is skipped entirely.
+  // After creating a new player: enroll in session + jump straight to session
   const newPlayerUrl =
     `/g/${group.join_code}/players/new` +
     `?sessionId=${session_id}` +
     `&returnTo=${encodeURIComponent(`/g/${group.join_code}/session/${session_id}/players`)}`;
 
+  // PlayerPicker (via SessionPlayerPicker) owns its full-page layout.
   return (
-    <div className="flex flex-col px-4 py-8">
-      <div className="w-full max-w-sm mx-auto space-y-6">
-
-        {/* Back link — instant, no confirmation */}
-        <Link
-          href={sessionUrl}
-          className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          &larr; Back to session
-        </Link>
-
-        {/* Header */}
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Add players</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {slotsNeeded > 0
-              ? `Need ${slotsNeeded} more to start — select from your group`
-              : "Select players to add to this session"}
-          </p>
-        </div>
-
-        <SessionPlayerPicker
-          sessionId={session_id}
-          joinCode={group.join_code}
-          availablePlayers={available}
-          newPlayerUrl={newPlayerUrl}
-          slotsNeeded={slotsNeeded}
-        />
-
-      </div>
-    </div>
+    <SessionPlayerPicker
+      sessionId={session_id}
+      joinCode={group.join_code}
+      availablePlayers={available}
+      newPlayerUrl={newPlayerUrl}
+      slotsNeeded={slotsNeeded}
+    />
   );
 }

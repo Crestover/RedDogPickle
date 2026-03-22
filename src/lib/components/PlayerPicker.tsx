@@ -1,0 +1,287 @@
+"use client";
+
+/**
+ * PlayerPicker — shared player-selection component
+ *
+ * Used in two places with one consistent interaction model:
+ *   - "start-session": pick attendees before starting a session (min 4)
+ *   - "add-to-session": add group players to an already-active session
+ *
+ * Handles its own full-page layout so both surfaces look and feel identical.
+ * Callers provide an onSubmit callback and mount this inside a bare wrapper.
+ *
+ * Helper text and CTA label are always context-aware and instructive —
+ * the user never sees a disabled button without an explanation.
+ */
+
+import { useState, useMemo } from "react";
+import Link from "next/link";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export type PlayerPickerMode = "start-session" | "add-to-session";
+
+export interface PlayerOption {
+  id: string;
+  name: string;
+  /** Short code shown in monospace below the name (player.code in our DB) */
+  initials: string;
+}
+
+interface Props {
+  mode: PlayerPickerMode;
+  players: PlayerOption[];
+  initiallySelectedIds?: string[];
+  minRequired?: number;
+  title?: string;
+  subtitle?: string;
+  /** Href for the "+ Add New Player" button */
+  addNewHref: string;
+  /** Href for the back link; omit to hide the back link */
+  onCancelHref?: string;
+  /** Text shown after the ← arrow in the back link */
+  backLabel?: string;
+  /** Called with the selected player IDs when the user confirms */
+  onSubmit: (selectedIds: string[]) => Promise<void> | void;
+  /** Shown when players array is empty */
+  emptyStateTitle?: string;
+  emptyStateBody?: string;
+}
+
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
+function getHelperText(
+  mode: PlayerPickerMode,
+  selectedCount: number,
+  minRequired: number
+): string {
+  if (mode === "start-session") {
+    if (selectedCount === 0) return `0 selected — need at least ${minRequired}`;
+    if (selectedCount < minRequired)
+      return `${selectedCount} selected — need at least ${minRequired}`;
+    return `${selectedCount} selected`;
+  }
+  const needed = Math.max(0, minRequired - selectedCount);
+  if (selectedCount === 0) return `0 selected \u2022 need ${minRequired} for a game`;
+  if (needed > 0) return `${selectedCount} selected \u2022 need ${needed} more`;
+  return `${selectedCount} selected`;
+}
+
+function getCtaLabel(
+  mode: PlayerPickerMode,
+  selectedCount: number,
+  minRequired: number,
+  isSubmitting: boolean
+): string {
+  if (isSubmitting)
+    return mode === "add-to-session" ? "Adding\u2026" : "Starting\u2026";
+  if (mode === "start-session") {
+    return selectedCount >= minRequired
+      ? "Start session"
+      : `Select at least ${minRequired} players`;
+  }
+  if (selectedCount === 0) return "Select players";
+  if (selectedCount === 1) return "Add 1 player";
+  return `Add ${selectedCount} players`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function PlayerPicker({
+  mode,
+  players,
+  initiallySelectedIds = [],
+  minRequired = 4,
+  title,
+  subtitle,
+  addNewHref,
+  onCancelHref,
+  backLabel = "Back",
+  onSubmit,
+  emptyStateTitle,
+  emptyStateBody,
+}: Props) {
+  const [query, setQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>(initiallySelectedIds);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  // ── Filtering ───────────────────────────────────────────────────────────────
+  const filteredPlayers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return players;
+    return players.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.initials.toLowerCase().includes(q)
+    );
+  }, [players, query]);
+
+  // ── Selection ───────────────────────────────────────────────────────────────
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    if (error) setError("");
+  }
+
+  // ── Submit ──────────────────────────────────────────────────────────────────
+  const isSubmitDisabled =
+    mode === "start-session"
+      ? selectedIds.length < minRequired
+      : selectedIds.length === 0;
+
+  async function handleSubmit() {
+    if (isSubmitDisabled || isSubmitting) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      await onSubmit(selectedIds);
+    } catch (err) {
+      // onSubmit can throw to surface errors (e.g. server action returned { error })
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      // If onSubmit triggers a redirect the component unmounts before this runs —
+      // that's fine. If it returns normally (e.g. modal shown), this resets state.
+      setIsSubmitting(false);
+    }
+  }
+
+  const helperText = getHelperText(mode, selectedIds.length, minRequired);
+  const ctaLabel = getCtaLabel(mode, selectedIds.length, minRequired, isSubmitting);
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Scrollable content area */}
+      <div className="flex-1 px-4 pt-6 pb-32 max-w-md mx-auto w-full">
+
+        {/* Back link */}
+        {onCancelHref && (
+          <Link
+            href={onCancelHref}
+            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 transition-colors mb-6"
+          >
+            &larr; {backLabel}
+          </Link>
+        )}
+
+        {/* Title + subtitle */}
+        {(title || subtitle) && (
+          <div className="mb-5">
+            {title && (
+              <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
+                {title}
+              </h1>
+            )}
+            {subtitle && (
+              <p className="mt-2 text-base text-gray-500">{subtitle}</p>
+            )}
+          </div>
+        )}
+
+        {/* Add New Player */}
+        <Link
+          href={addNewHref}
+          className="flex h-14 w-full items-center justify-center rounded-2xl border border-gray-300 bg-white text-base font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        >
+          + Add New Player
+        </Link>
+
+        {/* Search */}
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search players\u2026"
+          className="mt-4 h-14 w-full rounded-2xl border border-gray-300 px-4 text-base outline-none placeholder:text-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+        />
+
+        {/* Helper text (selection count) */}
+        <p className="mt-6 text-sm text-gray-600">{helperText}</p>
+
+        {/* Player list or empty state */}
+        {players.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm font-medium text-gray-900">
+              {emptyStateTitle ?? "No players yet"}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {emptyStateBody ?? "Add a new player using the button above."}
+            </p>
+          </div>
+        ) : filteredPlayers.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm font-medium text-gray-900">No players found</p>
+            <p className="mt-1 text-sm text-gray-500">
+              Try a different search or add a new player.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {filteredPlayers.map((player) => {
+              const isSelected = selectedIds.includes(player.id);
+              return (
+                <button
+                  key={player.id}
+                  type="button"
+                  onClick={() => toggleSelected(player.id)}
+                  disabled={isSubmitting}
+                  className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors ${
+                    isSelected
+                      ? "border-green-500 bg-green-50"
+                      : "border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
+                  } disabled:opacity-50`}
+                >
+                  {/* Selection circle */}
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${
+                      isSelected
+                        ? "border-green-600 bg-green-600 text-white"
+                        : "border-gray-300 bg-white text-transparent"
+                    }`}
+                  >
+                    ✓
+                  </div>
+                  {/* Name + code */}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-base font-semibold text-gray-900 leading-tight truncate">
+                      {player.name}
+                    </div>
+                    <div className="text-sm text-gray-500 font-mono mt-0.5">
+                      {player.initials}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <p
+            className="mt-4 text-sm text-red-600 font-medium rounded-xl bg-red-50 px-3 py-2"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+      </div>
+
+      {/* Sticky CTA footer */}
+      <div className="sticky bottom-0 border-t border-gray-200 bg-white px-4 py-4">
+        <div className="mx-auto max-w-md">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitDisabled || isSubmitting}
+            className="h-14 w-full rounded-2xl bg-gray-900 text-base font-semibold text-white disabled:bg-gray-300 transition-colors"
+          >
+            {ctaLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

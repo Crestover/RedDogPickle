@@ -7,8 +7,9 @@
  *   - "start-session": pick attendees before starting a session (min 4)
  *   - "add-to-session": add group players to an already-active session
  *
- * Handles its own full-page layout so both surfaces look and feel identical.
- * Callers provide an onSubmit callback and mount this inside a bare wrapper.
+ * This is a CONTENT component — it renders into whatever layout wrapper the
+ * page provides. The sticky CTA is `fixed bottom-0` so it always hugs the
+ * viewport bottom regardless of scroll position or parent layout.
  *
  * Helper text and CTA label are always context-aware and instructive —
  * the user never sees a disabled button without an explanation.
@@ -43,7 +44,7 @@ interface Props {
   backLabel?: string;
   /** Called with the selected player IDs when the user confirms */
   onSubmit: (selectedIds: string[]) => Promise<void> | void;
-  /** Shown when players array is empty */
+  /** Shown when players array is empty (no players exist at all) */
   emptyStateTitle?: string;
   emptyStateBody?: string;
 }
@@ -56,9 +57,9 @@ function getHelperText(
   minRequired: number
 ): string {
   if (mode === "start-session") {
-    if (selectedCount === 0) return `0 selected — need at least ${minRequired}`;
+    if (selectedCount === 0) return `0 selected \u2014 need at least ${minRequired}`;
     if (selectedCount < minRequired)
-      return `${selectedCount} selected — need at least ${minRequired}`;
+      return `${selectedCount} selected \u2014 need at least ${minRequired}`;
     return `${selectedCount} selected`;
   }
   const needed = Math.max(0, minRequired - selectedCount);
@@ -138,11 +139,10 @@ export default function PlayerPicker({
     try {
       await onSubmit(selectedIds);
     } catch (err) {
-      // onSubmit can throw to surface errors (e.g. server action returned { error })
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
-      // If onSubmit triggers a redirect the component unmounts before this runs —
-      // that's fine. If it returns normally (e.g. modal shown), this resets state.
+      // Runs when onSubmit returns normally (e.g. modal case).
+      // For redirect flows, the component unmounts before this — fine.
       setIsSubmitting(false);
     }
   }
@@ -151,127 +151,125 @@ export default function PlayerPicker({
   const ctaLabel = getCtaLabel(mode, selectedIds.length, minRequired, isSubmitting);
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  // pb-28 reserves space so the last list item isn't hidden under the fixed CTA.
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      {/* Scrollable content area */}
-      <div className="flex-1 px-4 pt-6 pb-32 max-w-md mx-auto w-full">
+    <div className="pb-28">
 
-        {/* Back link */}
-        {onCancelHref && (
-          <Link
-            href={onCancelHref}
-            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 transition-colors mb-6"
-          >
-            &larr; {backLabel}
-          </Link>
-        )}
-
-        {/* Title + subtitle */}
-        {(title || subtitle) && (
-          <div className="mb-5">
-            {title && (
-              <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
-                {title}
-              </h1>
-            )}
-            {subtitle && (
-              <p className="mt-2 text-base text-gray-500">{subtitle}</p>
-            )}
-          </div>
-        )}
-
-        {/* Add New Player */}
+      {/* Back link */}
+      {onCancelHref && (
         <Link
-          href={addNewHref}
-          className="flex h-14 w-full items-center justify-center rounded-2xl border border-gray-300 bg-white text-base font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          href={onCancelHref}
+          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 transition-colors mb-6"
         >
-          + Add New Player
+          &larr; {backLabel}
         </Link>
+      )}
 
-        {/* Search */}
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search players\u2026"
-          className="mt-4 h-14 w-full rounded-2xl border border-gray-300 px-4 text-base outline-none placeholder:text-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
-        />
+      {/* Title + subtitle */}
+      {(title || subtitle) && (
+        <div className="mb-5">
+          {title && (
+            <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
+              {title}
+            </h1>
+          )}
+          {subtitle && (
+            <p className="mt-2 text-base text-gray-500">{subtitle}</p>
+          )}
+        </div>
+      )}
 
-        {/* Helper text (selection count) */}
-        <p className="mt-6 text-sm text-gray-600">{helperText}</p>
+      {/* Add New Player */}
+      <Link
+        href={addNewHref}
+        className="flex h-14 w-full items-center justify-center rounded-2xl border border-gray-300 bg-white text-base font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+      >
+        + Add New Player
+      </Link>
 
-        {/* Player list or empty state */}
-        {players.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm font-medium text-gray-900">
-              {emptyStateTitle ?? "No players yet"}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {emptyStateBody ?? "Add a new player using the button above."}
-            </p>
-          </div>
-        ) : filteredPlayers.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm font-medium text-gray-900">No players found</p>
-            <p className="mt-1 text-sm text-gray-500">
-              Try a different search or add a new player.
-            </p>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {filteredPlayers.map((player) => {
-              const isSelected = selectedIds.includes(player.id);
-              return (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => toggleSelected(player.id)}
-                  disabled={isSubmitting}
-                  className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors ${
-                    isSelected
-                      ? "border-green-500 bg-green-50"
-                      : "border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
-                  } disabled:opacity-50`}
-                >
-                  {/* Selection circle */}
-                  <div
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${
-                      isSelected
-                        ? "border-green-600 bg-green-600 text-white"
-                        : "border-gray-300 bg-white text-transparent"
-                    }`}
-                  >
-                    ✓
-                  </div>
-                  {/* Name + code */}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-base font-semibold text-gray-900 leading-tight truncate">
-                      {player.name}
-                    </div>
-                    <div className="text-sm text-gray-500 font-mono mt-0.5">
-                      {player.initials}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+      {/* Search */}
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search players…"
+        className="mt-4 h-14 w-full rounded-2xl border border-gray-300 px-4 text-base outline-none placeholder:text-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+      />
 
-        {/* Error */}
-        {error && (
-          <p
-            className="mt-4 text-sm text-red-600 font-medium rounded-xl bg-red-50 px-3 py-2"
-            role="alert"
-          >
-            {error}
+      {/* Helper text (selection count) */}
+      <p className="mt-6 text-sm text-gray-600">{helperText}</p>
+
+      {/* Player list or empty state */}
+      {players.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-900">
+            {emptyStateTitle ?? "No players yet"}
           </p>
-        )}
-      </div>
+          <p className="mt-1 text-sm text-gray-500">
+            {emptyStateBody ?? "Add a new player using the button above."}
+          </p>
+        </div>
+      ) : filteredPlayers.length === 0 ? (
+        <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <p className="text-sm font-medium text-gray-900">No players found</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Try a different search or add a new player.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {filteredPlayers.map((player) => {
+            const isSelected = selectedIds.includes(player.id);
+            return (
+              <button
+                key={player.id}
+                type="button"
+                onClick={() => toggleSelected(player.id)}
+                disabled={isSubmitting}
+                className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors ${
+                  isSelected
+                    ? "border-green-500 bg-green-50"
+                    : "border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
+                } disabled:opacity-50`}
+              >
+                {/* Selection circle */}
+                <div
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${
+                    isSelected
+                      ? "border-green-600 bg-green-600 text-white"
+                      : "border-gray-300 bg-white text-transparent"
+                  }`}
+                >
+                  ✓
+                </div>
+                {/* Name + code */}
+                <div className="min-w-0 flex-1">
+                  <div className="text-base font-semibold text-gray-900 leading-tight truncate">
+                    {player.name}
+                  </div>
+                  <div className="text-sm text-gray-500 font-mono mt-0.5">
+                    {player.initials}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Sticky CTA footer */}
-      <div className="sticky bottom-0 border-t border-gray-200 bg-white px-4 py-4">
-        <div className="mx-auto max-w-md">
+      {/* Error */}
+      {error && (
+        <p
+          className="mt-4 text-sm text-red-600 font-medium rounded-xl bg-red-50 px-3 py-2"
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+
+      {/* Fixed CTA footer — always visible above the keyboard / bottom of viewport */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-gray-200 bg-white px-4 py-4">
+        <div className="mx-auto max-w-sm">
           <button
             type="button"
             onClick={handleSubmit}

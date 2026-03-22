@@ -92,14 +92,17 @@ export default async function SessionPlayersPage({ params, searchParams }: PageP
     `?sessionId=${session_id}` +
     `&returnTo=${encodeURIComponent(`/g/${group.join_code}/session/${session_id}/players`)}`;
 
-  // PlayerPicker (via SessionPlayerPicker) owns its full-page layout.
   return (
-    <SessionPlayerPicker
-      sessionId={session_id}
-      joinCode={group.join_code}
-      availablePlayers={available}
-      newPlayerUrl={newPlayerUrl}
-      slotsNeeded={slotsNeeded}
-    />
+    <div className="flex flex-col px-4 py-8">
+      <div className="w-full max-w-sm mx-auto">
+        <SessionPlayerPicker
+          sessionId={session_id}
+          joinCode={group.join_code}
+          availablePlayers={available}
+          newPlayerUrl={newPlayerUrl}
+          slotsNeeded={slotsNeeded}
+        />
+      </div>
+    </div>
   );
 }

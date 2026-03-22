@@ -46,14 +46,16 @@ export default async function StartSessionPage({ params }: PageProps) {
 
   const { group, players, activeSessions } = result;
 
-  // PlayerPicker (via StartSessionForm) owns its full-page layout —
-  // no wrapper chrome needed here.
   return (
-    <StartSessionForm
-      groupName={group.name}
-      joinCode={group.join_code}
-      players={players}
-      activeSessions={activeSessions}
-    />
+    <div className="flex flex-col px-4 py-8">
+      <div className="w-full max-w-sm mx-auto">
+        <StartSessionForm
+          groupName={group.name}
+          joinCode={group.join_code}
+          players={players}
+          activeSessions={activeSessions}
+        />
+      </div>
+    </div>
   );
 }

@@ -1,13 +1,10 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import type { Sport } from "@/lib/types";
-import { getSportConfig } from "@/lib/sports";
 import type { PlayerOption } from "@/lib/components/PlayerPicker";
 import SessionPlayerPicker from "./SessionPlayerPicker";
 
 interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
-  searchParams: Promise<{ selected?: string }>;
 }
 
 async function getData(joinCode: string, sessionId: string) {
@@ -72,19 +69,13 @@ async function getData(joinCode: string, sessionId: string) {
   return { group, available };
 }
 
-export default async function SessionPlayersPage({ params, searchParams }: PageProps) {
+export default async function SessionPlayersPage({ params }: PageProps) {
   const { join_code, session_id } = await params;
-  const { selected } = await searchParams;
 
   const data = await getData(join_code, session_id);
   if (!data) notFound();
 
   const { group, available } = data;
-
-  const sportConfig = getSportConfig(group.sport as Sport);
-  const totalNeeded = sportConfig.playersPerTeam * 2;
-  const currentSelected = Math.min(parseInt(selected ?? "0", 10) || 0, totalNeeded);
-  const slotsNeeded = Math.max(0, totalNeeded - currentSelected);
 
   // After creating a new player: enroll in session + jump straight to session
   const newPlayerUrl =
@@ -100,7 +91,6 @@ export default async function SessionPlayersPage({ params, searchParams }: PageP
           joinCode={group.join_code}
           availablePlayers={available}
           newPlayerUrl={newPlayerUrl}
-          slotsNeeded={slotsNeeded}
         />
       </div>
     </div>

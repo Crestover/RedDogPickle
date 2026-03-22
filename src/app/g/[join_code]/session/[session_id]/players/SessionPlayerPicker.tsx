@@ -20,8 +20,6 @@ interface Props {
   /** Group players not yet attending this session, sorted by recency */
   availablePlayers: PlayerOption[];
   newPlayerUrl: string;
-  /** How many more players are needed on the Quick Game screen for a full game */
-  slotsNeeded?: number;
 }
 
 export default function SessionPlayerPicker({
@@ -29,7 +27,6 @@ export default function SessionPlayerPicker({
   joinCode,
   availablePlayers,
   newPlayerUrl,
-  slotsNeeded = 0,
 }: Props) {
   const router = useRouter();
   const sessionUrl = `/g/${joinCode}/session/${sessionId}`;
@@ -46,18 +43,13 @@ export default function SessionPlayerPicker({
     router.push(`${sessionUrl}?added=${selectedIds.join(",")}`);
   }
 
-  const subtitle =
-    slotsNeeded > 0
-      ? `Select players to add. You need ${slotsNeeded} more for a full game.`
-      : "Select players to add to this session.";
-
   return (
     <PlayerPicker
       mode="add-to-session"
       players={availablePlayers}
       minRequired={4}
       title="Add players"
-      subtitle={subtitle}
+      subtitle="Select from your group or add a new player"
       addNewHref={newPlayerUrl}
       onCancelHref={sessionUrl}
       backLabel="Back to session"

@@ -3,10 +3,15 @@
 /**
  * SessionPlayerPicker — Add players to a live session
  *
- * Shows group players who aren't yet attending the current session.
- * Multi-select: tap to toggle, then "Add N players" to enroll them.
- * Also exposes a "+ New player" escape hatch that creates the player
- * AND enrolls them in the session in one action.
+ * Shows group players who aren't yet attending the current session,
+ * sorted by recency (most recently active first).
+ *
+ * On confirm: navigates to the Quick Game screen with ?added=id1,id2,...
+ * so RecordGameForm can auto-select the new players and highlight them.
+ *
+ * "+ New player" creates the player AND enrolls them in the session
+ * atomically (via addPlayerAction's optional sessionId param), then drops
+ * the user straight back at the Quick Game screen.
  */
 
 import { useState, useTransition } from "react";
@@ -20,6 +25,9 @@ interface Props {
   joinCode: string;
   availablePlayers: Player[];
   newPlayerUrl: string;
+  /** Slots still open on the Quick Game screen when this picker was opened.
+   *  Used to show a "need X more" banner at the top. */
+  slotsNeeded?: number;
 }
 
 export default function SessionPlayerPicker({
@@ -27,6 +35,7 @@ export default function SessionPlayerPicker({
   joinCode,
   availablePlayers,
   newPlayerUrl,
+  slotsNeeded = 0,
 }: Props) {
   const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -55,7 +64,8 @@ export default function SessionPlayerPicker({
         setError(result.error);
         return;
       }
-      router.push(sessionUrl);
+      // Return to Quick Game with added IDs so the form can auto-select + highlight
+      router.push(`${sessionUrl}?added=${selectedIds.join(",")}`);
     });
   }
 
@@ -68,7 +78,18 @@ export default function SessionPlayerPicker({
   return (
     <div className="space-y-4">
 
-      {/* ── Available players ────────────────────────────────────── */}
+      {/* ── "Need X more" context banner ─────────────────────────── */}
+      {slotsNeeded > 0 && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+          <p className="text-xs font-medium text-amber-800">
+            {slotsNeeded === 1
+              ? "You need 1 more player to record a game."
+              : `You need ${slotsNeeded} more players to record a game.`}
+          </p>
+        </div>
+      )}
+
+      {/* ── Available players (sorted by recency) ────────────────── */}
       {availablePlayers.length > 0 ? (
         <div className="space-y-2">
           {availablePlayers.map((player) => {

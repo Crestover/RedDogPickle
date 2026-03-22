@@ -19,6 +19,13 @@
  *   - Suspicious score warning
  *   - Duplicate detection (M4.1)
  *   - Debounced router.refresh()
+ *
+ * "Return from picker" UX (initialAddedIds):
+ *   When the user adds players via the /players picker and returns, the
+ *   session page passes the newly-added player IDs as `initialAddedIds`.
+ *   The form auto-selects them (filling empty team slots in order) and
+ *   highlights them with a green ring for 2.5 seconds so the user can
+ *   immediately see who was added and that they're already queued up.
  */
 
 import { useState, useRef, useEffect, useTransition, useCallback } from "react";
@@ -45,6 +52,9 @@ interface Props {
   sessionRules: { targetPoints: number; winBy: number };
   sportConfig: { targetPresets: number[]; playersPerTeam: number };
   lastGameSummary?: string;
+  /** IDs of players just added via the session player picker.
+   *  Auto-selected into open team slots and highlighted for 2.5 seconds. */
+  initialAddedIds?: string[];
 }
 
 type TeamLabel = "A" | "B";
@@ -85,13 +95,33 @@ export default function RecordGameForm({
   sessionRules,
   sportConfig,
   lastGameSummary,
+  initialAddedIds = [],
 }: Props) {
   const router = useRouter();
 
   const totalNeeded = sportConfig.playersPerTeam * 2;
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
+
+  // Auto-select any players that were just added via the picker, filling
+  // open team slots in arrival order (same assignment logic as togglePlayer).
+  const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>(() => {
+    if (!initialAddedIds.length) return [];
+    const result: SelectedPlayer[] = [];
+    for (const id of initialAddedIds) {
+      if (result.length >= totalNeeded) break;
+      const player = attendees.find((p) => p.id === id);
+      if (!player) continue;
+      const team: TeamLabel = result.length < sportConfig.playersPerTeam ? "A" : "B";
+      result.push({ ...player, team });
+    }
+    return result;
+  });
+
+  // Highlight newly-added players with a green ring for 2.5 seconds.
+  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(
+    () => new Set(initialAddedIds)
+  );
   const [scoreA, setScoreA] = useState("");
   const [scoreB, setScoreB] = useState("");
   const [error, setError] = useState("");
@@ -138,6 +168,13 @@ export default function RecordGameForm({
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     if (undoMessageTimerRef.current) clearTimeout(undoMessageTimerRef.current);
   }, []);
+
+  // Fade out the "newly added" highlight after 2.5 seconds
+  useEffect(() => {
+    if (highlightedIds.size === 0) return;
+    const timer = setTimeout(() => setHighlightedIds(new Set()), 2500);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const teamAIds = selectedPlayers.filter((p) => p.team === "A").map((p) => p.id);
@@ -428,7 +465,7 @@ export default function RecordGameForm({
           </p>
         </div>
         <Link
-          href={`/g/${joinCode}/session/${sessionId}/players`}
+          href={`/g/${joinCode}/session/${sessionId}/players?selected=${selectedPlayers.length}`}
           className="shrink-0 text-sm font-medium text-green-700 hover:text-green-800 transition-colors pt-0.5"
         >
           + Add players
@@ -497,8 +534,10 @@ export default function RecordGameForm({
                     : "bg-orange-50 border-orange-200"
                   : dimmed
                   ? "bg-white border-gray-100 opacity-40"
+                  : highlightedIds.has(player.id)
+                  ? "bg-green-50 border-green-300"
                   : "bg-white border-gray-200 hover:bg-gray-50 active:bg-gray-100"
-              }`}
+              } ${highlightedIds.has(player.id) ? "ring-2 ring-green-400" : ""}`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold font-mono ${

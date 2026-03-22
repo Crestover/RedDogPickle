@@ -17,7 +17,7 @@ import EndedSessionGames from "./EndedSessionGames";
 
 interface PageProps {
   params: Promise<{ join_code: string; session_id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; added?: string }>;
 }
 
 /** Extract player codes for a given team from the game_players join. */
@@ -103,7 +103,10 @@ function isActiveSession(session: { ended_at: string | null }): boolean {
 
 export default async function SessionPage({ params, searchParams }: PageProps) {
   const { join_code, session_id } = await params;
-  const { tab } = await searchParams;
+  const { tab, added } = await searchParams;
+  // IDs of players just added via the session player picker — forwarded to
+  // RecordGameForm so it can auto-select and highlight them.
+  const initialAddedIds = added ? added.split(",").filter(Boolean) : [];
   const data = await getSessionData(join_code, session_id);
 
   if (!data) notFound();
@@ -199,6 +202,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               playersPerTeam: sportConfig.playersPerTeam,
             }}
             lastGameSummary={lastScore && lastTeams ? `${lastScore} ${lastTeams}` : undefined}
+            initialAddedIds={initialAddedIds}
           />
 
           {/* Void last game — secondary utility */}

@@ -5,7 +5,7 @@ import AddPlayerForm from "./AddPlayerForm";
 
 interface PageProps {
   params: Promise<{ join_code: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; returnTo?: string }>;
 }
 
 async function getGroup(joinCode: string) {
@@ -20,18 +20,24 @@ async function getGroup(joinCode: string) {
 
 export default async function AddPlayerPage({ params, searchParams }: PageProps) {
   const { join_code } = await params;
-  const { from } = await searchParams;
+  const { from, returnTo } = await searchParams;
 
   const group = await getGroup(join_code);
   if (!group) notFound();
 
-  // Where to go back / redirect after save
-  // ?from=start → go back to start session page after adding player
-  // default     → go back to group dashboard
-  const backHref =
-    from === "start"
-      ? `/g/${group.join_code}/start`
-      : `/g/${group.join_code}`;
+  // Where to go back / redirect after save.
+  // Priority: ?returnTo (full relative path) → ?from enum → group dashboard.
+  // safeRedirect in addPlayerAction sanitises the path (must start with /).
+  const isSafeReturnTo =
+    typeof returnTo === "string" &&
+    returnTo.startsWith("/") &&
+    !returnTo.startsWith("//");
+
+  const backHref = isSafeReturnTo
+    ? returnTo
+    : from === "start"
+    ? `/g/${group.join_code}/start`
+    : `/g/${group.join_code}`;
 
   const redirectTo = backHref;
 
@@ -44,7 +50,7 @@ export default async function AddPlayerPage({ params, searchParams }: PageProps)
             href={backHref}
             className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
           >
-            ← {from === "start" ? "Back to Start Session" : group.name}
+            ← {isSafeReturnTo ? "Back to Session" : from === "start" ? "Back to Start Session" : group.name}
           </Link>
           <h1 className="mt-3 text-2xl font-bold">Add Player</h1>
           <p className="mt-1 text-sm text-gray-500">

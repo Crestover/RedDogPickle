@@ -23,6 +23,7 @@
 
 import { useState, useRef, useEffect, useTransition, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { recordGameAction, undoGameAction } from "@/app/actions/games";
 import { setSessionRulesAction } from "@/app/actions/sessions";
 import type { Player } from "@/lib/types";
@@ -416,17 +417,68 @@ export default function RecordGameForm({
         </p>
       )}
 
-      {/* ── Primary instruction ─────────────────────────────────── */}
-      <div className="text-center">
-        <h1 className="text-xl font-semibold text-gray-900">
-          {!teamsComplete ? `Pick ${totalNeeded} players` : "Confirm & record"}
-        </h1>
-        {!teamsComplete && (
+      {/* ── Primary instruction + Add player ────────────────────── */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">
+            Pick {totalNeeded} players
+          </h1>
           <p className="text-sm text-gray-500">
-            {sportConfig.playersPerTeam} per team &middot; {selectedPlayers.length}/{totalNeeded} selected
+            First 2 taps = Team A &middot; Next 2 = Team B
           </p>
-        )}
+        </div>
+        <Link
+          href={`/g/${joinCode}/players/new?returnTo=${encodeURIComponent(`/g/${joinCode}/session/${sessionId}`)}`}
+          className="shrink-0 text-sm font-medium text-green-700 hover:text-green-800 transition-colors pt-0.5"
+        >
+          + Add player
+        </Link>
       </div>
+
+      {/* ── Team summary (always visible) ────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+          <p className="text-xs font-semibold text-blue-700 mb-1">Team A</p>
+          {teamANames.length > 0
+            ? <p className="text-sm text-gray-800">{teamANames.join(" \u2022 ")}</p>
+            : <p className="text-xs text-blue-400">Select {sportConfig.playersPerTeam} players</p>
+          }
+          {teamAIds.length === sportConfig.playersPerTeam && sportConfig.playersPerTeam === 2 && (() => {
+            const count = getPairCount(teamAIds[0], teamAIds[1]);
+            return (
+              <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
+                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+                Together: {count}
+              </p>
+            );
+          })()}
+        </div>
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+          <p className="text-xs font-semibold text-orange-700 mb-1">Team B</p>
+          {teamBNames.length > 0
+            ? <p className="text-sm text-gray-800">{teamBNames.join(" \u2022 ")}</p>
+            : <p className="text-xs text-orange-400">Select {sportConfig.playersPerTeam} players</p>
+          }
+          {teamBIds.length === sportConfig.playersPerTeam && sportConfig.playersPerTeam === 2 && (() => {
+            const count = getPairCount(teamBIds[0], teamBIds[1]);
+            return (
+              <p className="flex items-center gap-1 text-[10px] text-gray-400 mt-1">
+                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+                Together: {count}
+              </p>
+            );
+          })()}
+        </div>
+      </div>
+      {teamsComplete && games && games.length > 0 && (() => {
+        const count = getMatchupCount(teamAIds, teamBIds, games);
+        return (
+          <p className="flex items-center justify-center gap-1 text-[10px] text-gray-400 -mt-2">
+            <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
+            Faced {count} time{count !== 1 ? "s" : ""} this session
+          </p>
+        );
+      })()}
 
       {/* ── Player list (tap to select) ──────────────────────────── */}
       <div className="flex flex-col gap-1.5">
@@ -473,47 +525,6 @@ export default function RecordGameForm({
           );
         })}
       </div>
-
-      {/* ── Team summary (only when 4 selected) ─────────────────── */}
-      {teamsComplete && (
-        <div className="rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 space-y-1">
-          <p className="text-sm text-center">
-            <span className="font-semibold text-blue-600">Team A:</span>{" "}
-            <span className="text-gray-700">{teamANames.join(" \u2022 ")}</span>
-            {teamAIds.length === 2 && (() => {
-              const count = getPairCount(teamAIds[0], teamAIds[1]);
-              return (
-                <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-gray-400">
-                  <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
-                  {count}×
-                </span>
-              );
-            })()}
-          </p>
-          <p className="text-sm text-center">
-            <span className="font-semibold text-orange-600">Team B:</span>{" "}
-            <span className="text-gray-700">{teamBNames.join(" \u2022 ")}</span>
-            {teamBIds.length === 2 && (() => {
-              const count = getPairCount(teamBIds[0], teamBIds[1]);
-              return (
-                <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-gray-400">
-                  <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
-                  {count}×
-                </span>
-              );
-            })()}
-          </p>
-          {games && games.length > 0 && (() => {
-            const count = getMatchupCount(teamAIds, teamBIds, games);
-            return (
-              <p className="flex items-center justify-center gap-1 text-[10px] text-gray-400 pt-0.5">
-                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${severityDotClass(count)}`} />
-                Faced {count} time{count !== 1 ? "s" : ""} this session
-              </p>
-            );
-          })()}
-        </div>
-      )}
 
       {/* ── Score entry (progressive — only when 4 selected) ─────── */}
       {teamsComplete && (

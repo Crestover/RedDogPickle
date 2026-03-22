@@ -233,28 +233,28 @@ export default function PlayerPicker({
                   type="button"
                   onClick={() => toggleSelected(player.id)}
                   disabled={isSubmitting}
-                  className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-colors mb-3 last:mb-0 ${
-                    isSelected
-                      ? "border-gray-900 bg-white"
-                      : "border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100"
+                  className={`flex w-full items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left transition-colors mb-3 last:mb-0 ${
+                    isSelected ? "border-gray-900" : "hover:bg-gray-50 active:bg-gray-100"
                   } disabled:opacity-50`}
                 >
-                  {/* Selection circle */}
-                  <div
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
-                      isSelected
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-400 bg-white"
-                    }`}
-                  >
-                    {isSelected ? "✓" : null}
+                  {/* Fixed-width gutter reserves space for the circle regardless of selection state */}
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center">
+                    <div
+                      className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
+                        isSelected
+                          ? "border-gray-900 bg-gray-900 text-white"
+                          : "border-gray-800 bg-white"
+                      }`}
+                    >
+                      {isSelected ? "✓" : null}
+                    </div>
                   </div>
                   {/* Name + code */}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-base font-semibold text-gray-900 leading-tight truncate">
+                  <div className="min-w-0">
+                    <div className="text-lg font-semibold text-gray-900 leading-tight truncate">
                       {player.name}
                     </div>
-                    <div className="text-sm text-gray-500 font-mono mt-0.5">
+                    <div className="mt-1 text-sm text-gray-500 leading-none">
                       {player.initials}
                     </div>
                   </div>

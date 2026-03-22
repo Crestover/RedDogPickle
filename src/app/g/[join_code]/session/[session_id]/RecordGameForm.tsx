@@ -201,7 +201,11 @@ export default function RecordGameForm({
       return;
     }
     if (selectedPlayers.length >= totalNeeded) return;
-    const team: TeamLabel = selectedPlayers.length < sportConfig.playersPerTeam ? "A" : "B";
+    // Assign to Team A if it still has open slots, otherwise Team B.
+    // Using actual team counts (not total length) so deselecting one team's
+    // players doesn't accidentally push new taps to the wrong team.
+    const teamACount = selectedPlayers.filter((p) => p.team === "A").length;
+    const team: TeamLabel = teamACount < sportConfig.playersPerTeam ? "A" : "B";
     setSelectedPlayers((prev) => [...prev, { ...player, team }]);
     setError("");
   }

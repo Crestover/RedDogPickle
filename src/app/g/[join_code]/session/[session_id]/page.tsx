@@ -10,7 +10,6 @@ import LeaderboardCardList from "@/lib/components/LeaderboardCardList";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EndSessionButton from "./EndSessionButton";
-import ModeToggle from "./ModeToggle";
 import RecordGameForm from "./RecordGameForm";
 import StaleBanner from "./StaleBanner";
 import VoidLastGameButton from "./VoidLastGameButton";
@@ -142,14 +141,12 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
   const lastGame = games.find((g) => !(g as { voided_at?: string | null }).voided_at);
   let lastScore: string | null = null;
   let lastTeams: string | null = null;
-  let lastTime: string | null = null;
   if (lastGame) {
     const gp = Array.isArray(lastGame.game_players) ? lastGame.game_players : [];
     const aCodes = teamCodes(gp, "A").join("/");
     const bCodes = teamCodes(gp, "B").join("/");
     lastScore = `${lastGame.team_a_score}\u2013${lastGame.team_b_score}`;
     lastTeams = `${aCodes} vs ${bCodes}`;
-    lastTime = formatTime(lastGame.played_at);
   }
 
   // ── ACTIVE session layout ─────────────────────────────────────
@@ -179,13 +176,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             </p>
           </div>
 
-          {/* Mode toggle: Manual | Courts */}
-          <ModeToggle
-            mode="manual"
-            manualHref={`/g/${group.join_code}/session/${session.id}`}
-            courtsHref={`/g/${group.join_code}/session/${session.id}/courts`}
-          />
-
           {/* Stale session banner — UI only, does not block scoring */}
           <StaleBanner isStale={isStale} sessionId={session.id} joinCode={group.join_code} />
 
@@ -208,6 +198,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               targetPresets: [...sportConfig.targetPresets],
               playersPerTeam: sportConfig.playersPerTeam,
             }}
+            lastGameSummary={lastScore && lastTeams ? `${lastScore} ${lastTeams}` : undefined}
           />
 
           {/* Void last game — secondary utility */}
@@ -215,19 +206,6 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             sessionId={session.id}
             joinCode={group.join_code}
           />
-
-          {/* Last game status row — live ticker feel */}
-          {lastScore && lastTeams && lastTime && (
-            <div className="flex items-center gap-2 text-xs truncate">
-              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-              <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500 shrink-0">
-                Last
-              </span>
-              <span className="font-semibold text-gray-700 font-mono shrink-0">{lastScore}</span>
-              <span className="text-gray-400 font-mono truncate">{lastTeams}</span>
-              <span className="text-gray-300 shrink-0">{lastTime}</span>
-            </div>
-          )}
 
           {/* Bottom nav row */}
           <div className="flex items-center justify-between pt-4">

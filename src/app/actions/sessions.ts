@@ -123,6 +123,41 @@ export async function endAndCreateSessionAction(
 }
 
 // ─────────────────────────────────────────────────────────────
+// addPlayersToSessionAction
+//
+// Adds one or more existing group players to an active session.
+// Called from the Session Player Picker screen.
+// Uses the anon INSERT policy on session_players (no RPC needed).
+// Duplicate rows are ignored (UNIQUE constraint on session_id + player_id).
+// Returns { success: true } on success so the client can navigate.
+// ─────────────────────────────────────────────────────────────
+export async function addPlayersToSessionAction(
+  mode: AccessMode,
+  sessionId: string,
+  joinCode: string,
+  playerIds: string[]
+): Promise<{ success: true } | { error: string }> {
+  requireFullAccess(mode);
+
+  if (playerIds.length === 0) {
+    return { error: "No players selected." };
+  }
+
+  const supabase = getServerClient();
+  const rows = playerIds.map((pid) => ({ session_id: sessionId, player_id: pid }));
+
+  const { error } = await supabase
+    .from("session_players")
+    .insert(rows);
+
+  if (error) {
+    return { error: handleServerError("addPlayersToSessionAction", error) };
+  }
+
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────────────────────
 // setSessionRulesAction
 //
 // Updates session-level game rules (target_points + win_by).

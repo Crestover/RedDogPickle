@@ -37,7 +37,10 @@ export async function addPlayerAction(
   joinCode: string,
   displayName: string,
   code: string,
-  redirectTo: string
+  redirectTo: string,
+  /** If provided, the new player is also enrolled in this session and the
+   *  redirect goes directly to the session page (skipping the picker). */
+  sessionId?: string
 ): Promise<AddPlayerResult> {
   // ── Validate display_name ────────────────────────────────────────────
   const trimmedName = displayName.trim();
@@ -59,12 +62,12 @@ export async function addPlayerAction(
 
   const supabase = getServerClient();
 
-  // ── Insert ───────────────────────────────────────────────────────────
-  const { error } = await supabase.from("players").insert({
-    group_id: groupId,
-    display_name: trimmedName,
-    code: trimmedCode,
-  });
+  // ── Insert and return the new player's ID ────────────────────────────
+  const { data: newPlayer, error } = await supabase
+    .from("players")
+    .insert({ group_id: groupId, display_name: trimmedName, code: trimmedCode })
+    .select("id")
+    .single();
 
   if (error) {
     // Unique constraint violation on (group_id, code)
@@ -79,6 +82,17 @@ export async function addPlayerAction(
     }
     console.error("[addPlayerAction] insert error:", error.message);
     return { error: error.message ?? "Failed to add player." };
+  }
+
+  // ── If called from a live session: enroll the new player immediately ──
+  if (sessionId && newPlayer?.id) {
+    // Best-effort — ignore errors (player is created, session enroll is
+    // a soft failure that the user can recover from on the picker screen)
+    await supabase
+      .from("session_players")
+      .insert({ session_id: sessionId, player_id: newPlayer.id });
+
+    redirect(`/g/${joinCode}/session/${sessionId}`);
   }
 
   // ── Redirect back (sanitised to prevent open redirects) ──────────────

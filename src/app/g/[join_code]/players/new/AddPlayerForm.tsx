@@ -8,9 +8,12 @@ interface Props {
   groupId: string;
   joinCode: string;
   redirectTo: string;
+  /** When set, the new player is enrolled in this session on save and the
+   *  redirect goes straight back to the session (not to the picker). */
+  sessionId?: string;
 }
 
-export default function AddPlayerForm({ groupId, joinCode, redirectTo }: Props) {
+export default function AddPlayerForm({ groupId, joinCode, redirectTo, sessionId }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [code, setCode] = useState("");
   const [codeTouched, setCodeTouched] = useState(false);
@@ -52,7 +55,8 @@ export default function AddPlayerForm({ groupId, joinCode, redirectTo }: Props) 
         joinCode,
         displayName,
         code,
-        redirectTo
+        redirectTo,
+        sessionId
       );
       if (result?.error) {
         if (result.field === "display_name") setNameError(result.error);

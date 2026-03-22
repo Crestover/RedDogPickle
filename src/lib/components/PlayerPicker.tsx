@@ -244,10 +244,10 @@ export default function PlayerPicker({
                     className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
                       isSelected
                         ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-400 bg-white text-transparent"
+                        : "border-gray-400 bg-white"
                     }`}
                   >
-                    ✓
+                    {isSelected ? "✓" : null}
                   </div>
                   {/* Name + code */}
                   <div className="min-w-0 flex-1">

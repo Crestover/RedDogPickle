@@ -6,6 +6,26 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
+## [0.8.1] — Post-Release Bug Fixes + Test Suite Update (2026-03-23)
+
+### Fixed
+- `PlayerPicker` content area had `pb-4` (16px) — far too small for the sticky CTA footer (~80px tall); bumped to `pb-24` so the last player rows are never hidden under the button
+- `addPlayerAction`: when creating a new player from a live session, the redirect to the session now includes `?added={id}` so the player is auto-selected and highlighted on the Quick Game screen; previously the bare redirect skipped auto-select entirely
+- `addPlayerAction`: enrollment failure (session_players insert error) now redirects to the session player picker instead of silently continuing to the session — player is created but user can add them manually
+- Removed dead `?selected=N` param from the "+ Add players" link in `RecordGameForm` — `players/page.tsx` never read it
+
+### Tests
+- Rewrote all 16 tests in `RecordGameForm.regression.test.tsx` for the new tap-to-select UI
+  - Old tests used explicit "A" / "B" team buttons (no longer exist in the Quick Game Screen)
+  - New tests tap player rows by name; auto-assignment (1+2 → A, 3+4 → B) verified via placeholder count
+  - Score inputs now labelled "Team A" / "Team B" (was "Team A Score" / "Team B Score")
+  - CTA label assertions replace color-class assertions (always `bg-black`; label progresses through 3 states)
+  - Added progressive disclosure test: score section hidden until 4th player is tapped
+  - Fixed `success: true as const` TypeScript issue in mock result
+- All 226 tests passing across 17 test files
+
+---
+
 ## [0.8.0] — Quick Game Recording + Player Picker Overhaul (2026-03-22)
 
 ### Added

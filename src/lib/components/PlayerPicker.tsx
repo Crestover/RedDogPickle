@@ -189,7 +189,7 @@ export default function PlayerPicker({
         {/* Add New Player */}
         <Link
           href={addNewHref}
-          className="flex h-14 w-full items-center justify-center rounded-2xl border border-gray-300 bg-white text-base font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          className="flex h-14 w-full items-center justify-center rounded-xl border border-gray-300 bg-white text-base font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors"
         >
           + Add New Player
         </Link>
@@ -200,15 +200,15 @@ export default function PlayerPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search players…"
-          className="mt-4 h-14 w-full rounded-2xl border border-gray-300 px-4 text-base outline-none placeholder:text-gray-400 focus:border-gray-900 focus:ring-1 focus:ring-gray-900"
+          className="mt-4 block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-base placeholder:text-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
         />
 
         {/* Helper text (selection count) */}
-        <p className="mt-4 text-sm text-gray-500">{helperText}</p>
+        <p className="mt-3 text-sm text-gray-500">{helperText}</p>
 
         {/* Player list or empty state */}
         {players.length === 0 ? (
-          <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+          <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
             <p className="text-sm font-medium text-gray-900">
               {emptyStateTitle ?? "No players yet"}
             </p>
@@ -217,14 +217,11 @@ export default function PlayerPicker({
             </p>
           </div>
         ) : filteredPlayers.length === 0 ? (
-          <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <p className="text-sm font-medium text-gray-900">No players found</p>
-            <p className="mt-1 text-sm text-gray-500">
-              Try a different search or add a new player.
-            </p>
-          </div>
+          <p className="mt-3 text-center text-sm text-gray-400 py-6">
+            No players match &ldquo;{query}&rdquo;
+          </p>
         ) : (
-          <div className="mt-3">
+          <div className="mt-3 space-y-2">
             {filteredPlayers.map((player) => {
               const isSelected = selectedIds.includes(player.id);
               return (
@@ -233,31 +230,25 @@ export default function PlayerPicker({
                   type="button"
                   onClick={() => toggleSelected(player.id)}
                   disabled={isSubmitting}
-                  className={`flex w-full items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left transition-colors mb-3 last:mb-0 ${
-                    isSelected ? "border-gray-900" : "hover:bg-gray-50 active:bg-gray-100"
-                  } disabled:opacity-50`}
+                  className={`flex w-full items-center gap-4 rounded-xl px-4 py-4 text-left transition-colors min-h-[64px] disabled:opacity-50 ${
+                    isSelected
+                      ? "bg-green-600 text-white shadow-sm"
+                      : "bg-white border border-gray-200 text-gray-900 hover:bg-gray-50"
+                  }`}
                 >
-                  {/* Fixed-width gutter reserves space for the circle regardless of selection state */}
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-                    <div
-                      className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors ${
-                        isSelected
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-800 bg-white"
-                      }`}
-                    >
-                      {isSelected ? "✓" : null}
-                    </div>
-                  </div>
+                  {/* Circle — border-current auto-adapts: white ring on green, gray ring on white */}
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-current text-sm font-bold">
+                    {isSelected ? "✓" : ""}
+                  </span>
                   {/* Name + code */}
-                  <div className="min-w-0">
-                    <div className="text-lg font-semibold text-gray-900 leading-tight truncate">
+                  <span className="flex-1">
+                    <span className="block font-semibold leading-tight">
                       {player.name}
-                    </div>
-                    <div className="mt-1 text-sm text-gray-500 leading-none">
+                    </span>
+                    <span className="block text-xs opacity-70 font-mono mt-0.5">
                       {player.initials}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                 </button>
               );
             })}
@@ -276,12 +267,12 @@ export default function PlayerPicker({
       </div>
 
       {/* Sticky CTA footer — sits below list; sticks to viewport bottom on scroll */}
-      <div className="sticky bottom-0 border-t border-gray-200 bg-white px-0 py-4">
+      <div className="sticky bottom-0 border-t border-gray-200 bg-white pt-4 pb-2">
         <button
           type="button"
           onClick={handleSubmit}
           disabled={isSubmitDisabled || isSubmitting}
-          className="h-14 w-full rounded-2xl bg-gray-900 text-base font-semibold text-white disabled:bg-gray-300 transition-colors"
+          className="flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-5 text-lg font-semibold text-white shadow-sm hover:bg-green-700 active:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors min-h-[64px] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {ctaLabel}
         </button>

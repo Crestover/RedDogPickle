@@ -6,6 +6,36 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
+## [0.8.0] — Quick Game Recording + Player Picker Overhaul (2026-03-22)
+
+### Added
+- New tap-to-select game recording UI ("Quick Game Screen") replaces the old manual flow
+  - Players listed in a single scrollable list — tap to select, tap again to deselect
+  - Auto-team assignment: first 2 taps go to Team A, next 2 go to Team B
+  - Always-visible Team A / Team B summary cards below the player list
+  - Assignment-rule subtitle: "First 2 taps = Team A · Next 2 = Team B"
+  - Score entry section only appears after 4 players are assigned (progressive disclosure)
+  - CTA button is always instructive — tells you exactly what to do next at every step
+- New `/session/[id]/players` route for adding players to an active session
+  - Shows group members not yet in the session (not a new-player creation form)
+  - List sorted by most recently played, so your regulars are always at the top
+  - "+ Add New Player" link at the top for genuinely new people
+- After adding players mid-session, the game screen auto-selects and briefly highlights them with a green ring so you know who was just added
+- Shared `PlayerPicker` component powering both Start Session and Add Players with identical UX and search behavior
+
+### Changed
+- "Add Players" link during a live session now opens the group member picker instead of the new-player form
+- Add Players helper text no longer shows "need 4 for a game" — the session is already active, so any number of players can be added
+- New player created during an active session is automatically added to that session and returns you directly to the game screen
+
+### Fixed
+- Team assignment bug: deselecting a Team A player then tapping a new player was incorrectly assigning them to Team B instead of filling the open Team A slot
+- `PlayerPicker` classes were being silently stripped by Tailwind because `src/lib/` was missing from the content scan paths in `tailwind.config.ts`
+- Search placeholder showed literal `\u2026` instead of an ellipsis in JSX string attributes
+- Player rows restored to original green-selected design (green fill + white text + white circle border on selected; white card + gray border on unselected)
+
+---
+
 ## [0.7.1] — Leaderboard Cards + Games Feed Redesign (2026-03-20)
 
 ### Added

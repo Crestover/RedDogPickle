@@ -2,6 +2,23 @@
 
 ---
 
+## v0.8.0 — Faster Game Recording
+
+### Improved
+- **Tap to pick players.** Starting a game is now a single-screen tap — just tap the players who are playing and the app assigns them to teams automatically. First two taps go to Team A, next two go to Team B. No menus, no dropdowns.
+- **Always know where you stand.** Team A and Team B summary cards are always visible as you select players, so you can see exactly who's been assigned before you confirm.
+- **Score entry appears when you're ready.** The score fields only show up once all four player slots are filled — no clutter while you're still picking.
+- **The button always tells you what to do.** The action button updates as you go: "Select 2 more players", "Select 2 more for Team B", "Record Game" — so you never have to guess what the next step is.
+
+### Added
+- **Add players mid-session.** Tapping "+ Add players" during a session now shows your full group roster — just tap the people who showed up late. Previously this only let you create a brand new player, which wasn't what you needed.
+- **Newly added players are ready to go.** After you add someone mid-session, they're automatically pre-selected on the game screen with a brief green highlight so you know who was just added.
+
+### Fixed
+- Several small bugs in team assignment and player selection that could cause players to end up on the wrong team after deselecting and reselecting.
+
+---
+
 ## v0.7.1 — Fresh Look for the Leaderboard and Games Feed
 
 ### Improved

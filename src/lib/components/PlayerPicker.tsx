@@ -58,14 +58,11 @@ function getHelperText(
   minRequired: number
 ): string {
   if (mode === "start-session") {
-    if (selectedCount === 0) return `0 selected \u2014 need at least ${minRequired}`;
     if (selectedCount < minRequired)
       return `${selectedCount} selected \u2014 need at least ${minRequired}`;
     return `${selectedCount} selected`;
   }
-  const needed = Math.max(0, minRequired - selectedCount);
-  if (selectedCount === 0) return `0 selected \u2022 need ${minRequired} for a game`;
-  if (needed > 0) return `${selectedCount} selected \u2022 need ${needed} more`;
+  // add-to-session: session is already live, no minimum required messaging
   return `${selectedCount} selected`;
 }
 

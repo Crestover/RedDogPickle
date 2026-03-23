@@ -2,7 +2,13 @@
  * RecordGameForm Regression Tests
  *
  * Proves winner preview, team-size enforcement, preset rendering,
- * submit gating, and validation remain correct.
+ * submit gating, and the action payload remain correct for the
+ * tap-to-select Quick Game UI.
+ *
+ * Interaction model (new UI):
+ *   - Tap a player row → auto-assigned (taps 1+2 → Team A, taps 3+4 → Team B)
+ *   - Score inputs only appear once 4 players are selected (progressive disclosure)
+ *   - CTA label: "Select 4 players" → "Enter score" → "Record Game"
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -47,6 +53,19 @@ function renderForm(overrides = {}) {
   return render(<RecordGameForm {...defaultProps} {...overrides} />);
 }
 
+/**
+ * Tap 4 players in order (1+2 → Team A, 3+4 → Team B), then fill in scores.
+ * Call after renderForm(). Score inputs only appear after the 4th tap.
+ */
+function selectPlayersAndScores(scoreA: string, scoreB: string) {
+  fireEvent.click(screen.getByRole("button", { name: /Alice Smith/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Bob Jones/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Carol Lee/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Dave Kim/ }));
+  fireEvent.change(screen.getByLabelText("Team A"), { target: { value: scoreA } });
+  fireEvent.change(screen.getByLabelText("Team B"), { target: { value: scoreB } });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -54,50 +73,30 @@ beforeEach(() => {
 // ── A. Winner preview behavior ──────────────────────────────────────────────
 
 describe("A. Winner preview behavior", () => {
-  function assignTeamsAndScores(scoreA: string, scoreB: string) {
-    renderForm();
-
-    // Assign p1 and p2 to team A
-    const aButtons = screen.getAllByRole("button", { name: "A" });
-    fireEvent.click(aButtons[0]); // p1 → A
-    fireEvent.click(aButtons[1]); // p2 → A
-
-    // Assign p3 and p4 to team B
-    const bButtons = screen.getAllByRole("button", { name: "B" });
-    fireEvent.click(bButtons[2]); // p3 → B
-    fireEvent.click(bButtons[3]); // p4 → B
-
-    // Enter scores
-    const scoreInputA = screen.getByLabelText("Team A Score");
-    const scoreInputB = screen.getByLabelText("Team B Score");
-    fireEvent.change(scoreInputA, { target: { value: scoreA } });
-    fireEvent.change(scoreInputB, { target: { value: scoreB } });
-  }
-
   it("11-7 shows Winner label for team A", () => {
-    assignTeamsAndScores("11", "7");
-    const winners = screen.getAllByText("Winner");
-    const losers = screen.getAllByText("Loser");
-    expect(winners).toHaveLength(1);
-    expect(losers).toHaveLength(1);
+    renderForm();
+    selectPlayersAndScores("11", "7");
+    expect(screen.getAllByText("Winner")).toHaveLength(1);
+    expect(screen.getAllByText("Loser")).toHaveLength(1);
   });
 
   it("7-11 shows Winner label for team B", () => {
-    assignTeamsAndScores("7", "11");
-    const winners = screen.getAllByText("Winner");
-    const losers = screen.getAllByText("Loser");
-    expect(winners).toHaveLength(1);
-    expect(losers).toHaveLength(1);
+    renderForm();
+    selectPlayersAndScores("7", "11");
+    expect(screen.getAllByText("Winner")).toHaveLength(1);
+    expect(screen.getAllByText("Loser")).toHaveLength(1);
   });
 
   it("11-0 shows correct winner (shutout)", () => {
-    assignTeamsAndScores("11", "0");
+    renderForm();
+    selectPlayersAndScores("11", "0");
     expect(screen.getAllByText("Winner")).toHaveLength(1);
     expect(screen.getAllByText("Loser")).toHaveLength(1);
   });
 
   it("equal scores do not show Winner/Loser labels", () => {
-    assignTeamsAndScores("7", "7");
+    renderForm();
+    selectPlayersAndScores("7", "7");
     expect(screen.queryAllByText("Winner")).toHaveLength(0);
     expect(screen.queryAllByText("Loser")).toHaveLength(0);
   });
@@ -106,35 +105,34 @@ describe("A. Winner preview behavior", () => {
 // ── B. Team-size enforcement ────────────────────────────────────────────────
 
 describe("B. Team-size enforcement", () => {
-  it("shows /2 in team panel headers (from sportConfig)", () => {
+  it("team cards show placeholder text before any selection", () => {
     renderForm();
-    expect(screen.getByText(/Team A \(0\/2\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Team B \(0\/2\)/)).toBeInTheDocument();
+    // Both Team A and Team B cards should have "Select 2 players" placeholder
+    expect(screen.getAllByText(/Select 2 players/)).toHaveLength(2);
   });
 
-  it("cannot assign more than 2 players to team A", () => {
+  it("first 2 taps fill Team A, removing its placeholder", () => {
     renderForm();
-    const aButtons = screen.getAllByRole("button", { name: "A" });
-
-    fireEvent.click(aButtons[0]); // p1 → A
-    fireEvent.click(aButtons[1]); // p2 → A
-
-    // After 2 assigned, team A should show 2/2
-    expect(screen.getByText(/Team A \(2\/2\)/)).toBeInTheDocument();
-
-    // Third A button for p3 should be disabled
-    expect(aButtons[2]).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Alice Smith/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bob Jones/ }));
+    // Team A placeholder gone; only Team B placeholder remains
+    expect(screen.getAllByText(/Select 2 players/)).toHaveLength(1);
   });
 
-  it("cannot assign more than 2 players to team B", () => {
+  it("taps 3 and 4 fill Team B; 5th tap is ignored when teams are full", () => {
     renderForm();
-    const bButtons = screen.getAllByRole("button", { name: "B" });
+    fireEvent.click(screen.getByRole("button", { name: /Alice Smith/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bob Jones/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Carol Lee/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Dave Kim/ }));
 
-    fireEvent.click(bButtons[0]); // p1 → B
-    fireEvent.click(bButtons[1]); // p2 → B
+    // All 4 assigned — both placeholders gone, score section visible
+    expect(screen.queryAllByText(/Select 2 players/)).toHaveLength(0);
+    expect(screen.getByLabelText("Team A")).toBeInTheDocument();
 
-    expect(screen.getByText(/Team B \(2\/2\)/)).toBeInTheDocument();
-    expect(bButtons[2]).toBeDisabled();
+    // 5th tap should be a no-op: CTA stays at "Enter score" not "Select 4 players"
+    fireEvent.click(screen.getByRole("button", { name: /Eve Park/ }));
+    expect(screen.getByRole("button", { name: "Enter score" })).toBeInTheDocument();
   });
 });
 
@@ -143,12 +141,7 @@ describe("B. Team-size enforcement", () => {
 describe("C. Preset rendering", () => {
   it("renders target presets from sportConfig when picker is open", () => {
     renderForm();
-
-    // Open rule picker
-    const ruleChip = screen.getByRole("button", { name: /Game to 11/i });
-    fireEvent.click(ruleChip);
-
-    // All three presets should be visible
+    fireEvent.click(screen.getByRole("button", { name: /Game to 11/i }));
     expect(screen.getByRole("button", { name: "11" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "15" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "21" })).toBeInTheDocument();
@@ -156,10 +149,7 @@ describe("C. Preset rendering", () => {
 
   it("renders only the presets passed via sportConfig", () => {
     renderForm({ sportConfig: { targetPresets: [7, 11], playersPerTeam: 2 } });
-
-    const ruleChip = screen.getByRole("button", { name: /Game to 11/i });
-    fireEvent.click(ruleChip);
-
+    fireEvent.click(screen.getByRole("button", { name: /Game to 11/i }));
     expect(screen.getByRole("button", { name: "7" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "11" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "15" })).not.toBeInTheDocument();
@@ -167,91 +157,59 @@ describe("C. Preset rendering", () => {
   });
 });
 
-// ── D. Submit button visual state ─────────────────────────────────────────
+// ── D. CTA label progression ────────────────────────────────────────────────
 
-describe("D. Submit button visual state", () => {
-  it("button shows gray styling when teams incomplete", () => {
+describe("D. CTA label progression", () => {
+  it("shows 'Select 4 players' before any selection", () => {
     renderForm();
-    const btn = screen.getByRole("button", { name: "Record Game" });
-    // Gray when not ready
-    expect(btn.className).toContain("bg-gray-200");
-    expect(btn.className).not.toContain("bg-green-600");
+    expect(screen.getByRole("button", { name: "Select 4 players" })).toBeInTheDocument();
   });
 
-  it("button shows gray styling when teams complete but scores empty", () => {
+  it("shows 'Enter score' after 4 players selected but no scores entered", () => {
     renderForm();
-
-    // Assign full teams
-    const aButtons = screen.getAllByRole("button", { name: "A" });
-    const bButtons = screen.getAllByRole("button", { name: "B" });
-    fireEvent.click(aButtons[0]);
-    fireEvent.click(aButtons[1]);
-    fireEvent.click(bButtons[2]);
-    fireEvent.click(bButtons[3]);
-
-    const btn = screen.getByRole("button", { name: "Record Game" });
-    expect(btn.className).toContain("bg-gray-200");
+    fireEvent.click(screen.getByRole("button", { name: /Alice Smith/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bob Jones/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Carol Lee/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Dave Kim/ }));
+    expect(screen.getByRole("button", { name: "Enter score" })).toBeInTheDocument();
   });
 
-  it("button turns green when teams complete and scores entered", () => {
+  it("shows 'Record Game' when teams complete and scores entered", () => {
     renderForm();
+    selectPlayersAndScores("11", "7");
+    expect(screen.getByRole("button", { name: "Record Game" })).toBeInTheDocument();
+  });
 
-    const aButtons = screen.getAllByRole("button", { name: "A" });
-    const bButtons = screen.getAllByRole("button", { name: "B" });
-    fireEvent.click(aButtons[0]);
-    fireEvent.click(aButtons[1]);
-    fireEvent.click(bButtons[2]);
-    fireEvent.click(bButtons[3]);
+  it("score section is hidden until 4 players are selected", () => {
+    renderForm();
+    expect(screen.queryByLabelText("Team A")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Team A Score"), { target: { value: "11" } });
-    fireEvent.change(screen.getByLabelText("Team B Score"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: /Alice Smith/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bob Jones/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Carol Lee/ }));
+    expect(screen.queryByLabelText("Team A")).not.toBeInTheDocument();
 
-    const btn = screen.getByRole("button", { name: "Record Game" });
-    expect(btn.className).toContain("bg-green-600");
-    expect(btn.className).not.toContain("bg-gray-200");
+    fireEvent.click(screen.getByRole("button", { name: /Dave Kim/ }));
+    expect(screen.getByLabelText("Team A")).toBeInTheDocument();
   });
 });
 
-// ── E. Validation errors on submit ─────────────────────────────────────────
+// ── E. CTA is a no-op when form is incomplete ────────────────────────────────
 
-describe("E. Validation errors on submit", () => {
-  it("shows error when submitting with incomplete teams", () => {
+describe("E. CTA no-op when form incomplete", () => {
+  it("does not call recordGameAction when no players selected", () => {
     renderForm();
-
-    // Only assign 1 player to team A
-    const aButtons = screen.getAllByRole("button", { name: "A" });
-    fireEvent.click(aButtons[0]);
-
-    fireEvent.change(screen.getByLabelText("Team A Score"), { target: { value: "11" } });
-    fireEvent.change(screen.getByLabelText("Team B Score"), { target: { value: "7" } });
-
-    fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
-
-    // Should show team validation error
-    expect(screen.getByText(/needs exactly 2 players/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Select 4 players" }));
+    expect(recordGameAction).not.toHaveBeenCalled();
   });
 
-  it("shows error when submitting with missing scores", () => {
+  it("does not call recordGameAction when players selected but no scores", () => {
     renderForm();
-
-    const aButtons = screen.getAllByRole("button", { name: "A" });
-    const bButtons = screen.getAllByRole("button", { name: "B" });
-    fireEvent.click(aButtons[0]);
-    fireEvent.click(aButtons[1]);
-    fireEvent.click(bButtons[2]);
-    fireEvent.click(bButtons[3]);
-
-    // No scores entered
-    fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
-
-    expect(screen.getByText(/Enter scores/i)).toBeInTheDocument();
-  });
-
-  it("does not call recordGameAction when validation fails", () => {
-    renderForm();
-
-    fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
-
+    fireEvent.click(screen.getByRole("button", { name: /Alice Smith/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bob Jones/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Carol Lee/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Dave Kim/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Enter score" }));
     expect(recordGameAction).not.toHaveBeenCalled();
   });
 });
@@ -261,7 +219,7 @@ describe("E. Validation errors on submit", () => {
 describe("F. Submit action payload", () => {
   it("calls recordGameAction with correct players and scores", async () => {
     const mockResult = {
-      success: true,
+      success: true as const,
       gameId: "g1",
       deltas: [],
       targetPoints: 11,
@@ -272,19 +230,15 @@ describe("F. Submit action payload", () => {
 
     renderForm();
 
-    // Assign teams
-    const aButtons = screen.getAllByRole("button", { name: "A" });
-    const bButtons = screen.getAllByRole("button", { name: "B" });
-    fireEvent.click(aButtons[0]); // p1 → A
-    fireEvent.click(aButtons[1]); // p2 → A
-    fireEvent.click(bButtons[2]); // p3 → B
-    fireEvent.click(bButtons[3]); // p4 → B
+    // Taps 1+2 → Team A (Alice, Bob), taps 3+4 → Team B (Carol, Dave)
+    fireEvent.click(screen.getByRole("button", { name: /Alice Smith/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Bob Jones/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Carol Lee/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Dave Kim/ }));
 
-    // Enter scores
-    fireEvent.change(screen.getByLabelText("Team A Score"), { target: { value: "11" } });
-    fireEvent.change(screen.getByLabelText("Team B Score"), { target: { value: "7" } });
+    fireEvent.change(screen.getByLabelText("Team A"), { target: { value: "11" } });
+    fireEvent.change(screen.getByLabelText("Team B"), { target: { value: "7" } });
 
-    // Submit
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Record Game" }));
     });
@@ -293,8 +247,8 @@ describe("F. Submit action payload", () => {
       "full",
       "s1",          // sessionId
       "abc",         // joinCode
-      ["p1", "p2"],  // teamA
-      ["p3", "p4"],  // teamB
+      ["p1", "p2"],  // Team A: Alice, Bob
+      ["p3", "p4"],  // Team B: Carol, Dave
       11,            // scoreA
       7,             // scoreB
       false          // force

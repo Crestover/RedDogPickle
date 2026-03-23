@@ -157,7 +157,7 @@ export default function PlayerPicker({
     <div className="flex flex-col">
 
       {/* Scrollable content */}
-      <div className="flex-1 pb-4">
+      <div className="flex-1 pb-24">
 
         {/* Back link */}
         {onCancelHref && (

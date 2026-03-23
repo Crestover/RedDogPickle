@@ -86,13 +86,21 @@ export async function addPlayerAction(
 
   // ── If called from a live session: enroll the new player immediately ──
   if (sessionId && newPlayer?.id) {
-    // Best-effort — ignore errors (player is created, session enroll is
-    // a soft failure that the user can recover from on the picker screen)
-    await supabase
+    const { error: enrollError } = await supabase
       .from("session_players")
       .insert({ session_id: sessionId, player_id: newPlayer.id });
 
-    redirect(`/g/${joinCode}/session/${sessionId}`);
+    if (enrollError) {
+      // Player was created but couldn't be enrolled — send them to the session
+      // picker so they can add manually. Do not pass ?added= since enrollment
+      // failed and the player won't be in the attendee list yet.
+      console.error("[addPlayerAction] session enroll error:", enrollError.message);
+      redirect(`/g/${joinCode}/session/${sessionId}/players`);
+    }
+
+    // Success — redirect to session with ?added= so the new player is
+    // auto-selected and highlighted on the Quick Game screen.
+    redirect(`/g/${joinCode}/session/${sessionId}?added=${newPlayer.id}`);
   }
 
   // ── Redirect back (sanitised to prevent open redirects) ──────────────

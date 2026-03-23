@@ -469,7 +469,7 @@ export default function RecordGameForm({
           </p>
         </div>
         <Link
-          href={`/g/${joinCode}/session/${sessionId}/players?selected=${selectedPlayers.length}`}
+          href={`/g/${joinCode}/session/${sessionId}/players`}
           className="shrink-0 text-sm font-medium text-green-700 hover:text-green-800 transition-colors pt-0.5"
         >
           + Add players

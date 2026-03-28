@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-03-19 — v0.7.0
+> Last updated: 2026-03-27 — v0.8.2
 
 ---
 
@@ -14,8 +14,9 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 - Cross-device duplicate prevention (SHA-256 fingerprint, 15-min window)
 - Session + group leaderboards with RDR v2 (Red Dog Rating) — confidence-based system with rating deviation, inactivity inflation, volatility multipliers, reacclimation buffer, and partner gap dampener
 - Courts Mode for multi-court auto-assignment with fairness algorithm
-- Live Referee Console — zero-scroll scoring with explicit A/B team buttons
+- Quick Game Screen — zero-scroll tap-to-select scoring (auto-team assignment by tap order)
 - Inline pairing feedback shows partner/matchup history during team selection
+- Win-by-1 allowed with soft confirmation dialog for all game lengths (11/15/21)
 
 ### Core Tech Stack
 | Layer       | Technology                         |
@@ -29,7 +30,15 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.7.0 — RDR v2: Confidence-Based Rating System + Test Infrastructure.**
+**v0.8.2 — Win-by-1 Support + Error Display Fix (current, post-release stabilisation).**
+
+v0.8.2: Win-by-1 scores now allowed for all game lengths (to 11, to 15, to 21). DB: migration `m16.0_allow_win_by_one.sql` sets `v_win_by := 1` in `record_game` RPC. Client: `validateScores` no longer enforces margin; only checks winner ≥ target. UI: soft `window.confirm()` dialog ("Are you sure you want to record a win by 1?") before submitting. Also fixes `handleServerError` extracting `.message` from `PostgrestError` (was rendering `[object Object]`).
+
+v0.8.1: Post-release bug fixes. `PlayerPicker` bottom content hidden under sticky CTA (`pb-4` → `pb-24`). `addPlayerAction`: new player auto-selected via `?added={id}` redirect and highlights on Quick Game Screen with green ring for 2.5s. Enrollment failure redirects to session picker as fallback. Removed dead `?selected=N` param from "+ Add players" link. Rewrote all 16 `RecordGameForm.regression.test.tsx` tests for tap-to-select UI. All 226 tests passing across 17 files.
+
+v0.8.0: Quick Game Screen replaces Live Referee Console. Tap-to-select with auto-team assignment (first 2 taps → Team A, next 2 → Team B). Team A/B summary cards always visible. Score entry section progressive disclosure (appears after 4 players selected). CTA button always instructive. New `/session/[id]/players` route for adding players mid-session (group member picker, not new-player form). Shared `PlayerPicker` component powers both Start Session and Add Players. Newly added players auto-selected + green ring highlight for 2.5s via `?added=id1,id2` URL param.
+
+v0.7.1: Leaderboard Cards + Games Feed Redesign. `LeaderboardCard` (accordion, expandable) replaces `PlayerStatsRow` on all leaderboard pages. Collapsed: rank, avatar initials, name, tier badge, GOAT badge, avg diff, win %. Expanded: 2-col stat grid. `GamesList`/`EndedSessionGames` redesigned as scoreboard style: winner bold on top + score in green, loser below in gray. Zero-padded scores (e.g. `11 - 04`). Game badge: squarish pill, `#d5e6ec` background, `#167659` text. Font upgraded to Inter. `LeaderboardCardList` manages single-expand accordion state.
 
 v0.7.0: RDR v2 replaces binary K-factor with confidence-based volatility. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve (14-day grace, capped at 50). Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)` replaces K=60/22. Reacclimation buffer (3 games, 60-day trigger, 5-game minimum) dampens first-game whiplash on return. Informative RD recovery based on opponent confidence and game closeness. Tiered margin factor (0.95/1.00/1.08/1.10) replaces ln-based MOV. Uniform ±32 clamping. Confidence labels in UI: Locked In / Active / Rusty / Returning. Delta logging extended with `rd_before/after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after`. Migration `m15.0_rdr_v2.sql`. All leaderboard and session pages updated.
 
@@ -50,32 +59,32 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ## The "Source of Truth" (State of Code)
 
 ### Git State
-- **Branch:** `dev` is 4 commits ahead of `main` (Phase 1 work)
-- **Tag:** `v0.4.0-rc1` on dev as rollback point
-- **Version:** `0.7.0` (package.json → footer via next.config.ts, changelog)
+- **Branch:** `dev` — all active development here; user merges to `main` manually
+- **Version:** `0.8.2` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC)
+- **Latest migration:** `m16.0_allow_win_by_one.sql`
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
-- **Pending migration:** `m15.0_rdr_v2.sql` (RD columns, backfill, RPC updates for confidence-based rating system) must be applied to Supabase before deploy
+- **Pending migration:** `m16.0_allow_win_by_one.sql` must be applied to production Supabase before merging to main
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | v0.5.0 (pushed, pending m12.0 migration) |
-| Dev/Preview | `dev`         | Dev               | v0.7.0 (RDR v2 confidence system, pending m15.0 migration) |
+| Production  | `main`        | Production        | Pending v0.8.2 merge + m16.0 migration |
+| Dev/Preview | `dev`         | Dev               | v0.8.2 (win-by-1 support, error display fix) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.7.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
+| `package.json` | v0.8.2, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
 | `vitest.config.ts` | Vitest config: `@vitejs/plugin-react`, jsdom environment, `@/` alias, setup file `src/test-setup.ts` |
 | `vitest.integration.config.ts` | Separate config for SQL/RPC integration tests (dotenv, no jsdom). Run via `npm run test:integration` |
 | `public/robots.txt` | Blocks all crawling: `User-agent: * / Disallow: /` |
 | `next.config.ts` | Injects `NEXT_PUBLIC_APP_VERSION` from package.json version at build time |
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
-| `tailwind.config.ts` | Standard Next.js config |
+| `tailwind.config.ts` | Content paths include `src/lib/**` — CRITICAL, do not remove or shared component classes are purged in production |
 | `postcss.config.mjs` | Tailwind + Autoprefixer |
 | `.env.example` | Template: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SITE_URL |
 | `.env.local` | Actual env vars (git-ignored) |
@@ -106,14 +115,16 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `g/[join_code]/page.tsx` | Server | Group dashboard: horizontal Red Dog logo (125px), subtitle "Statistically unnecessary. Socially unavoidable.", group name + join_code display, active session detection, Start/Continue/Leaderboard/Sessions links. Auto-generates `view_code` via `ensure_view_code` RPC on first load. Falls back to view_code redirect if join_code not found. Includes `<CopyViewLink>` in secondary nav. |
 | `g/[join_code]/CopyViewLink.tsx` | Client | Copies `{NEXT_PUBLIC_SITE_URL}/v/{viewCode}` to clipboard. Shows "📋 Copy view-only link" / "Copied!" with 1.5s timeout. |
 | `g/[join_code]/start/page.tsx` | Server | Start session page: wraps StartSessionForm |
-| `g/[join_code]/start/StartSessionForm.tsx` | Client | Player selection with live search, min 4 required |
+| `g/[join_code]/start/StartSessionForm.tsx` | Client | Wraps `PlayerPicker` in "start-session" mode. Min 4 players required. |
 | `g/[join_code]/players/new/page.tsx` | Server | Add player page: wraps AddPlayerForm |
 | `g/[join_code]/players/new/AddPlayerForm.tsx` | Client | Name + code input with auto-suggest code from name |
 | `g/[join_code]/sessions/page.tsx` | Server | Session history list with active/ended badges |
-| `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params. `from` param for context-aware back nav. `session_id` param for session browsing in Last Session mode with Previous/Next arrows. Computes GOAT designations on All-time view via `getGoatResult()`, passes `isReigningGoat`/`isAllTimeGoat` flags to `PlayerStatsRow`. |
-| `g/[join_code]/session/[session_id]/page.tsx` | Server | **Live Referee Console**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Ended sessions have Games/Standings tab toggle (`tab` query param); Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `PlayerStatsRow`. |
+| `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params. `from` param for context-aware back nav. `session_id` param for session browsing in Last Session mode with Previous/Next arrows. Computes GOAT designations on All-time view via `getGoatResult()`, renders via `LeaderboardCardList`. |
+| `g/[join_code]/session/[session_id]/page.tsx` | Server | **Quick Game Screen host**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Reads `?added=id1,id2` param → passes as `initialAddedIds` to RecordGameForm. Ended sessions have Games/Standings tab toggle (`tab` query param); Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `LeaderboardCardList`. |
+| `g/[join_code]/session/[session_id]/players/page.tsx` | Server | Add-players-mid-session: wraps `SessionPlayerPicker`. Shows group members not yet in session, sorted by most recently played. |
+| `g/[join_code]/session/[session_id]/players/SessionPlayerPicker.tsx` | Client | Wraps `PlayerPicker` in "add-to-session" mode. On submit, enrolls selected players, redirects to session with `?added=id1,id2`. |
 | `g/[join_code]/session/[session_id]/ModeToggle.tsx` | Client | Segmented Manual/Courts toggle. **Stateless** — `mode` prop from route is source of truth, uses `<Link>`. Renders contextual subtitle ("Select teams directly" / "Manage multi-court rotation"). |
-| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Explicit per-row A/B buttons**. Receives `sportConfig: { targetPresets, playersPerTeam }` prop — no hardcoded sport constants. Uses shared `validateScores()`, `isSuspiciousScore()`, `isShutout()`, `deriveOutcome()` from `@/lib/sports/validators`. Internal scroll (`max-h-[45vh]`), sticky Record button with gradient fade, `pb-20` padding guardrail. Inline pairing feedback (dot severity). **M10.2**: Undo snackbar (8s countdown, LIFO queue), debounced refresh (1000ms). **v0.4.2**: Two-chip winner/loser preview (emerald/amber). **v0.5.0**: Suspicious score warning (`scoreWarningArmed` state, amber "Cancel"/"Record anyway" confirmation). |
+| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Tap-to-select Quick Game Screen**. Tap order auto-assigns teams: 1+2 → Team A, 3+4 → Team B. Uses `teamACount` (actual A-team count, not total selection length) for assignment. Always-visible Team A/B summary cards. Score section progressive disclosure (appears after 4 players assigned). Receives `sportConfig: { targetPresets, playersPerTeam }` + `initialAddedIds?`. Confirmation dialogs: shutout, suspicious score, **win-by-1 (new)**. Undo snackbar (8s). `initialAddedIds` → auto-select + 2.5s green ring highlight. Debounced refresh (1000ms). `pb-24` content padding guards against sticky CTA overlap. |
 | `g/[join_code]/session/[session_id]/EndSessionButton.tsx` | Client | 2-tap confirm (red) for ending session |
 | `g/[join_code]/session/[session_id]/VoidLastGameButton.tsx` | Client | 2-tap confirm (amber) for voiding last game. Accepts `redirectPath` prop |
 | `g/[join_code]/session/[session_id]/StaleBanner.tsx` | Client | Amber banner when session has no games for 24+ hours. Resume / Start New / End options |
@@ -151,7 +162,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `autoSuggest.ts` | Court assignment algorithm: `suggestForCourts()`. Types: GameRecord, CourtAssignment, PairCountEntry. Helpers: `buildPairMap()`, `teamPenalty()`. Imports `pairKey` from `@/lib/pairing` |
 | `pairing.ts` | `pairKey(a, b)` — canonical player pair key (sorted, joined). Shared by autoSuggest + pairingFeedback |
 | `pairingFeedback.ts` | `matchupKey()`, `getMatchupCount()`, `severityDotClass()`. Shared by RecordGameForm + CourtsManager. Imports `pairKey` from `@/lib/pairing` |
-| `errors.ts` | `handleServerError(context, error)` — structured error logging with prefix, returns user-friendly message. Used by server actions |
+| `errors.ts` | `handleServerError(context, error)` — structured error logging with prefix, returns user-friendly message. Handles `instanceof Error`, `PostgrestError` (checks `"message" in error`), and plain strings. Used by server actions |
 | `constants/shared.ts` | Sport-agnostic timing constants: `STALE_SESSION_MS` (24h), `UNDO_CONFIRMATION_DISPLAY_MS` (2s), `DEBOUNCED_REFRESH_MS` (1s) |
 | `sports/types.ts` | `SportConfig` interface: sport constants, validation methods, outcome derivation, rating inputs. `ValidationResult` type |
 | `sports/pickleball.ts` | Pickleball `SportConfig` implementation. Delegates validation/outcome to shared `validators.ts`. Constants: targetPresets=[11,15,21], playersPerTeam=2, playersPerCourt=4, maxCourts=8 |
@@ -164,7 +175,12 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `supabase/rpc.ts` | RPC constant registry: 23 named constants (14 core incl `ENSURE_VIEW_CODE` + 9 courts) |
 | `rdr.ts` | Tier + confidence utilities: `getTier(rdr)` → Walk-On/Challenger/Contender/All-Star/Elite; `tierColor(tier)` → Tailwind classes; `getConfidence(rd)` → 0–1 score; `getConfidenceLabel(conf)` → Locked In/Active/Rusty/Returning; `confidenceColor(label)` → Tailwind text classes |
 | `goat.ts` | GOAT logic: `GoatCandidate` interface, `isEligibleForReigningGoat()`, `isEligibleForAllTimeGoat()`, `getReigningGoat()`, `getAllTimeGoat()`, `getGoatResult()`. Pure functions with deterministic tiebreaker chains |
-| `components/PlayerStatsRow.tsx` | Reusable ranked player row (rank, name, code, stats, RDR badge + tier + confidence label). Optional `ratingDeviation` prop for confidence display, `isReigningGoat`/`isAllTimeGoat` props for GOAT badge rendering (gold gradient pill + row highlight) |
+| `components/PlayerStatsRow.tsx` | **LEGACY — do NOT use for new work.** Superseded by `LeaderboardCard`. Still used in session Standings tab. |
+| `components/LeaderboardCard.tsx` | Accordion leaderboard card. Collapsed: rank, avatar initials, name, tier badge, GOAT badge, avg diff, win %. Expanded: 2-col stat grid, status dot, RDR, confidence label. Tier badge colors via inline styles (render reliability). |
+| `components/LeaderboardCardList.tsx` | Client wrapper — manages single-expand accordion state. Used on all leaderboard pages and session Standings tab. |
+| `components/PlayerPicker.tsx` | Shared tap-to-select player list. Two modes: `"start-session"` (min 4, min-player messaging) and `"add-to-session"` (any count, no minimum messaging). Row: white card, `rounded-xl`, selected = `bg-green-600 text-white`. CTA: always-instructive label. `onSubmit(selectedIds)` — throw an Error to surface it inside the component. **IMPORTANT:** `src/lib/` must be in `tailwind.config.ts` content paths or all classes are purged. |
+| `components/RdrHelpLink.tsx` | Small "?" link to /rdr explainer page |
+| `components/ConfidenceLabel.tsx` | Confidence label badge (Locked In / Active / Rusty / Returning) with color coding |
 
 #### `src/app/globals.css`
 - Tailwind directives only (`@tailwind base/components/utilities`)
@@ -197,6 +213,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `migrations/m13.0_sport_column.sql` | Multi-sport foundation: adds `sport TEXT NOT NULL DEFAULT 'pickleball'` column to `groups` table with CHECK constraint `(sport IN ('pickleball', 'padel'))`. |
 | `migrations/m14.0_goat_peak_rating.sql` | GOAT badge system: adds `peak_rating` + `peak_rating_achieved_at` columns to `player_ratings`, backfills from `game_rdr_deltas`. Updates `record_game` with atomic peak tracking (`GREATEST`), `void_last_game` and `undo_game` with targeted peak repair, `get_group_stats` returns peak columns. Recreates `record_court_game` (unchanged, required due to DROP cascade). |
 | `migrations/m15.0_rdr_v2.sql` | RDR v2 confidence system: adds `rating_deviation`, `last_played_at`, `reacclimation_games_remaining` to `player_ratings`. Adds `rd_before/after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after` to `game_rdr_deltas`. Backfills last_played_at from game history, initializes RD from inactivity formula. Replaces `record_game` (v2 algorithm: continuous RD inflation, volatility multiplier, reacclimation buffer, informative RD recovery, tiered margin factor, ±32 clamping), `void_last_game` + `undo_game` (restore RD state via COALESCE for v1 compat), `get_group_stats` (returns RD columns), `record_court_game` (unchanged, DROP cascade). |
+| `migrations/m16.0_allow_win_by_one.sql` | Win-by-1 support: recreates `record_game` RPC with `v_win_by := 1` (hardcoded). Removes the win-by-2 enforcement. Target points still enforced (winner must reach target). |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -213,14 +230,15 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 12. Run `m13.0_sport_column.sql` (adds sport column to groups table)
 13. Run `m14.0_goat_peak_rating.sql` (peak_rating columns + GOAT RPC updates)
 14. Run `m15.0_rdr_v2.sql` (RD columns, backfill, v2 rating algorithm)
+15. Run `m16.0_allow_win_by_one.sql` (sets win_by := 1 in record_game RPC)
 
 ---
 
 ## Core Logic (Most Complex Functions)
 
-### record_game RPC (m7.0, updated m9.0)
+### record_game RPC (m7.0, updated through m16.0)
 1. `FOR UPDATE` lock on session row (serializes concurrent calls)
-2. Validates: session active (no ended_at — **no time-based expiry**), 2+2 players, no overlap, all attendees, scores valid (winner >= target_points, margin >= win_by)
+2. Validates: session active (no ended_at — **no time-based expiry**), 2+2 players, no overlap, all attendees, scores valid (winner >= target_points). **win_by is hardcoded to 1** since m16.0 — win-by-2 no longer enforced at DB level.
 3. Resolves rules from session defaults when `p_target_points IS NULL`: `v_target_points := COALESCE(p_target_points, session.target_points_default)`, `v_win_by := session.win_by_default`
 4. SHA-256 fingerprint: sorted teams + min:max score + target_points + win_by (order-invariant, no time bucket)
 5. Duplicate check: same fingerprint within 15 min → returns `{ status: 'possible_duplicate', existing_game_id, existing_created_at }`
@@ -318,11 +336,12 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - `severityDotClass(count)`: N=0 → emerald (fresh), N=1 → gray (normal), N>=2 → amber (caution)
 - Used in RecordGameForm (team summary) and CourtsManager (court cards)
 
-### RecordGameForm A/B Button Logic
-- `handleAssign(playerId, "A" | "B")`: Toggle player on/off team. If already on opposite team, moves them.
-- `teamAFull` / `teamBFull` derived booleans (length >= 2) disable corresponding buttons
-- Player picker uses internal scroll (`max-h-[45vh] overflow-y-auto`) to maintain zero-scroll console
-- Sticky Record button at bottom with `bg-gradient-to-t from-white` fade
+### RecordGameForm Tap-to-Select Logic (v0.8.0+)
+- `handleTap(player)`: Toggles selection. If already selected, removes from team. If not selected and slot open, assigns to next available team.
+- Team assignment uses `teamACount` (actual Team A member count from array filter), NOT `selectedPlayers.length` — prevents wrong-team bug after deselection.
+- `selectedPlayers: SelectedPlayer[]` — each entry has the player + team label ("A" | "B")
+- Win-by-1 confirmation: after validation passes, checks `Math.abs(scoreA - scoreB) === 1` → `window.confirm()` before proceeding
+- Sticky Record button at bottom with `bg-gradient-to-t from-white` fade. Content has `pb-24` padding to prevent last rows hiding under button.
 
 ### Courts Mode suggestCourtsAction (courts.ts)
 - Hybrid: Fetches data server-side (courts, active players, games, pair counts)
@@ -344,6 +363,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - Loading skeleton states / Suspense boundaries
 - Real-time updates via Supabase Realtime (currently requires page refresh)
 - Optimistic UI after recording a game (currently relies on `redirect()` and re-render)
+- ~~Explicit A/B team buttons~~ *(replaced by tap-to-select in v0.8.0)*
+- Custom confirmation modals — shutout, suspicious, win-by-1 currently use `window.confirm()`; no custom modal UI
 
 ### Intelligence Features
 - Elo delta display per game in game history
@@ -375,7 +396,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - **vw_games_missing_ratings uses `created_at`**: The reconciliation view uses `rating_events.created_at` for the Elo boundary, while `recompute_session_ratings` correctly uses `played_at`. Minor inconsistency. (File: `m7.3_void_game.sql`)
 
 ### Frontend
-- **No global error boundary**: RPC failures show raw error strings (all page.tsx files)
+- **No global error boundary**: RPC failures show raw error strings (all page.tsx files). `handleServerError` now correctly extracts `.message` from `PostgrestError` (fixed v0.8.2).
+- **win_by hardcoded to 1 in m16.0**: If win-by rules ever need to be configurable per session again, m16.0 will need re-migration. `isSuspiciousScore()` in validators.ts still hardcodes `> 2` as expected margin — not pulled from sport config.
 - **No centralized design tokens**: Colors/spacing are ad-hoc Tailwind classes scattered across files
 - **Range query param parsing**: Simplistic string match on leaderboard (file: `leaderboard/page.tsx`)
 - **Courts Mode force=true**: Courts Mode skips duplicate detection entirely by passing `force: true` (file: `CourtsManager.tsx`)
@@ -442,13 +464,35 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 **Cause:** RecordGameForm was rewritten with A/B buttons locally but never committed. Push to Vercel showed old code.
 **Fix:** Always check `git status` before pushing. Files written by Claude Code are not auto-staged.
 
+### 8. Wrong-team assignment after deselect (v0.8.0)
+**Cause:** RecordGameForm used `selectedPlayers.length` (total selected count) instead of `teamACount` (actual Team A member count) to decide which team a new tap joins. After deselecting a Team A player, the next tap would go to Team B.
+**Fix:** Derive `teamACount` from `selectedPlayers.filter(p => p.team === "A").length`. Use this count, not total selection length, for team assignment.
+**File:** `src/app/g/[join_code]/session/[session_id]/RecordGameForm.tsx`
+**Gotcha:** Never use `selectedPlayers.length` as a proxy for team slot state.
+
+### 9. `PlayerPicker` classes purged in production (v0.8.0)
+**Cause:** `src/lib/` was missing from Tailwind CSS content scan paths in `tailwind.config.ts`. All Tailwind classes in `PlayerPicker.tsx` and other `src/lib/components/` files were stripped at build time.
+**Fix:** Add `"./src/lib/**/*.{ts,tsx}"` to `tailwind.config.ts` content array.
+**Gotcha:** `src/lib/` MUST remain in content paths forever. Silent production-only failure.
+
+### 10. `[object Object]` error on score submission (v0.8.2)
+**Cause:** `handleServerError` called `String(error)` on a `PostgrestError` object → `[object Object]`. `PostgrestError` is NOT `instanceof Error`.
+**Fix:** Added `"message" in error` branch: `String((error as { message: unknown }).message)`.
+**File:** `src/lib/errors.ts`
+**Gotcha:** Always check for `PostgrestError` shape separately from native `Error`. The `instanceof` guard is insufficient for Supabase errors.
+
+### 11. `PlayerPicker` bottom content hidden under sticky CTA (v0.8.1)
+**Cause:** Content area had `pb-4` (16px) — far too small for the ~80px sticky CTA footer. Last player rows were unreachable.
+**Fix:** Bumped to `pb-24`.
+**File:** `src/lib/components/PlayerPicker.tsx`
+
 ---
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Apply m15.0 migration** — Run `m15.0_rdr_v2.sql` on Dev Supabase instance. Required for RDR v2 confidence system (RD columns, backfill, v2 RPCs). Verify backfill: active players should have RD ~80, inactive players higher RD proportional to days since last game.
+1. **Apply m16.0 migration to production** — Run `m16.0_allow_win_by_one.sql` on production Supabase before merging `dev` → `main`. Sets `v_win_by := 1` in `record_game` RPC.
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining), all RPC function bodies (M7-M15.0), updated views, indexes.
+2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining), all RPC function bodies (M7-M16.0), updated views, indexes.
 
 3. **Decompose CourtsManager.tsx** — At 1073+ lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
 
@@ -499,6 +543,7 @@ src/
       session/[session_id]/
         courts/       # Courts Mode sub-route
         games/        # Session game log
+        players/      # Add players mid-session (NEW v0.8.0)
       start/          # Start session
       players/new/    # Add player
       sessions/       # Session history
@@ -512,7 +557,7 @@ src/
     changelog_public/ # Rendered markdown changelog
   lib/
     supabase/         # Supabase clients + helpers + RPC constants
-    components/       # Shared presentational components (PlayerStatsRow)
+    components/       # Shared presentational components (LeaderboardCard, LeaderboardCardList, PlayerPicker, PlayerStatsRow [legacy])
     *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest, pairingFeedback)
 supabase/
   schema.sql          # Canonical DB reference (STALE at ~M6)
@@ -573,8 +618,11 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 ### Manual QA Checklist
 - [ ] Home page → enter group code → lands on dashboard
 - [ ] Start session with 4+ players → session page renders
-- [ ] Live session shows LIVE indicator, ModeToggle ("Select teams directly"), RecordGameForm
-- [ ] Each player row has A and B buttons for direct team assignment
+- [ ] Live session shows LIVE indicator, ModeToggle ("Select teams directly"), RecordGameForm (Quick Game Screen)
+- [ ] Tap 4 players → auto-assigned to Team A (first 2) and Team B (next 2); score entry appears
+- [ ] Deselect Team A player, tap new player → new player goes to Team A (not Team B)
+- [ ] "+ Add players" link opens group member picker (not new-player form)
+- [ ] Added players return to session pre-selected with green ring for 2.5s
 - [ ] Record game → last-game ticker updates (emerald dot + LAST pill + score + teams)
 - [ ] "All games →" link opens game log with first names and winner highlighting
 - [ ] Voided games show rose badge, muted opacity in game log
@@ -586,7 +634,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.7.0`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.8.2`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
@@ -628,7 +676,9 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Undo a game (within 8s): same RD state restoration as void
 - [ ] New player gets RD = 120 on first game (column default)
 - [ ] Player inactive 60+ days with 5+ games: first game back shows dampened delta (reacclimation)
-- [ ] Footer shows `v0.7.0`, "Changes" link shows v0.7.0 entry
+- [ ] Footer shows `v0.8.2`, "Changes" link shows v0.8.2 entry
+- [ ] Enter 11-10 score (win by 1) → confirmation dialog appears; confirm → game records
+- [ ] Score errors show readable message (not "[object Object]")
 
 ---
 
@@ -656,7 +706,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 11. **Session stale detection is UI-only (24h threshold)**: The StaleBanner does NOT auto-end sessions or block scoring. It's a suggestion. The 4-hour server-side session expiry was removed in m9.0. Sessions now stay active indefinitely until manually ended.
 
-12. **RecordGameForm `pb-20` padding**: The `pb-20` on the scroll container prevents the sticky Record button from covering the last player rows. Removing it breaks usability.
+12. **RecordGameForm `pb-24` padding**: The `pb-24` on the scroll container prevents the sticky Record button from covering the last player rows. Removing it breaks usability. (Was `pb-20`, bumped in v0.8.1.)
 
 13. **View-only route isolation**: `/v/` pages MUST NOT import any write components (RecordGameForm, EndSessionButton, VoidLastGameButton, StaleBanner, StartSessionForm, CourtsManager, CourtsSetup) or server actions from `@/app/actions`. They reuse read-only components (`EndedSessionGames`, `GamesList`, `PlayerStatsRow`) from `/g/`. All `<Link>` hrefs in `/v/` point to `/v/{view_code}/...` — never `/g/`. Defense-in-depth: all write actions require `AccessMode = "full"` as first param via `requireFullAccess()` guard.
 
@@ -667,6 +717,12 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 16. **RDR v2: COALESCE on void/undo for v1 backward compat**: `game_rdr_deltas` rows from v1 have NULL for `rd_before`, `reacclimation_before`, `last_played_before`. The void/undo RPCs use `COALESCE(rd_before, rating_deviation)` to preserve current state when voiding v1 games. Removing the COALESCE would corrupt RD state.
 
 17. **RDR v2: Column default 120 on `rating_deviation`**: This is `NEW_PLAYER_RD`, not `RD_DEFAULT` (80). The upsert in `record_game` uses `ON CONFLICT DO NOTHING`, so new players automatically get RD=120 from the column default. Changing this default to 80 would make new players appear overly confident.
+
+18. **`teamACount` not `selectedPlayers.length` for team assignment in RecordGameForm**: Using total selection length causes wrong-team assignment after deselection. Always derive team counts from `selectedPlayers.filter(p => p.team === "A").length`.
+
+19. **`src/lib/` in Tailwind content paths**: `tailwind.config.ts` must include `"./src/lib/**/*.{ts,tsx}"`. Without this, ALL Tailwind classes in `PlayerPicker.tsx`, `LeaderboardCard.tsx`, and all `src/lib/components/` files are silently purged in production builds.
+
+20. **`handleServerError` must handle PostgrestError shape**: `PostgrestError` is not `instanceof Error`. The `"message" in error` branch in `src/lib/errors.ts` is required. Removing it causes Supabase errors to render as `[object Object]`.
 
 ---
 
@@ -777,7 +833,11 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.5.0 — Session Browsing | `8981bf3`→`09d3427` | Suspicious score warning (Manual + Courts), End Session + footer nav in Courts Mode, context-aware leaderboard back nav (`from` param), session browsing in Last Session mode (`session_id` param + Prev/Next), Games/Standings tabs on ended sessions, unified game card layout (EndedSessionGames rewritten), "first name + last initial" name format, win-by removed from UI (m12.0 migration). All changes mirrored in `/v/` routes. |
 | v0.5.1 — Multi-Sport Phase 1 | `7233d8d`→`d98c410` | Sport abstraction layer (`SportConfig`, `getSportConfig()`, `validators.ts` shared pure validators), DB migration `m13.0` adds `sport` column, server actions use joined query for `group.sport`, UI components receive serializable sport props, deprecated `scoring.ts` removed, shared utilities (`pairKey`, `transformGameRecords`, `handleServerError`, `constants/shared.ts`), `robots.txt`, Vitest test infrastructure (160 tests/15 files). Zero UI/UX changes — internal refactor only. |
 | v0.6.0 — GOAT Badges + Tier Renames | `1d254a3`→`3e91e8c` | GOAT badge system: Reigning GOAT (👑 highest current RDR, 20+ games, Elite) + All-Time GOAT (highest peak RDR, 50+ games). Gold gradient pill with glow + row highlight. Peak rating tracked atomically in `record_game`, targeted peak repair on void/undo. Pure logic module `src/lib/goat.ts` (22 tests). Tier renames: Walk-On/Challenger/Contender/All-Star/Elite. Migration `m14.0`. Both `/g/` and `/v/` leaderboards updated. |
-| v0.7.0 — RDR v2 Confidence System | `ebeeb80`→`bab1fd8` | Confidence-based rating system replacing binary K-factor. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve. Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)`. Reacclimation buffer (3 games) for 60-day returners. Informative RD recovery based on opponent confidence + game closeness. Tiered margin factor replaces ln-based MOV. Uniform ±32 clamping. Confidence labels: Locked In/Active/Rusty/Returning. Extended delta logging for observability. Migration `m15.0`. All leaderboard + session pages updated. Type boundaries tightened (`SessionRatingInfo`, data-source comments). SQL/RPC integration test suite (15 tests: core behavior, inactivity, reacclimation, RD recovery, void/undo restoration, new player, v1 backward compat). Component regression tests strengthened (36 tests: submit gating, validation errors, payload verification, toggle round-trip, loser exclusion). Unit tests added for `formatting.ts` and `rdr.ts` confidence functions. Total: 239 tests (69 unit + 36 component + 15 integration + 119 existing). |
+| v0.7.0 — RDR v2 Confidence System | `ebeeb80`→`bab1fd8` | Confidence-based rating system replacing binary K-factor. Rating deviation (RD) tracks uncertainty per player. Continuous inactivity inflation via logarithmic curve. Volatility multiplier `clamp(eff_rd/80, 0.85, 1.60)`. Reacclimation buffer (3 games) for 60-day returners. Informative RD recovery based on opponent confidence + game closeness. Tiered margin factor replaces ln-based MOV. Uniform ±32 clamping. Confidence labels: Locked In/Active/Rusty/Returning. Extended delta logging for observability. Migration `m15.0`. All leaderboard + session pages updated. Total: 239 tests. |
+| v0.7.1 — Leaderboard Cards + Games Feed | `(570c7f8 area)` | `LeaderboardCard` (accordion, expandable) replaces `PlayerStatsRow` on all leaderboard pages. `LeaderboardCardList` manages single-expand state. `GamesList`/`EndedSessionGames` redesigned as scoreboard style: winner bold on top in green, loser below in gray. Zero-padded scores. Game badge redesign. Inter font upgrade. |
+| v0.8.0 — Quick Game Screen + Player Picker | `570c7f8`→`da59fd3` | Tap-to-select Quick Game Screen replaces Live Referee Console. Auto-team by tap order (1+2→A, 3+4→B). Always-visible team summary cards. Score entry progressive disclosure. Always-instructive CTA. New `/session/[id]/players` add-players-mid-session route. Shared `PlayerPicker` component (start-session + add-to-session modes). `?added=id1,id2` auto-select + 2.5s green ring. Fixed wrong-team-after-deselect bug. Fixed Tailwind purge bug (`src/lib/` added to content paths). |
+| v0.8.1 — Post-Release Bug Fixes | `418ee54`→`513243b` | `pb-24` padding fix for PlayerPicker sticky CTA. `addPlayerAction` auto-select via `?added=` redirect. Enrollment failure fallback redirect. Removed dead `?selected=N` param. Rewrote all 16 RecordGameForm regression tests for tap-to-select UI. 226 tests across 17 files. |
+| v0.8.2 — Win-by-1 + Error Fix | `aafc3ac`→`33127fe` | Win-by-1 scores now allowed (m16.0 sets `v_win_by := 1`; client validator updated). Soft `window.confirm()` dialog for win-by-1. Fixed `handleServerError` extracting `.message` from `PostgrestError` (was `[object Object]`). Version bumped to 0.8.2 in package.json. |
 
 ---
 

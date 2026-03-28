@@ -201,7 +201,14 @@ export default function LeaderboardCard({
               </span>
             )}
           </div>
-          {tier && <span style={tierBadgeStyle(tier)}>{tier}</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+            {tier && <span style={{ ...tierBadgeStyle(tier), marginTop: 0 }}>{tier}</span>}
+            {player.games_played != null && (
+              <span style={{ fontSize: 12, color: "#6B7280" }}>
+                {player.games_played} {player.games_played === 1 ? "game" : "games"}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Right: Metrics + Chevron */}

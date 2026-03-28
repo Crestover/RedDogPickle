@@ -8,6 +8,9 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ## [0.8.2] — Win-by-1 Support + Error Display Fix (2026-03-27)
 
+### Added
+- **Games played count on leaderboard and session standings cards** — displayed to the right of the tier badge, matching tier badge font size (10px) and color; singular/plural handled (`1 game` / `N games`); null-safe
+
 ### Changed
 - **Win-by-1 scores now allowed** for all three game types (to 11, to 15, to 21)
   - Removed the win-by-2 enforcement at the DB level (`m16.0` migration sets `v_win_by := 1` in `record_game` RPC)

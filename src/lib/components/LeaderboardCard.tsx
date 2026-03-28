@@ -204,7 +204,7 @@ export default function LeaderboardCard({
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
             {tier && <span style={{ ...tierBadgeStyle(tier), marginTop: 0 }}>{tier}</span>}
             {player.games_played != null && (
-              <span style={{ fontSize: 12, color: "#6B7280" }}>
+              <span style={{ fontSize: 10, color: "#6B7280" }}>
                 {player.games_played} {player.games_played === 1 ? "game" : "games"}
               </span>
             )}

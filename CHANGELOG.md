@@ -6,6 +6,19 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
+## [0.8.2] — Win-by-1 Support + Error Display Fix (2026-03-27)
+
+### Changed
+- **Win-by-1 scores now allowed** for all three game types (to 11, to 15, to 21)
+  - Removed the win-by-2 enforcement at the DB level (`m16.0` migration sets `v_win_by := 1` in `record_game` RPC)
+  - Client-side validator updated to match — no longer rejects scores where winner leads by exactly 1
+  - Soft confirmation dialog added: "Are you sure you want to record a win by 1?" with Cancel / Yes options before submitting
+
+### Fixed
+- `handleServerError` was passing a `PostgrestError` object directly to the error string state, producing `[object Object]` in the UI instead of the actual message; now extracts `.message` field correctly
+
+---
+
 ## [0.8.1] — Post-Release Bug Fixes + Test Suite Update (2026-03-23)
 
 ### Fixed

@@ -132,6 +132,7 @@ export default function RecordGameForm({
   const [rules, setRules] = useState(sessionRules);
   const [showRulePicker, setShowRulePicker] = useState(false);
   const [scoreWarningArmed, setScoreWarningArmed] = useState(false);
+  const [winByOneArmed, setWinByOneArmed] = useState(false);
 
   // ── Undo queue ─────────────────────────────────────────────────────────────
   const [undoQueue, setUndoQueue] = useState<UndoEntry[]>([]);
@@ -236,6 +237,12 @@ export default function RecordGameForm({
     if (shutoutTimerRef.current) { clearTimeout(shutoutTimerRef.current); shutoutTimerRef.current = null; }
   }
 
+  function isWinByOne(): boolean {
+    const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
+    if (isNaN(a) || isNaN(b)) return false;
+    return Math.abs(a - b) === 1;
+  }
+
   function checkSuspiciousScore(): boolean {
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
@@ -279,6 +286,7 @@ export default function RecordGameForm({
     setScoreA(""); setScoreB(""); setError(""); setPossibleDup(null);
     disarmShutout();
     setScoreWarningArmed(false);
+    setWinByOneArmed(false);
   }
 
   // ── Undo ───────────────────────────────────────────────────────────────────
@@ -311,6 +319,12 @@ export default function RecordGameForm({
     const selErr = validateSelection();
     const scErr = validateScores();
     if (selErr || scErr) { setError(selErr ?? scErr ?? ""); return; }
+
+    if (isWinByOne() && !winByOneArmed) {
+      setWinByOneArmed(true);
+      return;
+    }
+    setWinByOneArmed(false);
 
     if (!force && checkSuspiciousScore() && !scoreWarningArmed) {
       setScoreWarningArmed(true);
@@ -586,7 +600,7 @@ export default function RecordGameForm({
                 min={0}
                 max={99}
                 value={scoreA}
-                onChange={(e) => { setScoreA(e.target.value); setError(""); disarmShutout(); setScoreWarningArmed(false); }}
+                onChange={(e) => { setScoreA(e.target.value); setError(""); disarmShutout(); setScoreWarningArmed(false); setWinByOneArmed(false); }}
                 placeholder="0"
                 className="w-full rounded-lg border-2 border-blue-200 bg-blue-50 px-3 py-4 text-center text-2xl font-bold text-blue-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
@@ -603,7 +617,7 @@ export default function RecordGameForm({
                 min={0}
                 max={99}
                 value={scoreB}
-                onChange={(e) => { setScoreB(e.target.value); setError(""); disarmShutout(); setScoreWarningArmed(false); }}
+                onChange={(e) => { setScoreB(e.target.value); setError(""); disarmShutout(); setScoreWarningArmed(false); setWinByOneArmed(false); }}
                 placeholder="0"
                 className="w-full rounded-lg border-2 border-orange-200 bg-orange-50 px-3 py-4 text-center text-2xl font-bold text-orange-900 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
               />
@@ -617,6 +631,33 @@ export default function RecordGameForm({
         <p className="text-xs text-red-700 font-medium rounded-lg bg-red-50 border border-red-200 px-3 py-2" role="alert">
           Score includes a 0. Tap Record again to confirm.
         </p>
+      )}
+
+      {/* ── Win-by-1 confirmation ──────────────────────────────── */}
+      {winByOneArmed && !possibleDup && (
+        <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 space-y-2">
+          <p className="text-xs font-semibold text-amber-800">
+            Are you sure you want to record a win by 1?
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setWinByOneArmed(false)}
+              disabled={isPending}
+              className="flex-1 rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => submit(false)}
+              disabled={isPending}
+              className="flex-1 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700 active:bg-amber-800 transition-colors disabled:opacity-50"
+            >
+              {isPending ? "Saving\u2026" : "Yes, record it"}
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Suspicious score warning ───────────────────────────── */}

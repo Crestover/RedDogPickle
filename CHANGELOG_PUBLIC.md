@@ -2,10 +2,14 @@
 
 ---
 
-## v0.8.2 — Win by 1 Now Allowed
+## v0.8.3 — Games Played on Leaderboard Cards
 
 ### Added
 - **Games played now shows on every leaderboard card.** You can see how many games each player has played right next to their tier — no need to tap to expand.
+
+---
+
+## v0.8.2 — Win by 1 Now Allowed
 
 ### Changed
 - **11-10, 15-14, and 21-20 scores are now valid.** The app previously rejected any win where the winner didn't lead by at least 2. This was stricter than intended — a win by 1 is now accepted for all three game lengths.

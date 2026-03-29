@@ -129,7 +129,7 @@ export default async function GroupPage({ params }: PageProps) {
           <p className="text-xs font-medium uppercase tracking-widest text-gray-400 mt-4 mb-1">
             Group
           </p>
-          <p className="text-sm text-gray-400 font-mono">{group.join_code}</p>
+          <p className="text-sm text-gray-700 font-semibold">{group.name}</p>
         </div>
 
         {/* Active session banner */}

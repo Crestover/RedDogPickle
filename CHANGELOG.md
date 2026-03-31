@@ -6,6 +6,17 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
+## [0.8.4] — Hidden Players (2026-03-31)
+
+### Added
+- **Hidden player support** — players can now be marked `hidden = true` in the database. Hidden players participate fully in sessions, games, and RDR calculations but are excluded from all leaderboard and standings display surfaces (all-time, 30-day, last session, ended-session standings tab, and view-only equivalents). Rank numbering recalculates over visible players only with no gaps.
+  - DB: `players.hidden BOOLEAN NOT NULL DEFAULT FALSE` (`m17.0` migration)
+  - RPCs: `get_group_stats` and `get_session_stats` filter `WHERE NOT p.hidden` at the final result stage; aggregation subqueries are untouched so visible players' stats include all games vs hidden opponents
+  - GOAT badges: naturally restricted to visible players — candidates are derived from the already-filtered RPC result
+  - Operational flows (PlayerPicker, add players mid-session) are intentionally unaffected — hidden players remain selectable
+
+---
+
 ## [0.8.3] — Games Played on Leaderboard Cards (2026-03-27)
 
 ### Added

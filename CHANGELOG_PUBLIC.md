@@ -2,6 +2,13 @@
 
 ---
 
+## v0.8.4 — Hidden Players
+
+### Added
+- **Players can now be hidden from leaderboards and standings.** A hidden player still participates in sessions and games and their results count toward everyone's ratings — they just don't appear in the rankings. Useful for casual players who don't want to be listed, or groups with a large roster.
+
+---
+
 ## v0.8.3 — Games Played on Leaderboard Cards
 
 ### Added

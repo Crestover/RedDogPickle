@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-03-27 — v0.8.2
+> Last updated: 2026-03-31 — v0.8.4
 
 ---
 
@@ -30,7 +30,11 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.8.2 — Win-by-1 Support + Error Display Fix (current, post-release stabilisation).**
+**v0.8.4 — Hidden Players (current, stabilisation + privacy controls).**
+
+v0.8.4: Hidden player support. `players.hidden BOOLEAN NOT NULL DEFAULT FALSE` added via `m17.0_hidden_players.sql`. Group-scoped by construction (each `players` row has a `group_id` FK). `get_group_stats` and `get_session_stats` RPCs updated with `WHERE NOT p.hidden` at the final result stage — aggregation subqueries untouched so visible players' stats include all games vs hidden opponents. GOAT candidates derived from already-filtered RPC result — GOAT badges naturally restricted to visible players. Operational flows (PlayerPicker, add-players mid-session) intentionally unfiltered — hidden players remain fully selectable. 8 integration tests added. No admin toggle UI yet — set via direct DB update.
+
+v0.8.3: Games played count on leaderboard and session standings cards. Displayed to the right of the tier badge, 10px font, null-safe, singular/plural handled.
 
 v0.8.2: Win-by-1 scores now allowed for all game lengths (to 11, to 15, to 21). DB: migration `m16.0_allow_win_by_one.sql` sets `v_win_by := 1` in `record_game` RPC. Client: `validateScores` no longer enforces margin; only checks winner ≥ target. UI: soft `window.confirm()` dialog ("Are you sure you want to record a win by 1?") before submitting. Also fixes `handleServerError` extracting `.message` from `PostgrestError` (was rendering `[object Object]`).
 
@@ -60,25 +64,25 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ### Git State
 - **Branch:** `dev` — all active development here; user merges to `main` manually
-- **Version:** `0.8.2` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC)
-- **Latest migration:** `m16.0_allow_win_by_one.sql`
+- **Version:** `0.8.4` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC)
+- **Latest migration:** `m17.0_hidden_players.sql`
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
-- **Pending migration:** `m16.0_allow_win_by_one.sql` must be applied to production Supabase before merging to main
+- **Pending migrations:** `m16.0_allow_win_by_one.sql` and `m17.0_hidden_players.sql` must be applied to production Supabase before merging to main
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | Pending v0.8.2 merge + m16.0 migration |
-| Dev/Preview | `dev`         | Dev               | v0.8.2 (win-by-1 support, error display fix) |
+| Production  | `main`        | Production        | Pending v0.8.4 merge + m16.0 + m17.0 migrations |
+| Dev/Preview | `dev`         | Dev               | v0.8.4 (hidden players, games played on cards, win-by-1, error display fix) |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.8.2, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
+| `package.json` | v0.8.4, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
 | `vitest.config.ts` | Vitest config: `@vitejs/plugin-react`, jsdom environment, `@/` alias, setup file `src/test-setup.ts` |
 | `vitest.integration.config.ts` | Separate config for SQL/RPC integration tests (dotenv, no jsdom). Run via `npm run test:integration` |
 | `public/robots.txt` | Blocks all crawling: `User-agent: * / Disallow: /` |
@@ -214,6 +218,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `migrations/m14.0_goat_peak_rating.sql` | GOAT badge system: adds `peak_rating` + `peak_rating_achieved_at` columns to `player_ratings`, backfills from `game_rdr_deltas`. Updates `record_game` with atomic peak tracking (`GREATEST`), `void_last_game` and `undo_game` with targeted peak repair, `get_group_stats` returns peak columns. Recreates `record_court_game` (unchanged, required due to DROP cascade). |
 | `migrations/m15.0_rdr_v2.sql` | RDR v2 confidence system: adds `rating_deviation`, `last_played_at`, `reacclimation_games_remaining` to `player_ratings`. Adds `rd_before/after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after` to `game_rdr_deltas`. Backfills last_played_at from game history, initializes RD from inactivity formula. Replaces `record_game` (v2 algorithm: continuous RD inflation, volatility multiplier, reacclimation buffer, informative RD recovery, tiered margin factor, ±32 clamping), `void_last_game` + `undo_game` (restore RD state via COALESCE for v1 compat), `get_group_stats` (returns RD columns), `record_court_game` (unchanged, DROP cascade). |
 | `migrations/m16.0_allow_win_by_one.sql` | Win-by-1 support: recreates `record_game` RPC with `v_win_by := 1` (hardcoded). Removes the win-by-2 enforcement. Target points still enforced (winner must reach target). |
+| `migrations/m17.0_hidden_players.sql` | Hidden players: adds `players.hidden BOOLEAN NOT NULL DEFAULT FALSE`. Updates `get_group_stats` and `get_session_stats` with `WHERE NOT p.hidden` at the final result stage (aggregation subqueries untouched). |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -231,6 +236,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 13. Run `m14.0_goat_peak_rating.sql` (peak_rating columns + GOAT RPC updates)
 14. Run `m15.0_rdr_v2.sql` (RD columns, backfill, v2 rating algorithm)
 15. Run `m16.0_allow_win_by_one.sql` (sets win_by := 1 in record_game RPC)
+16. Run `m17.0_hidden_players.sql` (adds players.hidden column, updates get_group_stats + get_session_stats)
 
 ---
 
@@ -285,6 +291,14 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - **set_session_rules RPC**: Hardened SECURITY DEFINER. Validates session exists + active + real group. Updates session defaults.
 - **UI**: Rules Chip (tappable, shows target points only). Shared in RecordGameForm + CourtsManager. Win-by picker removed in v0.5.0.
 - **DB validation (m12.0)**: `record_game` and `record_court_game` RPCs no longer enforce win-by margin — only validates winner >= target_points.
+
+### Hidden Players (m17.0)
+- `players.hidden BOOLEAN NOT NULL DEFAULT FALSE` — group-scoped by construction (`players.group_id` FK means each row belongs to exactly one group)
+- Filtering applied at the final result stage in `get_group_stats` and `get_session_stats` via `WHERE NOT p.hidden` after all JOINs — aggregation subquery untouched
+- Visible players' stats include all games vs hidden opponents (hiding a player removes their row, not their opponents' game counts)
+- GOAT candidates derived from already-filtered RPC result array — GOAT badges naturally restricted to visible players with no additional logic
+- Operational flows: `start/page.tsx` and `session/[id]/players/page.tsx` query `players` directly with NO hidden filter — hidden players must remain selectable in all session and game flows
+- No admin toggle UI yet — set `hidden = true` directly in Supabase dashboard until a settings screen is built
 
 ### RDR Tier System (cosmetic, UI-only)
 - <1100: Walk-On (gray)
@@ -365,6 +379,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - Optimistic UI after recording a game (currently relies on `redirect()` and re-render)
 - ~~Explicit A/B team buttons~~ *(replaced by tap-to-select in v0.8.0)*
 - Custom confirmation modals — shutout, suspicious, win-by-1 currently use `window.confirm()`; no custom modal UI
+- **Hidden player toggle UI** — `players.hidden` infrastructure is in place (m17.0); no admin UI to toggle it. Must be set directly in the DB until a settings screen is built.
 
 ### Intelligence Features
 - Elo delta display per game in game history
@@ -490,11 +505,11 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Apply m16.0 migration to production** — Run `m16.0_allow_win_by_one.sql` on production Supabase before merging `dev` → `main`. Sets `v_win_by := 1` in `record_game` RPC.
+1. **Apply m16.0 + m17.0 migrations to production** — Run `m16.0_allow_win_by_one.sql` then `m17.0_hidden_players.sql` on production Supabase before merging `dev` → `main`. m17.0 adds `players.hidden` and updates the two leaderboard RPCs.
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining), all RPC function bodies (M7-M16.0), updated views, indexes.
+2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining, players.hidden), all RPC function bodies (M7-M17.0), updated views, indexes.
 
-3. **Decompose CourtsManager.tsx** — At 1073+ lines it's the largest file. Extract CourtCard, WaitingPool, SlotPickerSheet, and CourtsControlBar into separate client components. Keep shared state in CourtsManager as the orchestrator.
+3. **Build hidden player toggle UI** — `players.hidden` is in the DB (m17.0) but there's no admin UI to toggle it. A settings screen or player management page is needed so group admins can hide/unhide players without direct DB access.
 
 ---
 
@@ -634,7 +649,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.8.2`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.8.4`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
@@ -723,6 +738,10 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 19. **`src/lib/` in Tailwind content paths**: `tailwind.config.ts` must include `"./src/lib/**/*.{ts,tsx}"`. Without this, ALL Tailwind classes in `PlayerPicker.tsx`, `LeaderboardCard.tsx`, and all `src/lib/components/` files are silently purged in production builds.
 
 20. **`handleServerError` must handle PostgrestError shape**: `PostgrestError` is not `instanceof Error`. The `"message" in error` branch in `src/lib/errors.ts` is required. Removing it causes Supabase errors to render as `[object Object]`.
+
+21. **`WHERE NOT p.hidden` must stay at the final result stage in `get_group_stats` and `get_session_stats`**: The filter is applied after the aggregation subquery — never inside it. Moving it inside the subquery would corrupt visible players' stats (their game counts would exclude games vs hidden opponents). Files: `m17.0_hidden_players.sql`.
+
+22. **No `hidden` filter on operational `players` queries**: `start/page.tsx` and `session/[id]/players/page.tsx` query `players` directly without filtering `hidden`. This is intentional — hidden players must remain selectable in all session and game flows. Do not add a hidden filter to these queries.
 
 ---
 

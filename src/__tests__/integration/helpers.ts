@@ -240,6 +240,20 @@ export async function setPlayerReacclimation(
   if (error) throw new Error(`setPlayerReacclimation failed: ${error.message}`);
 }
 
+/** Set a player's hidden flag. */
+export async function setPlayerHidden(
+  admin: SupabaseClient,
+  playerId: string,
+  hidden: boolean
+) {
+  const { error } = await admin
+    .from("players")
+    .update({ hidden })
+    .eq("id", playerId);
+
+  if (error) throw new Error(`setPlayerHidden failed: ${error.message}`);
+}
+
 // ── READ HELPERS ─────────────────────────────────────────────
 
 /** Read the current player_ratings row for a player. */

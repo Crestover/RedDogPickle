@@ -101,6 +101,61 @@ function isActiveSession(session: { ended_at: string | null }): boolean {
   return !session.ended_at;
 }
 
+/** Session-scoped standings (used by both the active-session standings screen and the ended-session Standings tab). */
+async function getSessionStandings(groupId: string, sessionId: string) {
+  const supabase = getServerClient();
+  const { data: standingsData, error: standingsError } = await supabase.rpc(
+    RPC.GET_SESSION_STATS,
+    { p_session_id: sessionId }
+  );
+  if (standingsError) {
+    console.error("get_session_stats error:", standingsError);
+  }
+  const sessionStandings = (standingsData ?? []) as PlayerStats[];
+
+  const ratingsMap = new Map<string, SessionRatingInfo>();
+  const { data: ratingsData } = await supabase
+    .from("player_ratings")
+    .select("player_id, rating, games_rated, provisional, rating_deviation, last_played_at, reacclimation_games_remaining")
+    .eq("group_id", groupId);
+  for (const row of ratingsData ?? []) {
+    ratingsMap.set(row.player_id, row as SessionRatingInfo);
+  }
+
+  return { sessionStandings, ratingsMap };
+}
+
+/** Renders a LeaderboardCardList from session standings + ratings, or a fallback message. */
+function SessionStandingsList({
+  sessionStandings,
+  ratingsMap,
+}: {
+  sessionStandings: PlayerStats[];
+  ratingsMap: Map<string, SessionRatingInfo>;
+}) {
+  if (sessionStandings.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-4">No standings data.</p>;
+  }
+  return (
+    <LeaderboardCardList
+      cards={sessionStandings.map((player, index) => {
+        const pr = ratingsMap.get(player.player_id);
+        const rating = player.rdr != null ? Number(player.rdr) : (pr?.rating ?? null);
+        return {
+          playerId: player.player_id,
+          rank: index + 1,
+          player,
+          rating,
+          provisional: pr?.provisional ?? false,
+          ratingDeviation: pr?.rating_deviation ?? null,
+          isReigningGoat: false,
+          isAllTimeGoat: false,
+        };
+      })}
+    />
+  );
+}
+
 export default async function SessionPage({ params, searchParams }: PageProps) {
   const { join_code, session_id } = await params;
   const { tab, added } = await searchParams;
@@ -113,6 +168,35 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
   const { group, session, attendees, games, gameRecords, pairCounts } = data;
   const active = isActiveSession(session);
+
+  // ── ACTIVE session: standings sub-screen ────────────────────────
+  if (active && tab === "standings") {
+    const { sessionStandings, ratingsMap } = await getSessionStandings(group.id, session.id);
+    return (
+      <div className="flex flex-col px-4 py-8">
+        <div className="w-full max-w-sm mx-auto space-y-6">
+          <Link
+            href={`/g/${group.join_code}/session/${session.id}`}
+            className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            &larr; Back to Session
+          </Link>
+
+          <div>
+            <p className="flex items-center gap-1.5 text-xs uppercase tracking-widest text-gray-400 mt-1">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Live Session Standings
+            </p>
+            <h1 className="text-xl font-bold leading-tight font-mono">
+              {session.name}
+            </h1>
+          </div>
+
+          <SessionStandingsList sessionStandings={sessionStandings} ratingsMap={ratingsMap} />
+        </div>
+      </div>
+    );
+  }
 
   // Resolve sport config for this group
   const sportConfig = getSportConfig(group.sport as Sport);
@@ -220,7 +304,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               All games &rarr;
             </Link>
             <Link
-              href={`/g/${group.join_code}/leaderboard?from=${encodeURIComponent(`/g/${group.join_code}/session/${session.id}`)}`}
+              href={`/g/${group.join_code}/session/${session.id}?tab=standings`}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
               Standings &rarr;
@@ -236,27 +320,9 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
 
   // Fetch session standings for the Standings tab
   let sessionStandings: PlayerStats[] = [];
-  const ratingsMap = new Map<string, SessionRatingInfo>();
+  let ratingsMap = new Map<string, SessionRatingInfo>();
   if (activeTab === "standings") {
-    const supabase = getServerClient();
-    const { data: standingsData, error: standingsError } = await supabase.rpc(
-      RPC.GET_SESSION_STATS,
-      { p_session_id: session.id }
-    );
-    if (standingsError) {
-      console.error("get_session_stats error:", standingsError);
-    } else {
-      sessionStandings = (standingsData ?? []) as PlayerStats[];
-    }
-
-    // Fetch player ratings for display (SessionRatingInfo — no GOAT fields needed)
-    const { data: ratingsData } = await supabase
-      .from("player_ratings")
-      .select("player_id, rating, games_rated, provisional, rating_deviation, last_played_at, reacclimation_games_remaining")
-      .eq("group_id", group.id);
-    for (const row of ratingsData ?? []) {
-      ratingsMap.set(row.player_id, row as SessionRatingInfo);
-    }
+    ({ sessionStandings, ratingsMap } = await getSessionStandings(group.id, session.id));
   }
 
   return (
@@ -319,30 +385,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             )}
           </>
         ) : (
-          <>
-            {sessionStandings.length > 0 ? (
-              <LeaderboardCardList
-                cards={sessionStandings.map((player, index) => {
-                  const pr = ratingsMap.get(player.player_id);
-                  const rating = player.rdr != null
-                    ? Number(player.rdr)
-                    : (pr?.rating ?? null);
-                  return {
-                    playerId: player.player_id,
-                    rank: index + 1,
-                    player,
-                    rating,
-                    provisional: pr?.provisional ?? false,
-                    ratingDeviation: pr?.rating_deviation ?? null,
-                    isReigningGoat: false,
-                    isAllTimeGoat: false,
-                  };
-                })}
-              />
-            ) : (
-              <p className="text-sm text-gray-400 text-center py-4">No standings data.</p>
-            )}
-          </>
+          <SessionStandingsList sessionStandings={sessionStandings} ratingsMap={ratingsMap} />
         )}
 
         {/* Bottom nav row */}

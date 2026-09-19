@@ -69,12 +69,12 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
-- **Pending migrations:** `m16.0_allow_win_by_one.sql` and `m17.0_hidden_players.sql` must be applied to production Supabase before merging to main
+- **Pending migrations:** none — `m16.0_allow_win_by_one.sql` and `m17.0_hidden_players.sql` confirmed applied to both dev and production Supabase (verified 2026-09-19: `players.hidden` present and `record_game` has `v_win_by := 1` hardcoded on both instances)
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | Pending v0.8.4 merge + m16.0 + m17.0 migrations |
+| Production  | `main`        | Production        | v0.8.4 (m16.0 + m17.0 confirmed applied) |
 | Dev/Preview | `dev`         | Dev               | v0.8.4 (hidden players, games played on cards, win-by-1, error display fix) |
 
 ### Complete File Map
@@ -505,11 +505,9 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ## Claude Code Execution Plan (Next 3 Steps)
 
-1. **Apply m16.0 + m17.0 migrations to production** — Run `m16.0_allow_win_by_one.sql` then `m17.0_hidden_players.sql` on production Supabase before merging `dev` → `main`. m17.0 adds `players.hidden` and updates the two leaderboard RPCs.
+1. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining, players.hidden), all RPC function bodies (M7-M17.0), updated views, indexes.
 
-2. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining, players.hidden), all RPC function bodies (M7-M17.0), updated views, indexes.
-
-3. **Build hidden player toggle UI** — `players.hidden` is in the DB (m17.0) but there's no admin UI to toggle it. A settings screen or player management page is needed so group admins can hide/unhide players without direct DB access.
+2. **Build hidden player toggle UI** — `players.hidden` is in the DB (m17.0) but there's no admin UI to toggle it. A settings screen or player management page is needed so group admins can hide/unhide players without direct DB access. **Deliberately deferred** — no admin screen exists yet in the app at all, so this needs an admin surface designed first, not just a toggle bolted onto an existing page.
 
 ---
 

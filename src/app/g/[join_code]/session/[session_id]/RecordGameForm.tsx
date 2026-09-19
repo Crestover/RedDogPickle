@@ -28,7 +28,7 @@
  *   immediately see who was added and that they're already queued up.
  */
 
-import { useState, useRef, useEffect, useTransition, useCallback } from "react";
+import { useState, useRef, useEffect, useTransition, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { recordGameAction, undoGameAction } from "@/app/actions/games";
@@ -86,6 +86,9 @@ function firstName(displayName: string): string {
   return space > 0 ? displayName.substring(0, space) : displayName;
 }
 
+/** Below this attendee count, the tap-to-select list is short enough that search is just noise. */
+const PLAYER_SEARCH_THRESHOLD = 18;
+
 export default function RecordGameForm({
   sessionId,
   joinCode,
@@ -133,6 +136,7 @@ export default function RecordGameForm({
   const [showRulePicker, setShowRulePicker] = useState(false);
   const [scoreWarningArmed, setScoreWarningArmed] = useState(false);
   const [winByOneArmed, setWinByOneArmed] = useState(false);
+  const [playerQuery, setPlayerQuery] = useState("");
 
   // ── Undo queue ─────────────────────────────────────────────────────────────
   const [undoQueue, setUndoQueue] = useState<UndoEntry[]>([]);
@@ -192,6 +196,17 @@ export default function RecordGameForm({
 
   const teamANames = selectedPlayers.filter((p) => p.team === "A").map((p) => firstName(p.display_name));
   const teamBNames = selectedPlayers.filter((p) => p.team === "B").map((p) => firstName(p.display_name));
+
+  const showPlayerSearch = attendees.length > PLAYER_SEARCH_THRESHOLD;
+  const filteredAttendees = useMemo(() => {
+    const q = playerQuery.trim().toLowerCase();
+    if (!q) return attendees;
+    return attendees.filter(
+      (p) =>
+        p.display_name.toLowerCase().includes(q) ||
+        p.code.toLowerCase().includes(q)
+    );
+  }, [attendees, playerQuery]);
 
   // ── Toggle player selection ────────────────────────────────────────────────
   function togglePlayer(player: Player) {
@@ -535,9 +550,25 @@ export default function RecordGameForm({
         );
       })()}
 
+      {/* ── Player search (only past the threshold — small groups stay zero-friction) ── */}
+      {showPlayerSearch && (
+        <input
+          type="search"
+          value={playerQuery}
+          onChange={(e) => setPlayerQuery(e.target.value)}
+          placeholder="Search players…"
+          className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm placeholder:text-gray-400 focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+        />
+      )}
+
       {/* ── Player list (tap to select) ──────────────────────────── */}
+      {showPlayerSearch && filteredAttendees.length === 0 ? (
+        <p className="text-center text-sm text-gray-400 py-4">
+          No players match &ldquo;{playerQuery}&rdquo;
+        </p>
+      ) : (
       <div className="flex flex-col gap-1.5">
-        {attendees.map((player) => {
+        {filteredAttendees.map((player) => {
           const sel = selectedPlayers.find((p) => p.id === player.id);
           const dimmed = !sel && teamsComplete;
           return (
@@ -582,6 +613,7 @@ export default function RecordGameForm({
           );
         })}
       </div>
+      )}
 
       {/* ── Score entry (progressive — only when 4 selected) ─────── */}
       {teamsComplete && (

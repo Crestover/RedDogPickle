@@ -6,7 +6,7 @@
  * score, shutout, and rating-input parity.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { getSportConfig } from "../index";
 import type { SportConfig } from "../types";
 
@@ -35,27 +35,32 @@ describe("A. Config parity", () => {
   });
 });
 
-// ── B. Phase 1 padel fallback parity ────────────────────────────────────────
+// ── B. Padel has its own real config (Phase 2) ──────────────────────────────
+// Padel is no longer a pickleball clone — it has genuinely different scoring
+// (single-set games-based, win-by-2 with a 6-6 tiebreak). See padel.test.ts
+// and padelValidators.test.ts for full coverage; these just prove the two
+// sports are actually distinct where it matters.
 
-describe("B. Phase 1 padel fallback parity", () => {
-  it("padel has same target presets as pickleball", () => {
-    expect([...padel.targetPresets]).toEqual([...pickleball.targetPresets]);
+describe("B. Padel has its own real config (Phase 2)", () => {
+  it("padel has a different target preset than pickleball", () => {
+    expect(padel.targetPresets).toEqual([6]);
+    expect(padel.targetPresets).not.toEqual(pickleball.targetPresets);
   });
 
-  it("padel has same player/team counts as pickleball", () => {
+  it("padel has same player/team/court counts as pickleball (still doubles)", () => {
     expect(padel.playersPerTeam).toBe(pickleball.playersPerTeam);
     expect(padel.playersPerCourt).toBe(pickleball.playersPerCourt);
     expect(padel.maxCourts).toBe(pickleball.maxCourts);
   });
 
-  it("padel validation behaves like pickleball", () => {
-    expect(padel.validateScores(11, 7, 11)).toEqual(pickleball.validateScores(11, 7, 11));
-    expect(padel.validateScores(10, 8, 11)).toEqual(pickleball.validateScores(10, 8, 11));
+  it("padel validation rejects pickleball-style point scores", () => {
+    // 11-7 isn't a legal padel set score (padel sets go to 6, win by 2)
+    expect(padel.validateScores(11, 7, 11).valid).toBe(false);
+    expect(pickleball.validateScores(11, 7, 11).valid).toBe(true);
   });
 
-  it("padel outcome derivation behaves like pickleball", () => {
-    expect(padel.deriveOutcome(11, 7)).toEqual(pickleball.deriveOutcome(11, 7));
-    expect(padel.deriveOutcome(7, 11)).toEqual(pickleball.deriveOutcome(7, 11));
+  it("padel outcome derivation still just picks the higher score", () => {
+    expect(padel.deriveOutcome(6, 2)).toEqual(pickleball.deriveOutcome(11, 7));
   });
 });
 

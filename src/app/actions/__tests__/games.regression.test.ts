@@ -140,16 +140,29 @@ describe("C. Sport lookup behavior", () => {
     expect(result).toHaveProperty("success", true);
   });
 
-  it("padel group in Phase 1 fallback still behaves like pickleball", async () => {
-    mockSessionQuery("padel", 11);
+  it("padel group uses padel's own scoring rules (accepts a valid set score)", async () => {
+    mockSessionQuery("padel", 6);
     mockRpcSuccess();
-    const result = await recordGameAction("full", "s1", "jc", ["p1", "p2"], ["p3", "p4"], 11, 7);
+    const result = await recordGameAction("full", "s1", "jc", ["p1", "p2"], ["p3", "p4"], 6, 2);
     expect(result).toHaveProperty("success", true);
   });
 
-  it("padel group rejects same invalid scores as pickleball", async () => {
-    mockSessionQuery("padel", 11);
-    const result = await recordGameAction("full", "s1", "jc", ["p1", "p2"], ["p3", "p4"], 10, 8);
+  it("padel group rejects a pickleball-shaped score (11-7 isn't a legal padel set)", async () => {
+    mockSessionQuery("padel", 6);
+    const result = await recordGameAction("full", "s1", "jc", ["p1", "p2"], ["p3", "p4"], 11, 7);
+    expect(result).toHaveProperty("error");
+  });
+
+  it("padel group accepts an extended win-by-2 set with no upper cap (9-7)", async () => {
+    mockSessionQuery("padel", 6);
+    mockRpcSuccess();
+    const result = await recordGameAction("full", "s1", "jc", ["p1", "p2"], ["p3", "p4"], 9, 7);
+    expect(result).toHaveProperty("success", true);
+  });
+
+  it("padel group rejects a margin greater than 2 past 5-5 (9-6)", async () => {
+    mockSessionQuery("padel", 6);
+    const result = await recordGameAction("full", "s1", "jc", ["p1", "p2"], ["p3", "p4"], 9, 6);
     expect(result).toHaveProperty("error");
   });
 });

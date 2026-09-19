@@ -60,7 +60,14 @@ export async function recordGameAction(
 
   const groupRow = one((sessionData as { group: { sport: string } | { sport: string }[] }).group) as { sport: string };
   const sportConfig = getSportConfig(groupRow.sport as Sport);
-  const targetPoints = (sessionData as { target_points_default: number }).target_points_default;
+
+  // sessions.target_points_default has a CHECK constraint scoped to
+  // pickleball's presets (11/15/21) — padel's fixed 6-game set target isn't
+  // representable there, so the column is meaningless (and wrong) for padel.
+  // Use the sport's own default instead of trusting it.
+  const isPadel = groupRow.sport === "padel";
+  const dbTargetPoints = (sessionData as { target_points_default: number }).target_points_default;
+  const targetPoints = isPadel ? sportConfig.defaultTargetPoints : dbTargetPoints;
 
   // ── Pre-flight validation (also enforced in RPC) ──────────────────────────
   if (teamAIds.length !== sportConfig.playersPerTeam || teamBIds.length !== sportConfig.playersPerTeam) {
@@ -84,7 +91,11 @@ export async function recordGameAction(
     p_team_a_score: teamAScore,
     p_team_b_score: teamBScore,
     p_force:        force,
-    p_target_points: null, // use session defaults
+    // Padel must override the RPC's own session-default fallback (same stale
+    // column issue as above) by passing its target explicitly. Pickleball
+    // keeps passing null so the RPC continues to honor the session's
+    // Rules-Chip-configurable target (11/15/21).
+    p_target_points: isPadel ? targetPoints : null,
   });
 
   if (error) {

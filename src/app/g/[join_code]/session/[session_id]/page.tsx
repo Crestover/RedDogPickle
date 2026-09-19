@@ -278,10 +278,23 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             }))}
             games={gameRecords}
             sessionRules={{
-              targetPoints: session.target_points_default ?? sportConfig.defaultTargetPoints,
-              winBy: session.win_by_default ?? sportConfig.defaultWinBy,
+              // sessions.target_points_default/win_by_default are DB columns with a
+              // CHECK constraint scoped to pickleball's presets (11/15/21 and 1/2) —
+              // padel's fixed 6-game set target isn't a legal value there. Padel's
+              // real win condition is enforced independently of this value (see
+              // sports/padel.ts), so for padel we always use the sport's own
+              // default rather than trust this column.
+              targetPoints:
+                sportConfig.sport === "padel"
+                  ? sportConfig.defaultTargetPoints
+                  : session.target_points_default ?? sportConfig.defaultTargetPoints,
+              winBy:
+                sportConfig.sport === "padel"
+                  ? sportConfig.defaultWinBy
+                  : session.win_by_default ?? sportConfig.defaultWinBy,
             }}
             sportConfig={{
+              sport: sportConfig.sport,
               targetPresets: [...sportConfig.targetPresets],
               playersPerTeam: sportConfig.playersPerTeam,
             }}

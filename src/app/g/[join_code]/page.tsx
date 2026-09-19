@@ -1,5 +1,7 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
+import { getSportConfig } from "@/lib/sports";
+import type { Sport } from "@/lib/types";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import CopyViewLink from "./CopyViewLink";
@@ -70,6 +72,7 @@ async function getGroupAndActiveSession(joinCode: string): Promise<{
 export default async function GroupPage({ params }: PageProps) {
   const { join_code } = await params;
   const { group, activeSession } = await getGroupAndActiveSession(join_code);
+  const sportConfig = group ? getSportConfig(group.sport as Sport) : null;
 
   // ── Not Found — check if it's a view_code ───────────────────────────────
   if (!group) {
@@ -129,7 +132,20 @@ export default async function GroupPage({ params }: PageProps) {
           <p className="text-xs font-medium uppercase tracking-widest text-gray-400 mt-4 mb-1">
             Group
           </p>
-          <p className="text-sm text-gray-700 font-semibold">{group.name}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-gray-700 font-semibold">{group.name}</p>
+            {sportConfig && (
+              <span
+                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  sportConfig.sport === "padel"
+                    ? "bg-violet-100 text-violet-700"
+                    : "bg-emerald-100 text-emerald-700"
+                }`}
+              >
+                {sportConfig.displayName}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Active session banner */}

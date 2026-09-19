@@ -109,16 +109,16 @@ describe("B. Sport lookup fallback", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("padel group in Phase 1 behaves like pickleball", async () => {
-    mockSessionQuery("padel", 11);
+  it("padel group uses padel's own scoring rules (accepts a valid set score)", async () => {
+    mockSessionQuery("padel", 6);
     mockRpcSuccess();
-    const result = await recordCourtGameAction("full", "s1", "jc", 1, 11, 7);
+    const result = await recordCourtGameAction("full", "s1", "jc", 1, 6, 2);
     expect(result.ok).toBe(true);
   });
 
-  it("padel group rejects same invalid scores as pickleball", async () => {
-    mockSessionQuery("padel", 11);
-    const result = await recordCourtGameAction("full", "s1", "jc", 1, 10, 8);
+  it("padel group rejects a pickleball-shaped score (11-7 isn't a legal padel set)", async () => {
+    mockSessionQuery("padel", 6);
+    const result = await recordCourtGameAction("full", "s1", "jc", 1, 11, 7);
     expect(result.ok).toBe(false);
   });
 });

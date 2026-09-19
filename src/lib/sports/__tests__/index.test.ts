@@ -9,9 +9,10 @@ describe("getSportConfig", () => {
     expect(config.targetPresets).toBeDefined();
   });
 
-  it("returns valid config for padel (temporary clone)", () => {
+  it("returns valid config for padel", () => {
     const config = getSportConfig("padel");
-    expect(config).toBeDefined();
-    expect(config.targetPresets).toBeDefined();
+    expect(config.sport).toBe("padel");
+    expect(config.displayName).toBe("Padel");
+    expect(config.targetPresets).toEqual([6]);
   });
 });

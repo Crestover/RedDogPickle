@@ -46,7 +46,7 @@ const defaultProps = {
   joinCode: "abc",
   attendees,
   sessionRules: { targetPoints: 11, winBy: 1 },
-  sportConfig: { targetPresets: [11, 15, 21], playersPerTeam: 2 },
+  sportConfig: { sport: "pickleball" as const, targetPresets: [11, 15, 21], playersPerTeam: 2 },
 };
 
 function renderForm(overrides = {}) {
@@ -148,7 +148,7 @@ describe("C. Preset rendering", () => {
   });
 
   it("renders only the presets passed via sportConfig", () => {
-    renderForm({ sportConfig: { targetPresets: [7, 11], playersPerTeam: 2 } });
+    renderForm({ sportConfig: { sport: "pickleball" as const, targetPresets: [7, 11], playersPerTeam: 2 } });
     fireEvent.click(screen.getByRole("button", { name: /Game to 11/i }));
     expect(screen.getByRole("button", { name: "7" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "11" })).toBeInTheDocument();

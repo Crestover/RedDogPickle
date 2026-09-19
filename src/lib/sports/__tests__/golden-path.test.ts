@@ -35,4 +35,27 @@ describe("golden-path: full game lifecycle through sport layer", () => {
     expect(config.isShutout(11, 0, 11)).toBe(true);
     expect(config.isShutout(11, 7, 11)).toBe(false);
   });
+
+  it("satisfies the same contract for padel (single set, games-based scoring)", () => {
+    const config = getSportConfig("padel");
+    expect(config.sport).toBe("padel");
+
+    const validation = config.validateScores(6, 2, 6);
+    expect(validation).toEqual({ valid: true });
+
+    const outcome = config.deriveOutcome(6, 2);
+    expect(outcome).toEqual({ winner: "A", loser: "B" });
+
+    const ratingInputs = config.computeRatingInputs({
+      scoreA: 6,
+      scoreB: 2,
+      targetPoints: 6,
+    });
+    expect(ratingInputs).toEqual({ gameDiff: 4 });
+
+    expect(config.isSuspiciousScore(9, 7, 6)).toBe(false);
+
+    expect(config.isShutout(6, 0, 6)).toBe(true);
+    expect(config.isShutout(6, 4, 6)).toBe(false);
+  });
 });

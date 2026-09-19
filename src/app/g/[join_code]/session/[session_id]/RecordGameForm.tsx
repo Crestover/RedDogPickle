@@ -33,15 +33,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { recordGameAction, undoGameAction } from "@/app/actions/games";
 import { setSessionRulesAction } from "@/app/actions/sessions";
-import type { Player } from "@/lib/types";
+import type { Player, Sport } from "@/lib/types";
 import type { GameRecord, PairCountEntry } from "@/lib/autoSuggest";
 import { severityDotClass, getMatchupCount } from "@/lib/pairingFeedback";
-import {
-  validateScores as validateScoresShared,
-  isSuspiciousScore,
-  isShutout as isShutoutShared,
-  deriveOutcome,
-} from "@/lib/sports/validators";
+import { getSportConfig } from "@/lib/sports";
 
 interface Props {
   sessionId: string;
@@ -50,7 +45,7 @@ interface Props {
   pairCounts?: PairCountEntry[];
   games?: GameRecord[];
   sessionRules: { targetPoints: number; winBy: number };
-  sportConfig: { targetPresets: number[]; playersPerTeam: number };
+  sportConfig: { sport: Sport; targetPresets: number[]; playersPerTeam: number };
   lastGameSummary?: string;
   /** IDs of players just added via the session player picker.
    *  Auto-selected into open team slots and highlighted for 2.5 seconds. */
@@ -102,6 +97,7 @@ export default function RecordGameForm({
 }: Props) {
   const router = useRouter();
 
+  const activeSportConfig = getSportConfig(sportConfig.sport);
   const totalNeeded = sportConfig.playersPerTeam * 2;
 
   // ── State ──────────────────────────────────────────────────────────────────
@@ -191,7 +187,7 @@ export default function RecordGameForm({
   const allReady = teamsComplete && scoreEntered;
   const winnerTeam =
     !isNaN(scoreANum) && !isNaN(scoreBNum) && scoreANum !== scoreBNum
-      ? deriveOutcome(scoreANum, scoreBNum).winner
+      ? activeSportConfig.deriveOutcome(scoreANum, scoreBNum).winner
       : null;
 
   const teamANames = selectedPlayers.filter((p) => p.team === "A").map((p) => firstName(p.display_name));
@@ -244,7 +240,7 @@ export default function RecordGameForm({
   function isShutout(): boolean {
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
-    return isShutoutShared(a, b, rules.targetPoints);
+    return activeSportConfig.isShutout(a, b, rules.targetPoints);
   }
 
   function disarmShutout() {
@@ -253,6 +249,9 @@ export default function RecordGameForm({
   }
 
   function isWinByOne(): boolean {
+    // Padel's 7-6 tiebreak is a normal, legitimate set result — not an edge
+    // case worth a confirmation dialog the way pickleball's win-by-1 is.
+    if (sportConfig.sport !== "pickleball") return false;
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
     return Math.abs(a - b) === 1;
@@ -261,7 +260,7 @@ export default function RecordGameForm({
   function checkSuspiciousScore(): boolean {
     const a = parseInt(scoreA, 10), b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return false;
-    return isSuspiciousScore(a, b, rules.targetPoints);
+    return activeSportConfig.isSuspiciousScore(a, b, rules.targetPoints);
   }
 
   // ── Rules Chip ─────────────────────────────────────────────────────────────
@@ -291,7 +290,7 @@ export default function RecordGameForm({
     const a = parseInt(scoreA, 10);
     const b = parseInt(scoreB, 10);
     if (isNaN(a) || isNaN(b)) return "Enter scores for both teams.";
-    const result = validateScoresShared(a, b, rules.targetPoints);
+    const result = activeSportConfig.validateScores(a, b, rules.targetPoints);
     return result.valid ? null : result.error!;
   }
 
@@ -447,17 +446,24 @@ export default function RecordGameForm({
       </p>
 
       {/* ── Rules chip ──────────────────────────────────────────── */}
+      {/* Padel currently has one fixed set target, so the chip is a static label, not a picker. */}
       <div>
-        <button
-          type="button"
-          onClick={() => setShowRulePicker(!showRulePicker)}
-          className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
-        >
-          Game to {rules.targetPoints}
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-400">
-            <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-          </svg>
-        </button>
+        {sportConfig.targetPresets.length > 1 ? (
+          <button
+            type="button"
+            onClick={() => setShowRulePicker(!showRulePicker)}
+            className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          >
+            Game to {rules.targetPoints}
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-400">
+              <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+            </svg>
+          </button>
+        ) : (
+          <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
+            Set to {rules.targetPoints}
+          </span>
+        )}
         {showRulePicker && (
           <div className="mt-2 flex gap-2">
             {sportConfig.targetPresets.map((tp) => {

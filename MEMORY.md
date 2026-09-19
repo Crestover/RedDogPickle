@@ -30,7 +30,9 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**v0.8.4 — Hidden Players (current, stabilisation + privacy controls).**
+**Milestone 7 (unreleased, on `dev` branch, not yet version-bumped) — post-v0.8.4 roadmap: admin tooling, UX polish, padel.** See `BUILD_PLAN.md` Milestone 7 for the full tracked list. Landed so far: 7a (session standings link scoping), 7b (player search in RecordGameForm), 7c (padel manual scoring — see below). All work is deliberately confined to `dev`; `main`/production only gets updated on explicit user confirmation.
+
+Padel manual scoring (7c): `sports/padel.ts` + `padelValidators.ts` implement padel's real win condition — first to 6 games, straight win-by-2, **no tiebreak, no cap** (sets can go 9-7, 10-8, ...). Single-set-per-recording, each set rated independently. `RecordGameForm.tsx` now resolves validation via `sportConfig`/`getSportConfig()` instead of hardcoded pickleball imports (a real pre-existing gap, not padel-specific — pickleball's live scoring runs through the same code path now). Required `m18.0_padel_target_points.sql` — the `sessions.target_points_default`/`games.target_points` `CHECK` constraints were a hard block, not a loose backstop as originally assumed; **applied to dev only, not production**. Deferred: Courts Mode padel support, DB-level enforcement of the full win condition (win-by-2/no-cap logic lives in the TS validators only — the RPC just checks `winner >= target_points`).
 
 v0.8.4: Hidden player support. `players.hidden BOOLEAN NOT NULL DEFAULT FALSE` added via `m17.0_hidden_players.sql`. Group-scoped by construction (each `players` row has a `group_id` FK). `get_group_stats` and `get_session_stats` RPCs updated with `WHERE NOT p.hidden` at the final result stage — aggregation subqueries untouched so visible players' stats include all games vs hidden opponents. GOAT candidates derived from already-filtered RPC result — GOAT badges naturally restricted to visible players. Operational flows (PlayerPicker, add-players mid-session) intentionally unfiltered — hidden players remain fully selectable. 8 integration tests added. No admin toggle UI yet — set via direct DB update.
 
@@ -65,11 +67,11 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ### Git State
 - **Branch:** `dev` — all active development here; user merges to `main` manually
 - **Version:** `0.8.4` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC)
-- **Latest migration:** `m17.0_hidden_players.sql`
+- **Latest migration:** `m18.0_padel_target_points.sql`
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
 - **Vercel preview:** deploys from `dev`
-- **Pending migrations:** none — `m16.0_allow_win_by_one.sql` and `m17.0_hidden_players.sql` confirmed applied to both dev and production Supabase (verified 2026-09-19: `players.hidden` present and `record_game` has `v_win_by := 1` hardcoded on both instances)
+- **Pending migrations:** `m18.0_padel_target_points.sql` — applied to **dev only** (2026-09-19); must be applied to production before padel is promoted. `m16.0` and `m17.0` confirmed applied to both dev and production Supabase (verified 2026-09-19: `players.hidden` present and `record_game` has `v_win_by := 1` hardcoded on both instances).
 
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
@@ -219,6 +221,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `migrations/m15.0_rdr_v2.sql` | RDR v2 confidence system: adds `rating_deviation`, `last_played_at`, `reacclimation_games_remaining` to `player_ratings`. Adds `rd_before/after`, `effective_rd_before`, `vol_multiplier`, `reacclimation_before/after`, `last_played_before/after` to `game_rdr_deltas`. Backfills last_played_at from game history, initializes RD from inactivity formula. Replaces `record_game` (v2 algorithm: continuous RD inflation, volatility multiplier, reacclimation buffer, informative RD recovery, tiered margin factor, ±32 clamping), `void_last_game` + `undo_game` (restore RD state via COALESCE for v1 compat), `get_group_stats` (returns RD columns), `record_court_game` (unchanged, DROP cascade). |
 | `migrations/m16.0_allow_win_by_one.sql` | Win-by-1 support: recreates `record_game` RPC with `v_win_by := 1` (hardcoded). Removes the win-by-2 enforcement. Target points still enforced (winner must reach target). |
 | `migrations/m17.0_hidden_players.sql` | Hidden players: adds `players.hidden BOOLEAN NOT NULL DEFAULT FALSE`. Updates `get_group_stats` and `get_session_stats` with `WHERE NOT p.hidden` at the final result stage (aggregation subqueries untouched). |
+| `migrations/m18.0_padel_target_points.sql` | Padel target points: widens `sessions.target_points_default` and `games.target_points` `CHECK` constraints to also allow `6, 8, 9, 10` (padel's set target) alongside pickleball's `11, 15, 21`. Required because these were hard `CHECK` blocks, not just loose validation — `record_game` rejects the INSERT entirely otherwise. App code always stores `6` here for padel (see `recordGameAction` in `games.ts`); `8/9/10` included defensively though unused. **Dev only as of 2026-09-19** — not yet applied to production. |
 
 ### Fresh Dev DB Setup Order
 1. Run `m0_base_tables.sql` (creates all 6 base tables + RLS + void columns)
@@ -237,6 +240,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 14. Run `m15.0_rdr_v2.sql` (RD columns, backfill, v2 rating algorithm)
 15. Run `m16.0_allow_win_by_one.sql` (sets win_by := 1 in record_game RPC)
 16. Run `m17.0_hidden_players.sql` (adds players.hidden column, updates get_group_stats + get_session_stats)
+17. Run `m18.0_padel_target_points.sql` (widens target_points CHECK constraints to allow padel's set target)
 
 ---
 

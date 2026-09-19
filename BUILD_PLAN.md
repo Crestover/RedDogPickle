@@ -106,6 +106,18 @@ Goal: Stats are visible and accurate.
 
 ---
 
+## Milestone 7: Post-v0.8.4 Roadmap
+Goal: admin tooling, UX polish, and padel support. Planned 2026-09-19; order reflects lift/dependency, not strict sequencing.
+
+- [ ] 7a. **Verify session "Standings" footer link scope** — confirm the "Standings →" link on the live session page (`session/[session_id]/page.tsx`) routes to session-scoped stats (`get_session_stats`), not the all-time group leaderboard. May already be correct — investigate before treating as a fix.
+- [ ] 7b. **Player picker search** — add a client-side search/filter input to `PlayerPicker.tsx`, gated behind a player-count threshold (~18) so small groups keep the current zero-friction tap UI.
+- [ ] 7c. **Padel module** — new `sports/padel.ts` implementing `SportConfig`: win condition first-to-6 games, win-by-2, capped at 7-6 (tiebreak set). Single-set-per-recording; each set rated independently (same granularity as one pickleball game). Reuses `games` table as-is (`team_a_score`/`team_b_score` = games won in the set) — no migration needed. RDR margin factor reuses games-won differential (already `ABS(team_a_score - team_b_score)`) with padel-tuned tier thresholds. Sport-aware theming/copy to visually distinguish padel groups from pickleball.
+- [ ] 7d. **Admin screen** — obscure URL + shared-secret gate (`ADMIN_PASSWORD` env var, signed HttpOnly short-lived cookie checked server-side per action — not full user accounts). Group list view: join_code, sport, session count, last session date, player count, created date. Create-group form with sport assignment. Player hide toggle (`players.hidden`, already in DB via m17.0) exposed per-group.
+- [ ] 7e. **Per-player game history page** — new route (e.g. `/g/[join_code]/players/[player_id]`), reachable by tapping a name in `LeaderboardCard`. Needs a cross-session game query (not just current-session `GamesList` filtering).
+- [ ] **Docs:** Update `docs/testing.md`, `docs/decisions.md`, `docs/assumptions.md`, `CHANGELOG.md`, `README.md`, and `MEMORY.md` as each sub-item ships.
+
+---
+
 ## Tech Decisions
 
 | Concern | Decision |

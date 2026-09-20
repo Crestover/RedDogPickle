@@ -314,13 +314,13 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
               href={`/g/${group.join_code}/session/${session.id}/games`}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
-              All games &rarr;
+              Session games &rarr;
             </Link>
             <Link
               href={`/g/${group.join_code}/session/${session.id}?tab=standings`}
               className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Standings &rarr;
+              Session standings &rarr;
             </Link>
           </div>
         </div>
@@ -407,7 +407,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             href={`/g/${group.join_code}/session/${session.id}/games`}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
-            All games &rarr;
+            Session games &rarr;
           </Link>
           <Link
             href={`/g/${group.join_code}/leaderboard?from=${encodeURIComponent(`/g/${group.join_code}/session/${session.id}`)}`}

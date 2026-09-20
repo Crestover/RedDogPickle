@@ -3,6 +3,7 @@ import { getAdminServerClient } from "@/lib/supabase/adminServer";
 import { getSportConfig } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
 import { formatDate } from "@/lib/datetime";
+import { ADMIN_BASE_PATH } from "@/lib/admin/constants";
 import Link from "next/link";
 import CreateGroupForm from "./CreateGroupForm";
 import LogoutButton from "./LogoutButton";
@@ -81,7 +82,7 @@ export default async function AdminHomePage() {
               return (
                 <Link
                   key={group.id}
-                  href={`/rd-admin-7k3m9/groups/${group.id}`}
+                  href={`${ADMIN_BASE_PATH}/groups/${group.id}`}
                   className="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3">

@@ -2,6 +2,7 @@ import { requireAdminSession } from "@/lib/admin/auth";
 import { getAdminServerClient } from "@/lib/supabase/adminServer";
 import { getSportConfig } from "@/lib/sports";
 import type { Sport } from "@/lib/types";
+import { ADMIN_BASE_PATH } from "@/lib/admin/constants";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import PlayerHideToggleList from "./PlayerHideToggleList";
@@ -35,7 +36,7 @@ export default async function AdminGroupPage({ params }: PageProps) {
   return (
     <div className="flex flex-col px-4 py-8">
       <div className="w-full max-w-sm mx-auto space-y-6">
-        <Link href="/rd-admin-7k3m9" className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+        <Link href={ADMIN_BASE_PATH} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
           &larr; All groups
         </Link>
 

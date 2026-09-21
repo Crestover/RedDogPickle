@@ -16,16 +16,21 @@ interface GroupRow {
   created_at: string;
 }
 
-async function getGroupsWithStats() {
+async function getGroupsWithStats(): Promise<{ groups: (GroupRow & { sessionCount: number; lastSessionAt: string | null; playerCount: number })[]; error: string | null }> {
   const supabase = getAdminServerClient();
 
-  const { data: groups } = await supabase
+  const { data: groups, error } = await supabase
     .from("groups")
     .select("id, name, join_code, sport, created_at")
     .order("created_at", { ascending: false });
 
+  if (error) {
+    console.error("[admin] groups query error:", error.message);
+    return { groups: [], error: error.message };
+  }
+
   const groupRows = (groups ?? []) as GroupRow[];
-  if (groupRows.length === 0) return [];
+  if (groupRows.length === 0) return { groups: [], error: null };
 
   const groupIds = groupRows.map((g) => g.id);
 
@@ -49,17 +54,20 @@ async function getGroupsWithStats() {
     playerCounts.set(row.group_id, (playerCounts.get(row.group_id) ?? 0) + 1);
   }
 
-  return groupRows.map((group) => ({
-    ...group,
-    sessionCount: sessionStats.get(group.id)?.count ?? 0,
-    lastSessionAt: sessionStats.get(group.id)?.lastStartedAt ?? null,
-    playerCount: playerCounts.get(group.id) ?? 0,
-  }));
+  return {
+    groups: groupRows.map((group) => ({
+      ...group,
+      sessionCount: sessionStats.get(group.id)?.count ?? 0,
+      lastSessionAt: sessionStats.get(group.id)?.lastStartedAt ?? null,
+      playerCount: playerCounts.get(group.id) ?? 0,
+    })),
+    error: null,
+  };
 }
 
 export default async function AdminHomePage() {
   await requireAdminSession();
-  const groups = await getGroupsWithStats();
+  const { groups, error } = await getGroupsWithStats();
 
   return (
     <div className="flex flex-col px-4 py-8">
@@ -72,6 +80,17 @@ export default async function AdminHomePage() {
           <LogoutButton />
         </div>
 
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm font-semibold text-red-700">Could not load groups</p>
+            <p className="text-xs text-red-600 mt-1 font-mono break-words">{error}</p>
+            <p className="text-xs text-red-600 mt-2">
+              This usually means SUPABASE_SERVICE_ROLE_KEY doesn&apos;t match the
+              project NEXT_PUBLIC_SUPABASE_URL points to for this environment.
+            </p>
+          </div>
+        )}
+
         {/* Create group */}
         <div>
           <h2 className="text-sm font-semibold text-gray-700 mb-3">Create a new group</h2>
@@ -81,7 +100,7 @@ export default async function AdminHomePage() {
         {/* Group list */}
         <div className="space-y-2 pt-4 border-t border-gray-200">
           {groups.length === 0 ? (
-            <p className="text-sm text-gray-400">No groups yet.</p>
+            <p className="text-sm text-gray-400">{error ? "Could not load groups." : "No groups yet."}</p>
           ) : (
             groups.map((group) => {
               const sportConfig = getSportConfig(group.sport);

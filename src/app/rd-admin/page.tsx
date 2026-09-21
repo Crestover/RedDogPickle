@@ -72,8 +72,14 @@ export default async function AdminHomePage() {
           <LogoutButton />
         </div>
 
+        {/* Create group */}
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Create a new group</h2>
+          <CreateGroupForm />
+        </div>
+
         {/* Group list */}
-        <div className="space-y-2">
+        <div className="space-y-2 pt-4 border-t border-gray-200">
           {groups.length === 0 ? (
             <p className="text-sm text-gray-400">No groups yet.</p>
           ) : (
@@ -111,12 +117,6 @@ export default async function AdminHomePage() {
               );
             })
           )}
-        </div>
-
-        {/* Create group */}
-        <div className="pt-4 border-t border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Create a new group</h2>
-          <CreateGroupForm />
         </div>
       </div>
     </div>

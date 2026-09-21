@@ -286,7 +286,19 @@ export default async function HelpPage({ searchParams }: PageProps) {
               Can we play to 15 or 21 instead of 11?
             </h3>
             <p className="text-sm text-gray-600">
-              Yes. Each session can choose game to 11, 15, or 21 points.
+              Yes, for pickleball groups &mdash; each session can choose game
+              to 11, 15, or 21 points.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-gray-900">
+              What are padel&apos;s scoring rules?
+            </h3>
+            <p className="text-sm text-gray-600">
+              Padel sets go to 6 games, win by 2 &mdash; no tiebreak, so a
+              close set can run to 9-7, 10-8, or beyond. Each set is recorded
+              and rated on its own, the same way a pickleball game is.
             </p>
           </div>
 

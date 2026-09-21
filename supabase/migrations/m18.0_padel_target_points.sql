@@ -28,7 +28,7 @@ ALTER TABLE public.sessions
 
 ALTER TABLE public.sessions
   ADD CONSTRAINT sessions_target_points_default_check
-    CHECK (target_points_default IN (6, 8, 9, 10, 11, 15, 21));
+    CHECK (target_points_default IN (6, 7, 8, 9, 10, 11, 15, 21));
 
 
 -- ── 2. games.target_points ───────────────────────────────────
@@ -38,4 +38,4 @@ ALTER TABLE public.games
 
 ALTER TABLE public.games
   ADD CONSTRAINT games_target_points_check
-    CHECK (target_points IN (6, 8, 9, 10, 11, 15, 21));
+    CHECK (target_points IN (6, 7, 8, 9, 10, 11, 15, 21));

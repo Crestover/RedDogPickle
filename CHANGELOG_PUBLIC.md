@@ -2,6 +2,24 @@
 
 ---
 
+## v0.9.0 — Padel Support + Admin Tools
+
+### Added
+- **Padel is here.** Groups can now be created as Padel instead of Pickleball. Padel games are scored as sets — first to 6 games, win by 2, no tiebreak — so a close set can run to 9-7 or beyond. Each set is recorded and rated on its own, just like a pickleball game. Leaderboards and stats automatically switch to padel-appropriate terms (Sets, Games For/Against) instead of pickleball's (Games, Points For/Against).
+- **Per-player game history.** Tap any name on the leaderboard to see that player's complete game history across every session they've played in — not just the current one.
+- **Player search for big rosters.** Once a group has more than 18 players, a search box appears in the "Pick players" screen so you can find someone quickly instead of scrolling.
+- **New admin tools** for group management: create new groups (choosing Pickleball or Padel), see every group's stats at a glance, and edit or hide/unhide players.
+
+### Improved
+- The "Standings" and "Games" links at the bottom of a live session now correctly show that session's own data. They used to jump to the all-time group leaderboard instead.
+- Picking players to start a session, then adding a brand-new player partway through, no longer clears the players you'd already selected — the new player joins the selection instead of replacing it.
+- The Help and RDR pages no longer assume every group is playing pickleball, and there's a new FAQ entry explaining padel's scoring rules.
+
+### Fixed
+- A confusing error message could briefly flash on screen right after successfully starting a new session. It now transitions cleanly every time.
+
+---
+
 ## v0.8.4 — Hidden Players
 
 ### Added

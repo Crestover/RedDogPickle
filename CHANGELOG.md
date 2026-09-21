@@ -6,6 +6,24 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
+## [0.9.0] — Padel Support + Admin Tools (2026-09-21)
+
+### Added
+- **Padel sport support (Manual scoring)** — `sports/padel.ts` + `padelValidators.ts` implement padel's real win condition: first to 6 games, straight win-by-2, no tiebreak/cap (sets can extend to 9-7, 10-8, ...). Single-set-per-recording, rated independently. `RecordGameForm.tsx` now routes validation through `sportConfig` (`getSportConfig()`) instead of hardcoded pickleball imports. Migration `m18.0_padel_target_points.sql` widens the `sessions.target_points_default`/`games.target_points` CHECK constraints to allow padel's set target. Sport-aware stat labels (`getStatLabels()`, `src/lib/statLabels.ts`) on leaderboard/standings and the new per-player page: Sets vs Games, Games For/Against vs Points For/Against. Sport badge on the group dashboard.
+- **Admin panel** — `/rd-admin` (non-obvious path + `ADMIN_PASSWORD`-gated signed HttpOnly cookie, HMAC-SHA256, 4h session — not full user accounts). Group list with live stats (players, sessions, last session date), create-group form (sport assignment, auto-slugified join code), per-group player hide/unhide toggle, inline player name/code editing (`updatePlayerAction`). Writes go through a new service-role Supabase client (`src/lib/supabase/adminServer.ts`), constructed only after `requireAdminSession()` passes — the only place in the app that uses the service-role key.
+- **Per-player game history page** — `/g/[join_code]/players/[player_id]`, reachable by tapping a name in `LeaderboardCard` (main leaderboard + both session standings screens). Cross-session query (`game_players` → `games` join), stat summary, and a game log with a per-player W/L pill (adapted from `EndedSessionGames`' scoreboard styling) instead of a per-session G# badge.
+- **Player search in tap-to-select roster** — `RecordGameForm.tsx`'s "Pick N players" list, gated behind a >18-attendee threshold so small groups keep the zero-friction tap UI.
+
+### Improved
+- Session-page "Standings"/"Games" bottom-nav links relabeled ("Session standings"/"Session games") and correctly scoped to the current session — the active-session "Standings" link previously pointed at the all-time group leaderboard.
+- Starting a session: selecting players, then navigating to "+ Add New Player," now round-trips the existing selection via `?selected=` through `players/new` and `addPlayerAction`, restoring it (plus auto-selecting the new player) instead of losing it.
+- `/help` and `/rdr` genericized for padel groups (dropped a pickleball-specific DUPR comparison, added a padel scoring FAQ entry).
+
+### Fixed
+- `PlayerPicker.tsx`'s generic `try/catch` around `onSubmit` was catching Next's internal `NEXT_REDIRECT` signal (thrown by `createSessionAction`'s server-side `redirect()` on success) and briefly rendering it as a visible error before the redirect still completed underneath. Fixed with `unstable_rethrow` (the documented Next.js pattern for this exact case) — the only `try/catch` in the codebase, not a systemic issue elsewhere.
+
+---
+
 ## [0.8.4] — Hidden Players (2026-03-31)
 
 ### Added

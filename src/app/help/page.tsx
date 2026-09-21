@@ -45,7 +45,7 @@ export default async function HelpPage({ searchParams }: PageProps) {
           <h2 className="text-base font-semibold text-gray-900">The Idea</h2>
           <p className="text-sm text-gray-600 leading-relaxed">
             Red Dog is a fast, mobile-first score tracker built for doubles
-            pickleball. It&apos;s made for real court sessions &mdash; record
+            pickleball and padel. It&apos;s made for real court sessions &mdash; record
             games in seconds, see who&apos;s hot, and track stats over time.
           </p>
           <p className="text-sm text-gray-600 leading-relaxed">
@@ -175,7 +175,7 @@ export default async function HelpPage({ searchParams }: PageProps) {
           </h2>
           <p className="text-sm text-gray-600 leading-relaxed">
             RDR is a modern rating system built specifically for doubles
-            pickleball. Everyone starts at <strong>1200</strong>. After each
+            pickleball and padel. Everyone starts at <strong>1200</strong>. After each
             game, winners go up and losers go down &mdash; how much depends on
             the matchup.
           </p>

@@ -119,8 +119,8 @@ export default async function RdrPage({ searchParams }: PageProps) {
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-gray-900">What this is (and isn&apos;t)</h2>
           <p className="text-sm text-gray-600 leading-relaxed">
-            RDR is built for your regular group. It&apos;s not a universal rating
-            like DUPR &mdash; it&apos;s a home court rating that tells you exactly
+            RDR is built for your regular group. It&apos;s not a universal
+            rating system &mdash; it&apos;s a home court rating that tells you exactly
             where everyone stands among the people you actually play with.
           </p>
         </section>

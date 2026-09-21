@@ -5,7 +5,7 @@
  * Renders identical markup/classes in both contexts.
  */
 
-import type { PlayerStats } from "@/lib/types";
+import type { PlayerStats, Sport } from "@/lib/types";
 import { formatDiff } from "@/lib/formatting";
 import { getTier, tierColor, getConfidence, getConfidenceLabel } from "@/lib/rdr";
 import ConfidenceLabel from "@/lib/components/ConfidenceLabel";
@@ -18,9 +18,19 @@ interface PlayerStatsRowProps {
   ratingDeviation?: number | null;
   isReigningGoat?: boolean;
   isAllTimeGoat?: boolean;
+  /** Padel counts sets, not points. Defaults to pickleball. */
+  sport?: Sport;
 }
 
-export default function PlayerStatsRow({ rank, player, rating, provisional, ratingDeviation, isReigningGoat, isAllTimeGoat }: PlayerStatsRowProps) {
+/** Padel's recorded unit is a set (games won within it), not a pickleball game/points pair. */
+function sportLabels(sport: Sport = "pickleball") {
+  return sport === "padel"
+    ? { unit: "sets", diff: "game diff", for: "GF", against: "GA" }
+    : { unit: "games", diff: "pt diff", for: "PF", against: "PA" };
+}
+
+export default function PlayerStatsRow({ rank, player, rating, provisional, ratingDeviation, isReigningGoat, isAllTimeGoat, sport }: PlayerStatsRowProps) {
+  const labels = sportLabels(sport);
   const losses = player.games_played - player.games_won;
 
   return (
@@ -75,7 +85,7 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, rati
           >
             {formatDiff(player.point_diff)}
           </p>
-          <p className="text-xs text-gray-400">pt diff</p>
+          <p className="text-xs text-gray-400">{labels.diff}</p>
           {rating != null && (() => {
             const tier = getTier(rating);
             const conf = ratingDeviation != null ? getConfidence(ratingDeviation) : null;
@@ -101,9 +111,9 @@ export default function PlayerStatsRow({ rank, player, rating, provisional, rati
 
       {/* Detail row */}
       <div className="mt-2 flex items-center gap-4 pl-9 text-xs text-gray-400">
-        <span>{player.games_played} games</span>
+        <span>{player.games_played} {labels.unit}</span>
         <span>
-          PF {player.points_for} / PA {player.points_against}
+          {labels.for} {player.points_for} / {labels.against} {player.points_against}
         </span>
         <span>
           Avg {formatDiff(player.avg_point_diff)}

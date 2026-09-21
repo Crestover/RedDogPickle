@@ -1,6 +1,6 @@
 import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
-import type { PlayerStats, PlayerRating } from "@/lib/types";
+import type { PlayerStats, PlayerRating, Sport } from "@/lib/types";
 import { getGoatResult } from "@/lib/goat";
 import type { GoatCandidate } from "@/lib/goat";
 import LeaderboardCardList from "@/lib/components/LeaderboardCardList";
@@ -30,7 +30,7 @@ async function getGroup(joinCode: string) {
   const supabase = getServerClient();
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, join_code")
+    .select("id, name, join_code, sport")
     .eq("join_code", joinCode.toLowerCase())
     .maybeSingle();
   return group;
@@ -258,7 +258,7 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
             <RdrHelpLink from={`/g/${group.join_code}/leaderboard`} />
           </div>
           <p className="mt-1.5 text-xs text-gray-400">
-            Ratings update based on who you play and how you perform. More games = more accurate.
+            Ratings update based on who you play and how you perform. More {group.sport === "padel" ? "sets" : "games"} = more accurate.
           </p>
         </div>
 
@@ -346,6 +346,7 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
           </div>
         ) : (
           <LeaderboardCardList
+            sport={group.sport as Sport}
             cards={stats.map((player, index) => {
               const pr = ratingsMap.get(player.player_id);
               const rating = player.rdr != null

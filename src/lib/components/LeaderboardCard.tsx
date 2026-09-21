@@ -9,7 +9,7 @@
  * Used by LeaderboardCardList which manages accordion state.
  */
 
-import type { PlayerStats } from "@/lib/types";
+import type { PlayerStats, Sport } from "@/lib/types";
 import { formatDiff } from "@/lib/formatting";
 import { getTier, getConfidence, getConfidenceLabel } from "@/lib/rdr";
 import type { RdrTier, ConfidenceLabel as ConfidenceLabelType } from "@/lib/rdr";
@@ -24,6 +24,15 @@ interface LeaderboardCardProps {
   isAllTimeGoat?: boolean;
   expanded: boolean;
   onToggle: () => void;
+  /** Padel counts sets, not points — see sportLabels(). Defaults to pickleball. */
+  sport?: Sport;
+}
+
+/** Padel's recorded unit is a set (games won within it), not a pickleball game/points pair. */
+function sportLabels(sport: Sport = "pickleball") {
+  return sport === "padel"
+    ? { unitSingular: "set", unitPlural: "sets", unitHeader: "Sets", for: "Games For", against: "Games Against" }
+    : { unitSingular: "game", unitPlural: "games", unitHeader: "Games", for: "Points For", against: "Points Against" };
 }
 
 function getInitials(name: string): string {
@@ -98,7 +107,9 @@ export default function LeaderboardCard({
   isAllTimeGoat,
   expanded,
   onToggle,
+  sport,
 }: LeaderboardCardProps) {
+  const labels = sportLabels(sport);
   const losses = player.games_played - player.games_won;
   const isFirst = rank === 1;
   const tier = rating != null ? getTier(rating) : null;
@@ -205,7 +216,7 @@ export default function LeaderboardCard({
             {tier && <span style={{ ...tierBadgeStyle(tier), marginTop: 0 }}>{tier}</span>}
             {player.games_played != null && (
               <span style={{ fontSize: 10, color: "#6B7280" }}>
-                {player.games_played} {player.games_played === 1 ? "game" : "games"}
+                {player.games_played} {player.games_played === 1 ? labels.unitSingular : labels.unitPlural}
               </span>
             )}
           </div>
@@ -269,11 +280,11 @@ export default function LeaderboardCard({
             }}
           >
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Games</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>{labels.unitHeader}</p>
               <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.games_played}</p>
             </div>
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Points For</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>{labels.for}</p>
               <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.points_for}</p>
             </div>
             <div>
@@ -281,7 +292,7 @@ export default function LeaderboardCard({
               <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.games_won}W&ndash;{losses}L</p>
             </div>
             <div>
-              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>Points Against</p>
+              <p style={{ fontSize: 11, color: "#9CA3AF", margin: 0 }}>{labels.against}</p>
               <p style={{ fontSize: 14, fontWeight: 600, color: "#1F2937", margin: 0 }}>{player.points_against}</p>
             </div>
             <div>

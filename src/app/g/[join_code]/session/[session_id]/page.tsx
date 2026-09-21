@@ -129,15 +129,18 @@ async function getSessionStandings(groupId: string, sessionId: string) {
 function SessionStandingsList({
   sessionStandings,
   ratingsMap,
+  sport,
 }: {
   sessionStandings: PlayerStats[];
   ratingsMap: Map<string, SessionRatingInfo>;
+  sport: Sport;
 }) {
   if (sessionStandings.length === 0) {
     return <p className="text-sm text-gray-400 text-center py-4">No standings data.</p>;
   }
   return (
     <LeaderboardCardList
+      sport={sport}
       cards={sessionStandings.map((player, index) => {
         const pr = ratingsMap.get(player.player_id);
         const rating = player.rdr != null ? Number(player.rdr) : (pr?.rating ?? null);
@@ -192,7 +195,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             </h1>
           </div>
 
-          <SessionStandingsList sessionStandings={sessionStandings} ratingsMap={ratingsMap} />
+          <SessionStandingsList sessionStandings={sessionStandings} ratingsMap={ratingsMap} sport={group.sport as Sport} />
         </div>
       </div>
     );
@@ -398,7 +401,7 @@ export default async function SessionPage({ params, searchParams }: PageProps) {
             )}
           </>
         ) : (
-          <SessionStandingsList sessionStandings={sessionStandings} ratingsMap={ratingsMap} />
+          <SessionStandingsList sessionStandings={sessionStandings} ratingsMap={ratingsMap} sport={group.sport as Sport} />
         )}
 
         {/* Bottom nav row */}

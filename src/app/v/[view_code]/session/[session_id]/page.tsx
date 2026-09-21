@@ -2,7 +2,7 @@ import { getServerClient } from "@/lib/supabase/server";
 import { RPC } from "@/lib/supabase/rpc";
 import { one } from "@/lib/supabase/helpers";
 import { formatTime } from "@/lib/datetime";
-import type { PlayerStats, SessionRatingInfo } from "@/lib/types";
+import type { PlayerStats, SessionRatingInfo, Sport } from "@/lib/types";
 import PlayerStatsRow from "@/lib/components/PlayerStatsRow";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -42,7 +42,7 @@ async function getSessionData(viewCode: string, sessionId: string) {
 
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, view_code")
+    .select("id, name, view_code, sport")
     .eq("view_code", viewCode.toLowerCase())
     .maybeSingle();
 
@@ -261,6 +261,7 @@ export default async function ViewSessionPage({ params, searchParams }: PageProp
                       rating={rating}
                       provisional={pr?.provisional ?? false}
                       ratingDeviation={pr?.rating_deviation ?? null}
+                      sport={group.sport as Sport}
                     />
                   );
                 })}

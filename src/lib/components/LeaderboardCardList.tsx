@@ -9,6 +9,7 @@
 
 import LeaderboardCard from "./LeaderboardCard";
 import { useState } from "react";
+import type { Sport } from "@/lib/types";
 
 interface CardData {
   playerId: string;
@@ -37,9 +38,11 @@ interface CardData {
 
 interface LeaderboardCardListProps {
   cards: CardData[];
+  /** Padel counts sets, not points — passed through to LeaderboardCard. Defaults to pickleball. */
+  sport?: Sport;
 }
 
-export default function LeaderboardCardList({ cards }: LeaderboardCardListProps) {
+export default function LeaderboardCardList({ cards, sport }: LeaderboardCardListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
@@ -54,6 +57,7 @@ export default function LeaderboardCardList({ cards }: LeaderboardCardListProps)
           ratingDeviation={card.ratingDeviation}
           isReigningGoat={card.isReigningGoat}
           isAllTimeGoat={card.isAllTimeGoat}
+          sport={sport}
           expanded={expandedId === card.playerId}
           onToggle={() =>
             setExpandedId((prev) =>

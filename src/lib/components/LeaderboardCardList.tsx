@@ -40,9 +40,12 @@ interface LeaderboardCardListProps {
   cards: CardData[];
   /** Padel counts sets, not points — passed through to LeaderboardCard. Defaults to pickleball. */
   sport?: Sport;
+  /** When provided (e.g. "/g/join-code/players"), each player's name links
+   *  to `${playerBasePath}/${playerId}` (per-player game history). */
+  playerBasePath?: string;
 }
 
-export default function LeaderboardCardList({ cards, sport }: LeaderboardCardListProps) {
+export default function LeaderboardCardList({ cards, sport, playerBasePath }: LeaderboardCardListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
@@ -58,6 +61,7 @@ export default function LeaderboardCardList({ cards, sport }: LeaderboardCardLis
           isReigningGoat={card.isReigningGoat}
           isAllTimeGoat={card.isAllTimeGoat}
           sport={sport}
+          playerBasePath={playerBasePath}
           expanded={expandedId === card.playerId}
           onToggle={() =>
             setExpandedId((prev) =>

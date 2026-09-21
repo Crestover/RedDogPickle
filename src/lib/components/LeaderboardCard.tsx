@@ -13,6 +13,8 @@ import type { PlayerStats, Sport } from "@/lib/types";
 import { formatDiff } from "@/lib/formatting";
 import { getTier, getConfidence, getConfidenceLabel } from "@/lib/rdr";
 import type { RdrTier, ConfidenceLabel as ConfidenceLabelType } from "@/lib/rdr";
+import { getStatLabels } from "@/lib/statLabels";
+import Link from "next/link";
 
 interface LeaderboardCardProps {
   rank: number;
@@ -24,15 +26,13 @@ interface LeaderboardCardProps {
   isAllTimeGoat?: boolean;
   expanded: boolean;
   onToggle: () => void;
-  /** Padel counts sets, not points — see sportLabels(). Defaults to pickleball. */
+  /** Padel counts sets, not points — see getStatLabels(). Defaults to pickleball. */
   sport?: Sport;
-}
-
-/** Padel's recorded unit is a set (games won within it), not a pickleball game/points pair. */
-function sportLabels(sport: Sport = "pickleball") {
-  return sport === "padel"
-    ? { unitSingular: "set", unitPlural: "sets", unitHeader: "Sets", for: "Games For", against: "Games Against" }
-    : { unitSingular: "game", unitPlural: "games", unitHeader: "Games", for: "Points For", against: "Points Against" };
+  /** When provided (e.g. "/g/join-code/players"), the player's name links to
+   *  `${playerBasePath}/${playerId}` (per-player game history). A plain
+   *  string, not a function — this crosses the Server->Client Component
+   *  boundary and functions aren't serializable there. */
+  playerBasePath?: string;
 }
 
 function getInitials(name: string): string {
@@ -108,8 +108,9 @@ export default function LeaderboardCard({
   expanded,
   onToggle,
   sport,
+  playerBasePath,
 }: LeaderboardCardProps) {
-  const labels = sportLabels(sport);
+  const labels = getStatLabels(sport);
   const losses = player.games_played - player.games_won;
   const isFirst = rank === 1;
   const tier = rating != null ? getTier(rating) : null;
@@ -160,19 +161,40 @@ export default function LeaderboardCard({
         {/* Center: Name + Tier + GOAT */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
-            <span
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#111111",
-                lineHeight: 1.2,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {player.display_name}
-            </span>
+            {playerBasePath ? (
+              <Link
+                href={`${playerBasePath}/${player.player_id}`}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#111111",
+                  lineHeight: 1.2,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  textDecoration: "underline",
+                  textDecorationColor: "rgba(17,17,17,0.15)",
+                  textUnderlineOffset: "3px",
+                }}
+              >
+                {player.display_name}
+              </Link>
+            ) : (
+              <span
+                style={{
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#111111",
+                  lineHeight: 1.2,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {player.display_name}
+              </span>
+            )}
             {isReigningGoat && (
               <span
                 style={{

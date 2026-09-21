@@ -347,6 +347,7 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
         ) : (
           <LeaderboardCardList
             sport={group.sport as Sport}
+            playerBasePath={`/g/${group.join_code}/players`}
             cards={stats.map((player, index) => {
               const pr = ratingsMap.get(player.player_id);
               const rating = player.rdr != null

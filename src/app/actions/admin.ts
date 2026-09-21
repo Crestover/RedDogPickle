@@ -91,3 +91,39 @@ export async function togglePlayerHiddenAction(
 
   return { success: true };
 }
+
+// ─────────────────────────────────────────────────────────────
+// updatePlayerAction
+// ─────────────────────────────────────────────────────────────
+export async function updatePlayerAction(
+  playerId: string,
+  displayName: string,
+  code: string
+): Promise<{ error: string } | { success: true; displayName: string; code: string }> {
+  await requireAdminSession();
+
+  const trimmedName = displayName.trim();
+  const normalizedCode = code.trim().toUpperCase();
+
+  if (!trimmedName) {
+    return { error: "Name is required." };
+  }
+  if (!/^[A-Z0-9]+$/.test(normalizedCode)) {
+    return { error: "Code must be uppercase letters and numbers only." };
+  }
+
+  const supabase = getAdminServerClient();
+  const { error } = await supabase
+    .from("players")
+    .update({ display_name: trimmedName, code: normalizedCode })
+    .eq("id", playerId);
+
+  if (error) {
+    if (error.code === "23505") {
+      return { error: "That code is already used by another player in this group." };
+    }
+    return { error: "Could not update player." };
+  }
+
+  return { success: true, displayName: trimmedName, code: normalizedCode };
+}

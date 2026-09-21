@@ -17,6 +17,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { unstable_rethrow } from "next/navigation";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -141,6 +142,10 @@ export default function PlayerPicker({
     try {
       await onSubmit(selectedIds);
     } catch (err) {
+      // A successful onSubmit that redirects (e.g. createSessionAction) throws
+      // Next's internal NEXT_REDIRECT signal through this catch — rethrow it so
+      // Next still completes the navigation instead of showing it as an error.
+      unstable_rethrow(err);
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       // Runs when onSubmit returns normally (e.g. modal case).

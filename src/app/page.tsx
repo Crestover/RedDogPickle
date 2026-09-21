@@ -1,13 +1,43 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+
+/** Random rotation — one slogan per page load. First entry is the default
+ *  shown during server render / before hydration picks a random one. */
+const SLOGANS = [
+  "A proper record for a plastic ball.",
+  "Definitive Proof of Who Owns the Kitchen.",
+  "All the Drama of Wimbledon. None of the Tennis.",
+  "Because Every Underhand Serve Deserves a Legacy.",
+  "Dink Responsibly. Record Accurately.",
+  "Big Ego. Little Ball. Real Stats.",
+  "Certified Standings for Perforated Plastics.",
+  "Grand Slam Data for a Hollow Ball.",
+  "Proper Records for the Underdogs.",
+  "The Leaderboard with a Bite.",
+  "Because Every Stray Dink Deserves a Legacy.",
+  "Big Bark. Small Ball. Real Stats.",
+  "Bite-Sized Drama. Professional Data.",
+  "Marking Your Territory, One Dink at a Time.",
+  "Good Records for Good Boys (and Girls).",
+  "No Scraps. Just Stats.",
+  "Tracking the Pack. Ranking the Alphas.",
+  "Real Brackets. No Bark, All Bite.",
+];
 
 export default function HomePage() {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [slogan, setSlogan] = useState(SLOGANS[0]);
+
+  // Client-only random pick — avoids a server/client hydration mismatch,
+  // since the server can't know which random slogan the client would pick.
+  useEffect(() => {
+    setSlogan(SLOGANS[Math.floor(Math.random() * SLOGANS.length)]);
+  }, []);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -37,7 +67,7 @@ export default function HomePage() {
             />
           </div>
           <h1 className="text-xl font-medium text-gray-900 tracking-wide mb-2">
-            A proper record for a plastic ball.
+            {slogan}
           </h1>
           <p className="text-gray-500 mb-8">
             Enter your group code to get started.

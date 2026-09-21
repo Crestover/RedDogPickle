@@ -28,6 +28,8 @@ interface Props {
   joinCode: string;
   players: Player[];
   activeSessions: ActiveSession[];
+  /** Restored from ?selected= after a round-trip to "+ Add New Player". */
+  initiallySelectedIds?: string[];
 }
 
 export default function StartSessionForm({
@@ -35,6 +37,7 @@ export default function StartSessionForm({
   joinCode,
   players,
   activeSessions,
+  initiallySelectedIds,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [modalError, setModalError] = useState("");
@@ -109,6 +112,7 @@ export default function StartSessionForm({
         onSubmit={handleStartSession}
         emptyStateTitle="No players yet"
         emptyStateBody="Add a new player above, then come back to start a session."
+        initiallySelectedIds={initiallySelectedIds}
       />
 
       {/* ── Existing-session confirmation modal ── */}

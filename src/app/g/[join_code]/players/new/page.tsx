@@ -5,7 +5,7 @@ import AddPlayerForm from "./AddPlayerForm";
 
 interface PageProps {
   params: Promise<{ join_code: string }>;
-  searchParams: Promise<{ from?: string; returnTo?: string; sessionId?: string }>;
+  searchParams: Promise<{ from?: string; returnTo?: string; sessionId?: string; selected?: string }>;
 }
 
 async function getGroup(joinCode: string) {
@@ -20,7 +20,8 @@ async function getGroup(joinCode: string) {
 
 export default async function AddPlayerPage({ params, searchParams }: PageProps) {
   const { join_code } = await params;
-  const { from, returnTo, sessionId } = await searchParams;
+  const { from, returnTo, sessionId, selected } = await searchParams;
+  const previouslySelectedIds = selected ? selected.split(",").filter(Boolean) : [];
 
   const group = await getGroup(join_code);
   if (!group) notFound();
@@ -63,6 +64,7 @@ export default async function AddPlayerPage({ params, searchParams }: PageProps)
           joinCode={group.join_code}
           redirectTo={redirectTo}
           sessionId={sessionId}
+          previouslySelectedIds={previouslySelectedIds}
         />
       </div>
     </div>

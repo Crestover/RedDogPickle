@@ -11,9 +11,13 @@ interface Props {
   /** When set, the new player is enrolled in this session on save and the
    *  redirect goes straight back to the session (not to the picker). */
   sessionId?: string;
+  /** Player IDs that were already selected in the picker before navigating
+   *  here — carried through so the picker can restore them (plus the new
+   *  player) on return. Ignored when sessionId is set. */
+  previouslySelectedIds?: string[];
 }
 
-export default function AddPlayerForm({ groupId, joinCode, redirectTo, sessionId }: Props) {
+export default function AddPlayerForm({ groupId, joinCode, redirectTo, sessionId, previouslySelectedIds }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [code, setCode] = useState("");
   const [codeTouched, setCodeTouched] = useState(false);
@@ -56,7 +60,8 @@ export default function AddPlayerForm({ groupId, joinCode, redirectTo, sessionId
         displayName,
         code,
         redirectTo,
-        sessionId
+        sessionId,
+        previouslySelectedIds
       );
       if (result?.error) {
         if (result.field === "display_name") setNameError(result.error);

@@ -53,6 +53,17 @@ interface Props {
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
+/**
+ * Appends the current selection to addNewHref so it survives the round-trip
+ * to "Add New Player" and back — see players/new/page.tsx + addPlayerAction,
+ * which carry it through and add the newly-created player's ID.
+ */
+function withSelectedParam(href: string, selectedIds: string[]): string {
+  if (selectedIds.length === 0) return href;
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}selected=${selectedIds.join(",")}`;
+}
+
 function getHelperText(
   mode: PlayerPickerMode,
   selectedCount: number,
@@ -190,7 +201,7 @@ export default function PlayerPicker({
 
         {/* Add New Player */}
         <Link
-          href={addNewHref}
+          href={withSelectedParam(addNewHref, selectedIds)}
           className="flex h-14 w-full items-center justify-center rounded-xl border border-gray-300 bg-white text-base font-medium text-gray-900 hover:bg-gray-50 active:bg-gray-100 transition-colors"
         >
           + Add New Player

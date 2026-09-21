@@ -4,6 +4,7 @@ import StartSessionForm from "./StartSessionForm";
 
 interface PageProps {
   params: Promise<{ join_code: string }>;
+  searchParams: Promise<{ selected?: string }>;
 }
 
 async function getGroupWithPlayers(joinCode: string) {
@@ -38,13 +39,15 @@ async function getGroupWithPlayers(joinCode: string) {
   };
 }
 
-export default async function StartSessionPage({ params }: PageProps) {
+export default async function StartSessionPage({ params, searchParams }: PageProps) {
   const { join_code } = await params;
+  const { selected } = await searchParams;
   const result = await getGroupWithPlayers(join_code);
 
   if (!result) notFound();
 
   const { group, players, activeSessions } = result;
+  const initiallySelectedIds = selected ? selected.split(",").filter(Boolean) : [];
 
   return (
     <div className="flex flex-col px-4 py-8">
@@ -54,6 +57,7 @@ export default async function StartSessionPage({ params }: PageProps) {
           joinCode={group.join_code}
           players={players}
           activeSessions={activeSessions}
+          initiallySelectedIds={initiallySelectedIds}
         />
       </div>
     </div>

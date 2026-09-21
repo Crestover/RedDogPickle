@@ -40,7 +40,11 @@ export async function addPlayerAction(
   redirectTo: string,
   /** If provided, the new player is also enrolled in this session and the
    *  redirect goes directly to the session page (skipping the picker). */
-  sessionId?: string
+  sessionId?: string,
+  /** Player IDs already selected in the picker before this navigation —
+   *  echoed back via ?selected= (plus the new player's ID) so the picker
+   *  can restore the full selection on return. Ignored when sessionId is set. */
+  previouslySelectedIds?: string[]
 ): Promise<AddPlayerResult> {
   // ── Validate display_name ────────────────────────────────────────────
   const trimmedName = displayName.trim();
@@ -104,5 +108,14 @@ export async function addPlayerAction(
   }
 
   // ── Redirect back (sanitised to prevent open redirects) ──────────────
-  redirect(safeRedirect(redirectTo, `/g/${joinCode}`));
+  const target = safeRedirect(redirectTo, `/g/${joinCode}`);
+
+  // Restore the picker's previous selection + auto-select the new player.
+  if (previouslySelectedIds !== undefined && newPlayer?.id) {
+    const allSelected = [...previouslySelectedIds, newPlayer.id];
+    const separator = target.includes("?") ? "&" : "?";
+    redirect(`${target}${separator}selected=${allSelected.join(",")}`);
+  }
+
+  redirect(target);
 }

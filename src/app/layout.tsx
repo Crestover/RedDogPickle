@@ -10,7 +10,7 @@ const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
 
 export const metadata: Metadata = {
-  title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+  title: "Red Dog \u2013 Fetch Your Stats. Bury the Excuses.",
   description:
     "Mobile-first pickleball scoring for real friend groups. Fast. Courtside. No login required.",
   metadataBase: new URL(siteUrl),
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     apple: "/apple-icon.png",
   },
   openGraph: {
-    title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+    title: "Red Dog \u2013 Fetch Your Stats. Bury the Excuses.",
     description: "Mobile-first pickleball scoring for real friend groups.",
     url: siteUrl,
     siteName: "Red Dog",
@@ -38,13 +38,13 @@ export const metadata: Metadata = {
         ).toString(),
         width: 1200,
         height: 630,
-        alt: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+        alt: "Red Dog \u2013 Fetch Your Stats. Bury the Excuses.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Red Dog \u2013 A Proper Record for a Plastic Ball.",
+    title: "Red Dog \u2013 Fetch Your Stats. Bury the Excuses.",
     description: "Mobile-first pickleball scoring for real friend groups.",
     images: [
       new URL("/PlayRedDog_ProperRecord_1200x630px.png", siteUrl).toString(),

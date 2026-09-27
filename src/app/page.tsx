@@ -7,6 +7,7 @@ import Image from "next/image";
 /** Random rotation — one slogan per page load. First entry is the default
  *  shown during server render / before hydration picks a random one. */
 const SLOGANS = [
+  "Fetch Your Stats. Bury the Excuses.",
   "A proper record for a plastic ball.",
   "Definitive Proof of Who Owns the Kitchen.",
   "All the Drama of Wimbledon. None of the Tennis.",
@@ -25,6 +26,22 @@ const SLOGANS = [
   "No Scraps. Just Stats.",
   "Tracking the Pack. Ranking the Alphas.",
   "Real Brackets. No Bark, All Bite.",
+  "Every Dink, Logged. Every Ego, Checked.",
+  "The Kitchen Has Rules. So Does This App.",
+  "Rigorously Tracked. Mildly Ridiculous.",
+  "Receipts for Every Rally.",
+  "The Audit Trail for Backyard Legends.",
+  "Sit. Stay. Check Your Win Percentage.",
+  "A Ledger for Every Underhand Serve.",
+  "Because Bragging Rights Need a Paper Trail.",
+  "Small Court. Big Feelings. Verified Stats.",
+  "Official Business for an Unofficial Sport.",
+  "Good Dogs Keep Score.",
+  "The Non-Volley Zone of Accountability.",
+  "Plastic Balls. Real Consequences.",
+  "Loyal to the Data, Not the Excuses.",
+  "Box Scores for Backyard Warriors.",
+  "Numbers Don't Lie. Your Drop Shot Might.",
 ];
 
 export default function HomePage() {

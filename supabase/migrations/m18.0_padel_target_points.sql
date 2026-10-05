@@ -14,10 +14,11 @@
 -- and can exceed 6 under padel's win-by-2 rule (e.g. 9-7, 10-8) —
 -- those columns have no CHECK constraint. 8/9/10 are included here
 -- defensively even though app code never stores them in this column.
+-- (7 is allowed too — it was added when this was applied to production.)
 --
 -- Changes:
---   1. sessions.target_points_default — allow 6, 8, 9, 10
---   2. games.target_points — allow 6, 8, 9, 10
+--   1. sessions.target_points_default — allow 6, 7, 8, 9, 10
+--   2. games.target_points — allow 6, 7, 8, 9, 10
 -- ============================================================
 
 

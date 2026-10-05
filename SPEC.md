@@ -1,5 +1,7 @@
 # 🏓 Pickleball Stats App — Spec v1.3 (MVP)
 
+> **Historical document.** This is the original MVP specification and is no longer updated. The app (v0.9.0) has since changed in ways that supersede parts of it: sessions no longer auto-close after 4 hours (removed in m9.0); ratings use RDR v2 instead of Elo; games can be voided (LIFO) and corrected by re-recording, although they are still never edited in place; padel groups are supported; there are view-only links (`/v/`), Courts Mode, per-player history, and a password-gated admin panel (`/rd-admin`). For current behavior see `MEMORY.md`, `README.md`, `docs/decisions.md` and `CHANGELOG.md`.
+
 ## 1. Product Summary
 Mobile-first web app for recording doubles pickleball games during live sessions and automatically generating leaderboards and player statistics over time.
 

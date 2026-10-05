@@ -1,271 +1,71 @@
-# RedDogPickle — Current File Map
+# RedDogPickle — Current File Map (v0.9.0)
 
-This reflects the active project structure based on current build output, routes, migrations, and Supabase integration.
+A high-level map of the project. For per-file detail (responsibilities, props, guardrails) see **MEMORY.md** ("Complete File Map").
 
 ---
 
 ## Root
+
+```
 RedDogPickle/
+├── .env.local            # local secrets (git-ignored)
+├── .env.example          # template, no secrets
+├── package.json          # version (single source of truth for the footer), scripts
+├── next.config.ts        # injects NEXT_PUBLIC_APP_VERSION from package.json
+├── tailwind.config.ts    # content paths MUST include src/lib/**
+├── vitest.config.ts, vitest.integration.config.ts
+├── public/               # logos, favicons, OG image, robots.txt
 │
-├── .env.local
-├── .env.example
-├── .gitignore
-├── package.json
-├── package-lock.json
-├── next.config.ts
-├── tsconfig.json
-├── tailwind.config.ts
-├── postcss.config.js
-│
-├── BUILD_PLAN.md
-├── SETUP_GUIDE.md
-├── SPEC.md
-├── CHANGELOG.md
-│
+├── README.md, SPEC.md, BUILD_PLAN.md, MEMORY.md, FILEMAP.md
+├── CHANGELOG.md          # internal engineering changelog
+├── CHANGELOG_PUBLIC.md   # user-facing release notes (served at /changelog_public)
+├── RATING_GUIDE.md, SETUP_GUIDE.md
+├── docs/                 # how-to-run, how-to-deploy, how-to-update-schema (incl. data-correction runbook),
+│                         #   decisions, testing, assumptions, indexes
 ├── supabase/
-│ ├── schema.sql
-│ └── migrations/
-│ ├── m1_initial_schema.sql
-│ ├── m2_create_session.sql
-│ ├── m3_add_players.sql
-│ ├── m4_record_game.sql
-│ └── m4.1_duplicate_warn.sql
-│
+│   ├── schema.sql        # reference only — stale at ~M6
+│   └── migrations/       # m0_base_tables.sql … m18.0_padel_target_points.sql (applied by hand)
 └── src/
-├── lib/
-│ └── supabaseClient.ts
-│
-├── app/
-│ ├── globals.css
-│ ├── layout.tsx
-│ ├── page.tsx
-│ ├── not-found.tsx
-│
-│ ├── actions/
-│ │ └── games.ts
-│ │
-│ └── g/
-│ └── [join_code]/
-│ ├── page.tsx
-│ ├── start/
-│ │ └── page.tsx
-│ ├── sessions/
-│ │ └── page.tsx
-│ ├── players/
-│ │ └── new/
-│ │ └── page.tsx
-│ └── session/
-│ └── [session_id]/
-│ ├── page.tsx
-│ └── RecordGameForm.tsx
-
+```
 
 ---
 
-# File Responsibilities
+## src/app (Next.js App Router)
 
-## Root-Level Config
+| Path | Purpose |
+|---|---|
+| `layout.tsx`, `page.tsx` | Root layout (metadata, footer with version); home: group-code entry + rotating slogan |
+| `help/`, `rdr/`, `changelog_public/` | Help page, rating explainer, rendered public changelog |
+| `actions/` | Server actions: `sessions.ts`, `players.ts`, `games.ts`, `courts.ts`, `admin.ts`, `access.ts` (write guard) |
+| `g/[join_code]/` | Full-access group routes: dashboard, `start/`, `players/new/`, `players/[player_id]/` (per-player history), `sessions/`, `leaderboard/`, `session/[session_id]/` (Quick Game Screen, `courts/`, `games/`, `players/`) |
+| `v/[view_code]/` | Read-only mirror of the group routes (no write components, no `/g/` links) |
+| `rd-admin/` | Password-gated admin panel: `login/`, home (group list + create group), `groups/[group_id]/` (player hide/edit) |
 
-### package.json
-- Dependency definitions
-- Next.js + Supabase + Tailwind
-- Scripts:
-  - dev
-  - build
-  - start
+## src/lib
 
-### next.config.ts
-- Next.js configuration
-
-### tsconfig.json
-- TypeScript config
-- Strict mode enabled
-
-### tailwind.config.ts
-- Tailwind theme
-- Mobile-first styling
-
-### postcss.config.js
-- Tailwind + autoprefixer
+| Path | Purpose |
+|---|---|
+| `sports/` | `SportConfig` registry (`getSportConfig`): `pickleball.ts`, `padel.ts`, `padelValidators.ts`, shared `validators.ts`, tests in `__tests__/` |
+| `admin/` | `auth.ts` (HMAC-signed admin cookie, `requireAdminSession`), `constants.ts` (`/rd-admin` paths) |
+| `supabase/` | `server.ts`/`client.ts` (anon), `adminServer.ts` (service-role, admin only), `rpc.ts` (RPC names), `helpers.ts` (`one()`) |
+| `components/` | `LeaderboardCard`, `LeaderboardCardList`, `PlayerPicker`, rating/confidence badges, legacy `PlayerStatsRow` |
+| `*.ts` | `types`, `datetime` (America/Chicago), `formatting`, `statLabels`, `rdr`, `goat`, `autoSuggest`, `pairing`, `pairingFeedback`, `errors`, `suggestCode`, `env` |
 
 ---
 
-# Supabase Folder
+## Architectural Boundaries
 
-## supabase/schema.sql
-Canonical database schema:
-- groups
-- players
-- sessions
-- session_players
-- games
-- game_players
-- RLS policies
+**Frontend:** UI, tap-to-select scoring, confirmation UX, mobile-first layout.
+**Backend (Postgres RPCs):** all scoring validation, atomic game writes, duplicate detection, rating math (RDR v2), LIFO void/undo. No client-side trust for game insertion.
+**Service role:** admin panel only.
+**Games are immutable:** corrected by void + re-record (see `docs/how-to-update-schema.md`).
 
-## supabase/migrations/
+## Environment Variables
 
-### m1_initial_schema.sql
-- Core tables
+`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, and — for the admin panel — `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`. Details in `docs/how-to-run.md` and `docs/how-to-deploy.md`.
 
-### m2_create_session.sql
-- Session creation RPC
-- Session-player linking
+## Deployment
 
-### m3_add_players.sql
-- Player creation
-- Session attendee logic
+Vercel (`main` → production, other branches → previews) and two Supabase Postgres projects (production and dev). `pgcrypto` must be enabled.
 
-### m4_record_game.sql
-- Initial record_game RPC
-
-### m4.1_duplicate_warn.sql
-- p_force parameter
-- Duplicate warning logic
-- Fingerprint hashing
-
----
-
-# src/lib
-
-## supabaseClient.ts
-- Initializes Supabase client
-- Uses:
-  - NEXT_PUBLIC_SUPABASE_URL
-  - NEXT_PUBLIC_SUPABASE_ANON_KEY
-- Exported for server/client use
-
----
-
-# src/app (Next.js App Router)
-
-## layout.tsx
-- Root layout
-- Global Tailwind styles
-
-## globals.css
-- Tailwind base
-- No inline CSS allowed
-
-## page.tsx
-- Landing screen
-- Enter group code
-- Navigate to `/g/[join_code]`
-
-## not-found.tsx
-- Custom 404
-
----
-
-# src/app/actions
-
-## games.ts
-Server Actions:
-- recordGameAction()
-- Calls Supabase RPC `record_game`
-- Handles:
-  - inserted
-  - possible_duplicate
-- Controls duplicate override flow
-
----
-
-# src/app/g/[join_code]
-
-## page.tsx
-Group Home
-- Detect active session
-- Show:
-  - Continue Session
-  - Start Session
-  - Leaderboard (placeholder)
-
----
-
-## start/page.tsx
-- Multi-select session attendees
-- Calls create_session RPC
-
----
-
-## sessions/page.tsx
-- Historical sessions list
-- Sorted by date
-
----
-
-## players/new/page.tsx
-- Add new player
-- Insert into players table
-- Associate to group
-
----
-
-# src/app/g/[join_code]/session/[session_id]
-
-## page.tsx
-Session View
-- Displays:
-  - RecordGameForm
-  - Games list
-  - Team A vs Team B
-  - Winning team highlight
-- Enforces:
-  - 4-hour rule
-  - Active session validation
-- Handles duplicate confirmation UI
-
-## RecordGameForm.tsx
-- Team selection dropdown/buttons
-- Score input fields
-- Submit action
-- Duplicate confirmation state
-- Calls recordGameAction()
-
----
-
-# Runtime Build Artifacts (Generated)
-
-.next/
-
-
-- DO NOT COMMIT
-- Dev + build cache
-- Known Windows/OneDrive sensitivity
-
----
-
-# Key Architectural Boundaries
-
-## Frontend Responsibilities
-- UI
-- Session state rendering
-- Duplicate confirmation UX
-- Mobile-first design
-
-## Backend Responsibilities
-- All scoring validation
-- All atomic writes
-- Duplicate detection
-- Session expiration enforcement
-
-No client-side trust for game insertion.
-
----
-
-# Environment Variables (Required)
-
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-
----
-
-# Deployment Target
-
-- Vercel
-- Supabase Postgres
-- pgcrypto extension enabled
-
----
-
-END OF FILE MAP
+Generated, do not commit: `.next/`, `node_modules/`.

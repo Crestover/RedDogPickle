@@ -29,8 +29,8 @@ export const padelConfig: SportConfig = {
   displayName: "Padel",
 
   // ── Sport-specific constants ──────────────────────────────────
-  // Padel sets are always played to 6 games (win by 2, 7-6 tiebreak) —
-  // a single fixed preset, unlike pickleball's 11/15/21 choice.
+  // Padel sets are played to 6 games, win by 2, with no tiebreak and no cap
+  // (9-7 is valid) — a single fixed preset, unlike pickleball's 11/15/21 choice.
   targetPresets: [PADEL_SET_TARGET],
   winByOptions: [2],
   defaultTargetPoints: PADEL_SET_TARGET,

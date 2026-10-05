@@ -91,3 +91,32 @@ This file records every assumption made where the SPEC was ambiguous or silent. 
 **Assumption:** All client-side reads (group load, player list, leaderboard, game history) use the `NEXT_PUBLIC_SUPABASE_ANON_KEY` via the browser Supabase client. RLS SELECT policies allow this.
 **Why:** There is no authentication, so there is no user token. The anon key is the correct key for unauthenticated access.
 **Impact:** All data in the Supabase project is publicly readable to anyone who knows the URL. This is acceptable given the trust-based model in the SPEC.
+
+---
+
+> Some earlier assumptions above (e.g. A-009 "no deactivation UI", A-012 "4-hour window") have been overtaken by later milestones: session expiry was removed in m9.0, and creating groups and hiding/editing players is now possible from the admin panel (A-003, A-009). They are kept as a historical record.
+
+## A-015: Padel Is Scored One Set per Recording
+**Assumption:** In a padel group, each recording is one set, stored in the same `games` table with `team_a_score`/`team_b_score` = games won in the set, and each set is rated independently. Match-level scoring (best of 3) is not modelled.
+**Why:** The user's group records and ranks sets; this keeps the schema and rating math unchanged.
+**Impact:** A match of three sets is three recordings. The "games played" stat counts sets.
+
+## A-016: Padel Sets Have No Tiebreak and No Cap
+**Assumption:** A set is won by the first side to 6 games with a lead of at least 2; if it reaches 6-6 play continues (9-7, 10-8, …). There is no 7-6 tiebreak.
+**Why:** This is how the user's group plays — confirmed after an initial wrong assumption of tennis-style tiebreaks.
+**Impact:** Validation (`padelValidators.ts`) accepts any score where the winner has 6+ and leads by 2+, and rejects 6-5 and 7-6.
+
+## A-017: Admin Is a Single Operator With a Shared Password
+**Assumption:** One trusted operator uses `/rd-admin` with one shared password; per-user accounts and an audit log are not needed.
+**Why:** Matches the app's trust-based model; the panel is for creating groups and fixing player records.
+**Impact:** There is no record of who changed what. Anyone who learns the password can edit any group.
+
+## A-018: Displayed Times Are America/Chicago
+**Assumption:** All times shown in the UI are formatted in America/Chicago (`src/lib/datetime.ts`), whatever the viewer's timezone. Timestamps are stored as `timestamptz`.
+**Why:** The groups play in the Central time zone.
+**Impact:** When correcting data with SQL, derive times from existing rows or offsets rather than typing clock times, to avoid timezone mistakes.
+
+## A-019: `sequence_num` Orders Games Within a Session, but Is Not Unique
+**Assumption:** `sequence_num` is assigned as `MAX + 1` over all games in the session (voided included) and is not enforced unique by the database. Voided games keep their numbers, so duplicates can appear after a data correction.
+**Why:** Voided rows are never deleted, and renumbering live games after a correction is a deliberate manual step.
+**Impact:** The "G#" labels in the game list come straight from `sequence_num`; "Show voided" can show two games with the same number.

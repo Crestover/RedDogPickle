@@ -6,6 +6,19 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
+## [Unreleased] — Post-0.9.0 (no version bump)
+
+### Fixed
+- Admin panel (`/rd-admin` group list and group detail) now shows the Supabase `error.message` on screen instead of treating a failed query as an empty result. A service-role key from the wrong Supabase project had made the group list read "No groups yet." (commit `0546eb3`).
+
+### Changed
+- Site title, OpenGraph title/image alt and Twitter card title (`src/app/layout.tsx`) are now "Red Dog – Fetch Your Stats. Bury the Excuses." (previously "A Proper Record for a Plastic Ball."). The share image is unchanged (logo only).
+
+### Documentation
+- Brought `MEMORY.md`, `README.md`, `FILEMAP.md`, `docs/*` and `.env.example` up to date for v0.9.0: admin env vars and Vercel pitfalls, `m18.0` details, Milestone 7 decisions (D-059+), assumptions (A-015+), Milestone 7 manual tests, and a production data-correction runbook (`docs/how-to-update-schema.md`). Roadmap items 7g (admin "View group" link), 7h (archive groups) and 7i (reopen session from admin) recorded in `BUILD_PLAN.md`.
+
+---
+
 ## [0.9.0] — Padel Support + Admin Tools (2026-09-21)
 
 ### Added

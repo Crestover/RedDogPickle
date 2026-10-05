@@ -1,19 +1,22 @@
 # 🏓 RedDog Pickle 
 
-Mobile-first pickleball stats tracker for live courtside scoring, leaderboards, and player stats.
+Mobile-first pickleball and padel stats tracker for live courtside scoring, leaderboards, and player stats. **Current version: 0.9.0.**
 
-**Stack:** Next.js (App Router) · Supabase · Vercel · Tailwind CSS
+**Stack:** Next.js 15 (App Router) · React 19 · Supabase · Vercel · Tailwind CSS
 
 ---
 
 ## What It Does
 
-- Groups access via shareable URL: `/g/{join_code}`
+- Groups access via shareable URL: `/g/{join_code}`; read-only view links at `/v/{view_code}`
 - No login required — trust-based, courtside-optimized
-- Record doubles games in < 12 seconds on mobile
+- Record doubles games in < 12 seconds on mobile (tap-to-select Quick Game Screen; Courts Mode for multi-court rotation)
+- Pickleball and padel groups (padel: one set per recording, first to 6 win by 2, no tiebreak)
 - Automatic deduplication across devices
-- Session leaderboards + all-time and 30-day stats
-- Immutable game history, Elo-ready data model
+- Session leaderboards + all-time and 30-day stats, per-player game history
+- RDR (Red Dog Rating) v2 ratings with confidence labels and GOAT badges
+- Immutable game history (void + re-record to correct mistakes)
+- Password-gated admin panel at `/rd-admin` (create groups, hide/unhide and edit players)
 
 ---
 
@@ -22,8 +25,9 @@ Mobile-first pickleball stats tracker for live courtside scoring, leaderboards, 
 | | |
 |---|---|
 | 📋 [Product Spec](./SPEC.md) | Full feature specification v1.3 |
-| 🗺️ [Build Plan](./BUILD_PLAN.md) | 6-milestone roadmap |
+| 🗺️ [Build Plan](./BUILD_PLAN.md) | Milestones 0–6 and the Milestone 7 roadmap |
 | 🔄 [Release Notes](./CHANGELOG_PUBLIC.md) | User-facing release notes |
+| 🧭 [Project Memory](./MEMORY.md) | Detailed current-state reference: file map, logic, guardrails, runbooks |
 
 ### Developer Docs
 
@@ -59,65 +63,35 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 
 ## Project Structure
 
+A high-level map. For per-file detail see [MEMORY.md](./MEMORY.md) ("Complete File Map").
+
 ```
 /
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx                           # Root layout
-│   │   ├── page.tsx                             # / → Enter Group Code
-│   │   ├── changelog/
-│   │   │   └── page.tsx                         # /changelog (renders CHANGELOG_PUBLIC.md)
-│   │   ├── actions/
-│   │   │   ├── sessions.ts                      # createSessionAction, endSessionAction
-│   │   │   ├── players.ts                       # addPlayerAction
-│   │   │   └── games.ts                         # recordGameAction
-│   │   └── g/[join_code]/
-│   │       ├── page.tsx                         # Dashboard (state-aware)
-│   │       ├── start/
-│   │       │   ├── page.tsx                     # Start Session (server)
-│   │       │   └── StartSessionForm.tsx         # Attendee selector (client)
-│   │       ├── players/new/
-│   │       │   ├── page.tsx                     # Add Player (server)
-│   │       │   └── AddPlayerForm.tsx            # Name + code form (client)
-│   │       ├── leaderboard/
-│   │       │   └── page.tsx                     # Group Leaderboard (all-time / 30d / last)
-│   │       ├── sessions/
-│   │       │   └── page.tsx                     # Session History list
-│   │       └── session/[session_id]/
-│   │           ├── page.tsx                     # Session view + game list
-│   │           ├── EndSessionButton.tsx         # Compact end button (client)
-│   │           ├── PairingBalance.tsx          # Same-team pair counts (server)
-│   │           ├── RecordGameForm.tsx           # 3-step game entry (client)
-│   │           └── SessionStandings.tsx        # Collapsible standings (client)
+│   │   ├── layout.tsx, page.tsx                 # Root layout (metadata, footer); home (group code + rotating slogan)
+│   │   ├── actions/                             # Server actions: sessions, players, games, courts, admin, access guard
+│   │   ├── g/[join_code]/                       # Full-access group routes: dashboard, start, players, sessions,
+│   │   │                                        #   leaderboard, session/[id] (Quick Game Screen, courts, games, players)
+│   │   ├── v/[view_code]/                       # Read-only mirror of the group routes
+│   │   ├── rd-admin/                            # Password-gated admin panel (login, groups, player editing)
+│   │   ├── help/, changelog_public/, rdr/       # Static/explainer pages
 │   └── lib/
-│       ├── env.ts                               # Env var validation
-│       ├── types.ts                             # Shared TypeScript interfaces
-│       ├── formatting.ts                        # Display helpers (formatDiff)
-│       ├── suggestCode.ts                       # Pure util: initials → player code
-│       ├── components/
-│       │   └── PlayerStatsRow.tsx               # Shared player stats card
-│       └── supabase/
-│           ├── client.ts                        # Supabase browser client
-│           ├── server.ts                        # Supabase server client factory
-│           ├── rpc.ts                           # RPC function name constants
-│           └── helpers.ts                       # FK join shape normalizer (one<T>)
+│       ├── sports/                              # SportConfig registry: pickleball, padel, shared validators
+│       ├── admin/                               # Admin session auth + path constants
+│       ├── supabase/                            # Anon clients, service-role admin client, RPC constants, helpers
+│       ├── components/                          # Shared UI: LeaderboardCard(List), PlayerPicker, ...
+│       └── *.ts                                 # types, datetime, formatting, statLabels, rdr, goat, autoSuggest, ...
 ├── supabase/
-│   ├── schema.sql                               # Full DB schema (source of truth)
-│   └── migrations/
-│       ├── m2_rpc_sessions.sql                  # M2 delta: constraint + 2 RPCs
-│       ├── m4_record_game.sql                   # M4 delta: record_game RPC
-│       ├── m4.1_duplicate_warn.sql              # M4.1 delta: warn-and-confirm
-│       ├── m5_group_leaderboards.sql            # M5 delta: view + session/group stats RPCs
-│       ├── m5.1_last_session_standings.sql     # M5.1 delta: extended session stats + last session RPC
-│       ├── m5.2_pairing_balance.sql           # M5.2 delta: pairing balance RPC
-│       ├── m5.3_indexes.sql                   # M5.3 delta: FK performance indexes
-│       └── m6_elo_v1.sql                      # M6 delta: Elo tables, RLS, RPC
+│   ├── schema.sql                               # Reference schema (stale — migrations are the source of truth, m0 → m18.0)
+│   └── migrations/                              # Ordered SQL migrations applied by hand in the Supabase SQL Editor
 ├── docs/                                        # Developer documentation
 ├── .env.example                                 # Env var template (no secrets)
-├── SPEC.md                                      # Product specification
+├── SPEC.md                                      # Product specification (original MVP spec)
 ├── BUILD_PLAN.md                                # Milestone roadmap
+├── MEMORY.md                                    # Detailed current-state reference
 ├── CHANGELOG.md                                 # Internal engineering change history
-└── CHANGELOG_PUBLIC.md                          # User-facing release notes (served at /changelog)
+└── CHANGELOG_PUBLIC.md                          # User-facing release notes (served at /changelog_public)
 ```
 
 ---
@@ -133,13 +107,16 @@ See [docs/how-to-run.md](./docs/how-to-run.md) for full setup instructions.
 | 4 | Record Game | ✅ Complete |
 | 5 | Leaderboards & Stats | ✅ Complete |
 | 6 | Elo v1 + Trust UX + Version/Changelog | ✅ Complete |
+| — | v0.4–v0.8: RDR ratings, rebrand, view-only links, GOAT badges, RDR v2, Quick Game Screen, win-by-1, hidden players | ✅ Shipped (see [CHANGELOG.md](./CHANGELOG.md)) |
+| 7a–7f | v0.9.0: session standings link fix, player search, padel (manual scoring), admin panel, per-player history, admin player editing | ✅ Shipped (v0.9.0, production) |
+| 7g–7i | Admin "View group" link, archive groups, reopen session from admin | 📋 Planned (see [BUILD_PLAN.md](./BUILD_PLAN.md)) |
 
 ---
 
 ## Key Design Principles
 
 - **Zero friction** — the whole point is courtside speed
-- **Immutable records** — games cannot be edited or deleted
-- **Cross-device duplicate prevention** — via deterministic `dedupe_key` + DB unique constraint
-- **No auth** — trust-based group model; device identity via localStorage only
-- **Elo ratings** — fire-and-forget Elo v1 applied after each game; provisional K=40, established K=20
+- **Immutable records** — games are never edited or deleted; mistakes are voided (soft-delete) and re-recorded
+- **Cross-device duplicate prevention** — SHA-256 fingerprint checked inside `record_game`
+- **No auth for players** — trust-based group model; device identity via localStorage only. The only password is the shared admin password for `/rd-admin`
+- **RDR ratings** — Red Dog Rating v2 computed atomically inside `record_game` and reversed LIFO on void/undo (see [RATING_GUIDE.md](./RATING_GUIDE.md))

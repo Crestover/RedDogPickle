@@ -2,7 +2,9 @@
 
 ## The Source of Truth
 
-`supabase/schema.sql` is the canonical schema definition. It represents the **full, runnable schema from scratch** — not a series of diffs.
+> **Current reality (v0.9.0):** `supabase/schema.sql` only reflects the database as of about Milestone 6 and is **stale** for most functions. The real source of truth is the ordered set of migration files in `supabase/migrations/` (`m0_base_tables.sql` → `m18.0_padel_target_points.sql`), applied by hand in the Supabase SQL Editor. `MEMORY.md` ("Fresh Dev DB Setup Order") lists the order for building a fresh database. Rewriting `schema.sql` to be self-contained is a known to-do.
+
+`supabase/schema.sql` was originally intended as the canonical schema definition — the **full, runnable schema from scratch**, not a series of diffs.
 
 ---
 
@@ -29,11 +31,11 @@ Since this is an MVP without a migration tool configured, changes are applied ma
 
 ### Step-by-Step
 
-1. **Write the change** as a SQL migration snippet (e.g., `ALTER TABLE`, `CREATE INDEX`, `CREATE POLICY`)
-2. **Update `supabase/schema.sql`** to reflect the new state (keep it as a full from-scratch definition)
-3. **Apply the migration snippet** in the Supabase SQL Editor (not the full schema — only the delta)
-4. **Record the change** in `CHANGELOG.md` and update `docs/decisions.md` if there's a new architectural decision
-5. **Commit** the updated `supabase/schema.sql`
+1. **Write the change** as a new migration file `supabase/migrations/mN.M_short_name.sql` (e.g., `ALTER TABLE`, `CREATE OR REPLACE FUNCTION`)
+2. **Apply it to the dev Supabase project** in the SQL Editor and test on `dev`
+3. **Apply the same file to the production Supabase project before promoting the code** that depends on it, and confirm it took effect (e.g. query the new column or constraint)
+4. **Record the change** in `CHANGELOG.md`, `MEMORY.md` (latest migration, pending migrations, migration table) and `docs/decisions.md` if there's a new architectural decision
+5. **Commit** the migration file. If the migration is later edited to match what was actually run (as happened with `m18.0`, which also allows `7`), commit that edit too so the file matches both databases
 
 ### Example Migration Snippet
 
@@ -53,12 +55,14 @@ The current RLS posture is **SELECT + INSERT only** for the anon key.
 |---|---|---|---|---|
 | groups | ✅ anon | ✅ anon | ❌ | ❌ |
 | players | ✅ anon | ✅ anon | ❌ | ❌ |
-| sessions | ✅ anon | ✅ anon | ✅ via `end_session` RPC (SECURITY DEFINER) | ❌ |
-| session_players | ✅ anon | ✅ anon | ❌ | ❌ |
-| games | ✅ anon | ✅ anon | ❌ | ❌ |
+| sessions | ✅ anon | ✅ anon | ✅ via `end_session` / `set_session_rules` RPCs (SECURITY DEFINER) | ❌ |
+| session_players | ✅ anon | ✅ anon | ✅ via courts RPCs | ❌ |
+| games | ✅ anon | ✅ anon | ✅ only via `void_last_game` / `undo_game` RPCs (set `voided_at`) | ❌ |
 | game_players | ✅ anon | ✅ anon | ❌ | ❌ |
 
-> **Service role** (used in Next.js Server Actions) bypasses RLS entirely. All UPDATE operations go through the service role, never the anon key.
+> The table above covers the original six tables. Later tables (`player_ratings`, `game_rdr_deltas`, `session_courts`, …) follow the same posture; see the migration files.
+>
+> **Service role** bypasses RLS entirely. In the app it is used **only** by the admin panel (`src/lib/supabase/adminServer.ts`), e.g. to create groups and to update `players.hidden`/name/code (no anon UPDATE policy exists on `players`). Everything else that updates data goes through SECURITY DEFINER RPCs.
 
 ### Adding a New RLS Policy
 
@@ -117,7 +121,7 @@ reset role;
 
 ## RPC Functions
 
-Two RPC functions were added in Milestone 2 and are part of the canonical schema:
+The app now has 23 RPCs (core + Courts Mode) — see the "RPC Function Reference" in `MEMORY.md`. The two below were the original Milestone 2 pair and illustrate the INVOKER vs DEFINER pattern:
 
 | Function | Security | Callable by | Purpose |
 |---|---|---|---|
@@ -155,6 +159,74 @@ Expected output:
  anon    | create_session  | EXECUTE
  anon    | end_session     | EXECUTE
 ```
+
+---
+
+## Correcting Recorded Game Data (Production Runbook)
+
+Use this when a recorded game is wrong (wrong score, wrong player), a game was never entered, or a game should not exist. It has been run several times on production; each step below was tested.
+
+### Why not just edit the row?
+
+Ratings (`player_ratings`, `game_rdr_deltas`) are updated inline when a game is recorded and are rolled back only by `void_last_game`, which works **newest-first (LIFO)**. Editing a game's score or players directly would leave that game's rating delta — and every later game's delta, since each depends on the ratings before it — inconsistent with the "corrected" data. So the supported correction is: **void back to the bad game, re-record it correctly, re-record everything after it, then restore numbering and times with SQL.** Voided rows stay in the database as an audit trail.
+
+### Steps
+
+1. **Identify** the session id (it is in the session URL) and the game(s) involved. Open `/g/{join_code}/session/{id}/games` and toggle "Show voided" to see everything. Note how many games come *after* the bad one — each must be voided and re-recorded.
+2. **Make sure nobody else is recording** in that session until you are done. A game entered mid-correction lands in the wrong order.
+3. **If the session is ended, reopen it** (the app has no reopen button yet — planned as 7i). In the production SQL Editor:
+   ```sql
+   UPDATE sessions SET ended_at = NULL WHERE id = '<session_id>';
+   ```
+4. **Void newest-first** from the live session page: "Void Last Game" → "Confirm Void?". After each void the "LAST:" line shows the previous game. Stop once the bad game is voided.
+5. **Re-record** the corrected game, then every later game, in their true order, using the normal Quick Game Screen. Check the "LAST:" line after each. (A score containing 0 asks for a second "Confirm Shutout" tap, and that prompt resets itself after a few seconds.)
+6. **Restore numbering and times.** New games were assigned `sequence_num = MAX + 1` over *all* games including voided ones, and today's `played_at`. Pair the new live rows (in sequence order) with the voided originals they replace and copy the original number and time across. Template for "the voided originals are numbered `A..B` and the new live rows are numbered `C..D`":
+   ```sql
+   WITH originals AS (
+     SELECT sequence_num, played_at,
+            ROW_NUMBER() OVER (ORDER BY sequence_num) AS rn
+     FROM games
+     WHERE session_id = '<session_id>'
+       AND voided_at IS NOT NULL
+       AND sequence_num BETWEEN <A> AND <B>
+   ),
+   replacements AS (
+     SELECT id,
+            ROW_NUMBER() OVER (ORDER BY sequence_num) AS rn
+     FROM games
+     WHERE session_id = '<session_id>'
+       AND voided_at IS NULL
+       AND sequence_num BETWEEN <C> AND <D>
+   )
+   UPDATE games g
+   SET sequence_num = o.sequence_num,
+       played_at = o.played_at
+   FROM replacements r
+   JOIN originals o ON o.rn = r.rn
+   WHERE g.id = r.id;
+   ```
+   Variations that have been needed:
+   - **A game was added** (e.g. a missing game at the start): run a first statement that adds `+ k` to the `sequence_num` of every live game *except* the newest `k` (select those by `ORDER BY created_at DESC LIMIT k`), **then** set the newest `k` rows to the freed numbers with `ROW_NUMBER() OVER (ORDER BY created_at ASC)`. Order matters — shifting after assigning would shift the new rows too.
+   - **Games backfilled before existing ones**: derive their times as offsets from a known row (`played_at - interval '5 minutes'`, …) instead of typing clock times; displayed times are America/Chicago, and offsets avoid timezone mistakes.
+   - **More than one voided row shares a number** (voided rows keep their old numbers, so a re-corrected game can collide with an earlier voided batch): disambiguate with `ORDER BY voided_at DESC LIMIT 1`.
+7. **Re-close the session at the right time.** The End button stamps "now", which is usually wrong for a correction. Set it from the last live game instead (adds 3 minutes to the last game's minute here — change the interval as needed):
+   ```sql
+   UPDATE sessions
+   SET ended_at = date_trunc('minute', (
+         SELECT MAX(played_at) FROM games
+         WHERE session_id = '<session_id>' AND voided_at IS NULL
+       )) + interval '3 minutes',
+       closed_reason = 'manual'
+   WHERE id = '<session_id>' AND ended_at IS NULL;
+   ```
+8. **Verify** on the session games page: live count, order, scores, teams, times, and that the session shows as Ended. "Show voided" will legitimately show duplicate G-numbers (voided rows were not renumbered).
+
+### Notes
+
+- `sequence_num` is not unique in the database, so these updates never violate a constraint, but the shift-then-assign order above still matters.
+- Ratings need no extra step: each re-recorded game computed fresh deltas in order.
+- Data corrections and other non-code changes do **not** bump the app version or add a changelog entry.
+- If the classifier/permissions layer blocks a single "Void Last Game" tap during an automated run, have the user do that tap and continue; do not work around it.
 
 ---
 

@@ -365,6 +365,8 @@ Add these three variables, checking **all three environment checkboxes** for eac
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJ...` (anon key) |
 | `SUPABASE_SERVICE_ROLE_KEY` | `eyJ...` (service role key) |
 
+> **Added after this guide was written (v0.9.0):** also set `NEXT_PUBLIC_SITE_URL` (your site URL, no trailing slash), and — if you use the admin panel at `/rd-admin` — `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` (a long random string). The service-role key is used only by the admin panel. If you run separate production and dev Supabase projects, scope each key to the matching Vercel environment. See `docs/how-to-deploy.md`.
+
 After adding all three:
 ```
   → Click [Deployments] tab

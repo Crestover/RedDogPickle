@@ -610,3 +610,55 @@ Same as Milestone 2. No new migration to apply.
 - [ ] Duplicate game → "already recorded" message + link
 - [ ] Closed session → prompt to start new session
 - [ ] Code collision when adding player → error + suggested alternative
+
+---
+
+## Milestone 7 — Admin, Padel, UX (v0.9.0)
+
+> Milestones 0–6 above are the original MVP checklist and are partly out of date (e.g. 4-hour session expiry and "no editing" wording). The automated suite (`npx vitest run`, 279 tests / 21 files) covers validators, sport config, stat labels and key components; the checks below are the manual ones. A broader running checklist is in `MEMORY.md` ("Manual QA Checklist").
+
+### Test AD — Session Standings Link Scope (7a)
+- [ ] On an **active** session, tap "Session standings →" → shows standings for that session only (`?tab=standings`), not the all-time group leaderboard
+- [ ] Footer links are labelled "Session games →" and "Session standings →"
+- [ ] An ended session's Games/Standings tabs still work
+
+### Test AE — Player Search in Roster (7b)
+- [ ] Session with 18 or fewer attendees: no search box in "Pick N players"
+- [ ] Session with more than 18 attendees: search box filters the list; selection survives filtering
+
+### Test AF — Add Player Mid-Start Keeps Selection
+- [ ] Start Session → select several players → "+ Add New Player" → save → returns to Start Session with the earlier selections still selected **and** the new player selected
+- [ ] Works for both pickleball and padel groups
+- [ ] Add-player errors (e.g. duplicate code) show inline, no raw `NEXT_REDIRECT` text
+
+### Test AG — Padel Scoring (7c)
+- [ ] Group with sport = padel shows the Padel badge on the dashboard
+- [ ] Records: 6-0, 6-4, 7-5, 9-7 are accepted
+- [ ] Rejects: 6-5, 7-6, 11-7, equal scores
+- [ ] Target preset is fixed at 6 (no 11/15/21 choice)
+- [ ] Leaderboard/standings/player page use Sets and Games wording; a pickleball group still uses Games and Points
+- [ ] (After any padel-related migration) `record_game` succeeds with target 6 — the `m18.0` CHECK constraints must be applied on that database
+
+### Test AH — Per-Player History (7e)
+- [ ] Tap a player's name on the main leaderboard and on both session standings screens → `/g/{join_code}/players/{player_id}`
+- [ ] Page shows the stat summary with sport-correct labels and every non-voided game across sessions, with W/L pill and session date link
+- [ ] The `/v/` view-only pages do not link to this page
+
+### Test AI — Admin Panel (7d, 7f)
+- [ ] Logged out, `/rd-admin` redirects to `/rd-admin/login`
+- [ ] Wrong password → "Incorrect password."; correct password → group list (players, sessions, last session date)
+- [ ] Missing/mismatched env (e.g. wrong service-role key) → visible error message, not an empty "No groups yet."
+- [ ] Create a group (name, sport, join code) → appears in the list; the join code works at `/g/{code}`
+- [ ] Open a group → hide a player → they vanish from leaderboards but stay selectable when starting a session; unhide reverses it
+- [ ] Edit a player's name and code (code auto-uppercases) → persists; duplicate code shows an inline error and the row stays in edit mode; Cancel reverts
+- [ ] Logout, or wait 4 hours → login required again
+- [ ] The admin path is not linked from any public page
+
+### Test AJ — Home Page and Share Preview
+- [ ] Browser tab title is "Red Dog – Fetch Your Stats. Bury the Excuses."
+- [ ] Reloading the home page shows different slogans over several loads; no hydration warning in the console
+- [ ] Pasting the site URL in a messaging app shows the same title and the logo image
+
+### Test AK — Data Correction Dry Run (procedure in `how-to-update-schema.md`)
+- [ ] On the dev database: record 3 games, void the last 2, re-record them differently, run the renumber SQL → game list shows the corrected games in the original positions with the original times; "Show voided" still lists the voided rows
+- [ ] Ratings after the correction match a session recorded cleanly in the final order

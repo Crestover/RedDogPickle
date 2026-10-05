@@ -40,10 +40,20 @@ NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 # (from: Project Settings → API → anon public)
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 
+# Site URL — absolute URL for OG/Twitter images and the canonical link (no trailing slash)
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
 # Supabase service role key — NEVER expose to the browser
-# Used only in Server Actions for privileged writes (e.g., ending a session)
-# (from: Project Settings → API → service_role)
+# Used only by the admin panel's server actions for privileged writes
+# (create group, hide/unhide and edit players)
+# (from: Project Settings → API → service_role / secret key)
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Admin panel (/rd-admin) — shared password and cookie-signing secret.
+# Use any values locally; generate a long random ADMIN_SESSION_SECRET
+# (e.g. `openssl rand -hex 32`). Not needed unless you open /rd-admin.
+ADMIN_PASSWORD=choose-a-password
+ADMIN_SESSION_SECRET=a-long-random-string
 ```
 
 > **Where to get these values:** Supabase Dashboard → your project → Project Settings → API
@@ -69,8 +79,8 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run start` | Run production build locally |
 | `npm run lint` | Run ESLint |
 | `npm run type-check` | Run TypeScript type checker without emitting |
-
-> `type-check` script must be added to `package.json` manually: `"type-check": "tsc --noEmit"`
+| `npm test` / `npx vitest run` | Run the unit test suite (279 tests across 21 files as of v0.9.0) |
+| `npm run test:integration` | SQL/RPC integration tests (needs a real Supabase project in `.env.local`) |
 
 ---
 
@@ -80,7 +90,12 @@ Open [http://localhost:3000](http://localhost:3000).
 |---|---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Yes | Supabase project endpoint |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Yes | Anon key for client-side reads |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | **No** | Service role for server-side privileged writes |
+| `NEXT_PUBLIC_SITE_URL` | No | Yes | Absolute site URL for OG/Twitter images and canonical link (defaults to `http://localhost:3000`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Only for `/rd-admin` | **No** | Service role for the admin panel's privileged writes. Each Supabase project has its own key — a dev key does not work against production |
+| `ADMIN_PASSWORD` | Only for `/rd-admin` | **No** | Shared admin login password. Compared exactly (no trimming) |
+| `ADMIN_SESSION_SECRET` | Only for `/rd-admin` | **No** | HMAC secret that signs the admin session cookie. Login will throw if it is missing |
+
+If the admin panel's group list is empty or shows an error such as "Invalid API key", the service-role key does not match the project `NEXT_PUBLIC_SUPABASE_URL` points to.
 
 ---
 
@@ -93,7 +108,7 @@ Open [http://localhost:3000](http://localhost:3000).
 → Check that your `.env.local` values match the Supabase dashboard exactly. Restart the dev server after any `.env.local` change.
 
 **RLS blocks an insert**
-→ Anon key only has SELECT and INSERT. If you're trying to UPDATE (e.g., end a session), the operation must go through a Server Action using `SUPABASE_SERVICE_ROLE_KEY`.
+→ Anon key only has SELECT and INSERT. Anything that needs an UPDATE must go through a SECURITY DEFINER RPC (e.g. `end_session`, `void_last_game`) or, for admin-only writes, an admin server action using `SUPABASE_SERVICE_ROLE_KEY`.
 
 **Port 3000 already in use**
 → `npm run dev -- -p 3001` to use a different port.

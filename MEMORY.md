@@ -1,16 +1,16 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-03-31 — v0.8.4
+> Last updated: 2026-10-04 — v0.9.0 (live on production)
 
 ---
 
 ## Current Project DNA
 
 ### App Purpose
-Red Dog is a **mobile-first pickleball stats tracker** for live courtside scoring.
+Red Dog is a **mobile-first pickleball and padel stats tracker** for live courtside scoring (each group has one sport; padel is manual-scoring only, one set per recording).
 - Record doubles games in <12 seconds
-- No login required (trust-based group access via join_code)
-- Immutable game history (soft-delete only via voided_at)
+- No login required (trust-based group access via join_code); a separate password-gated admin panel at `/rd-admin` for group/player management
+- Immutable game history (soft-delete only via voided_at). Mistakes are corrected by void + re-record, never by editing a game in place — see "Production Data Corrections" below
 - Cross-device duplicate prevention (SHA-256 fingerprint, 15-min window)
 - Session + group leaderboards with RDR v2 (Red Dog Rating) — confidence-based system with rating deviation, inactivity inflation, volatility multipliers, reacclimation buffer, and partner gap dampener
 - Courts Mode for multi-court auto-assignment with fairness algorithm
@@ -30,13 +30,15 @@ Red Dog is a **mobile-first pickleball stats tracker** for live courtside scorin
 | Extensions  | pgcrypto (in `extensions` schema)   |
 
 ### Active Sprint Goal
-**Milestone 7 — v0.9.0, on `dev` branch, not yet promoted to `main`/production — post-v0.8.4 roadmap: admin tooling, UX polish, padel.** See `BUILD_PLAN.md` Milestone 7 for the full tracked list — 7a through 7f all landed: 7a (session standings link scoping), 7b (player search in RecordGameForm), 7c (padel manual scoring — see below), 7d (admin panel — see below), 7e (per-player game history page, `/g/[join_code]/players/[player_id]`, linked from `LeaderboardCard`), 7f (edit player name/code in admin screen). All work is deliberately confined to `dev`; `main`/production only gets updated on explicit user confirmation.
+**Milestone 7 — v0.9.0 is live on `main`/production; day-to-day work continues on `dev`. Post-v0.8.4 roadmap: admin tooling, UX polish, padel.** See `BUILD_PLAN.md` Milestone 7 for the full tracked list — 7a through 7f all landed and shipped in 0.9.0: 7a (session standings link scoping), 7b (player search in RecordGameForm), 7c (padel manual scoring — see below), 7d (admin panel — see below), 7e (per-player game history page, `/g/[join_code]/players/[player_id]`, linked from `LeaderboardCard`), 7f (edit player name/code in admin screen). **Still planned, not built:** 7g (admin "View group" link to the `/v/` view-only dashboard), 7h (archive groups, needs a migration), 7i (reopen a session from admin, plus a "close at…" time field). `main`/production only gets updated on explicit user confirmation (fast-forward `git push origin dev:main`).
 
-Admin panel (7d): `/rd-admin` (non-obvious path, not linked anywhere in the public app), password-gated via `ADMIN_PASSWORD` + a signed HttpOnly cookie (`src/lib/admin/auth.ts` — HMAC-SHA256 over an expiry timestamp, 4h session, no DB-backed session table). Writes (`create group`, `toggle players.hidden`) go through a new service-role Supabase client (`src/lib/supabase/adminServer.ts`), the first use of `SUPABASE_SERVICE_ROLE_KEY` in application code — every other part of the app deliberately uses only the anon key. This is intentionally scoped tight: the service-role client is only ever constructed inside admin server actions, after `requireAdminSession()` has verified the cookie. `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, and `SUPABASE_SERVICE_ROLE_KEY` are **confirmed set in Vercel's Production env vars** (2026-09-21, real values distinct from dev's) — `.env.local` locally still has dev-test placeholders (`devtest-admin-2026` / a locally-generated hex secret), which is correct and expected for local dev.
+Post-0.9.0 (no version bump): the home-page slogan rotation was expanded to 35 entries (`src/app/page.tsx`, client-only random pick; first entry is the SSR default) and the site tagline/share-preview title in `layout.tsx` (`<title>`, OpenGraph title + image alt, Twitter title) changed to "Red Dog – Fetch Your Stats. Bury the Excuses." (chosen partly because it works for padel too). The share image `PlayRedDog_ProperRecord_1200x630px.png` is just the logo — no slogan text is baked in.
+
+Admin panel (7d, 7f): `/rd-admin` (non-obvious path, not linked anywhere in the public app; login at `/rd-admin/login`), password-gated via `ADMIN_PASSWORD` + a signed HttpOnly cookie (`src/lib/admin/auth.ts` — HMAC-SHA256 over an expiry timestamp keyed by `ADMIN_SESSION_SECRET`, 4h session, no DB-backed session table; the password check is an exact byte comparison — no trimming). Server actions in `src/app/actions/admin.ts`: `adminLoginAction`, `adminLogoutAction`, `createGroupAction`, `togglePlayerHiddenAction`, `updatePlayerAction` (name + code, handles the `players_group_code_unique` 23505 violation). Writes go through a service-role Supabase client (`src/lib/supabase/adminServer.ts`), the only use of `SUPABASE_SERVICE_ROLE_KEY` in application code — every other part of the app deliberately uses only the anon key. The service-role client is only ever constructed inside admin server actions, after `requireAdminSession()` has verified the cookie. The group list and group detail pages surface Supabase query errors on screen instead of showing an empty state (a mismatched service-role key once made them look like "No groups yet."). All three env vars (`ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`) are set in Vercel Production with values distinct from dev; `.env.local` has dev-test placeholders, which is correct for local dev. **Env var gotcha:** Vercel binds env vars at deployment-creation time — editing a variable and clicking Redeploy has not reliably picked up changes here; a fresh commit-triggered build did. Also confirm you are editing the `red-dog-pickle` Vercel project, not another project in the same account.
 
 Padel manual scoring (7c): `sports/padel.ts` + `padelValidators.ts` implement padel's real win condition — first to 6 games, straight win-by-2, **no tiebreak, no cap** (sets can go 9-7, 10-8, ...). Single-set-per-recording, each set rated independently. `RecordGameForm.tsx` now resolves validation via `sportConfig`/`getSportConfig()` instead of hardcoded pickleball imports (a real pre-existing gap, not padel-specific — pickleball's live scoring runs through the same code path now). Required `m18.0_padel_target_points.sql` — the `sessions.target_points_default`/`games.target_points` `CHECK` constraints were a hard block, not a loose backstop as originally assumed; **confirmed applied to both dev and production** (2026-09-21, with `7` added to the allowed-values list alongside the original padding). Deferred: Courts Mode padel support, DB-level enforcement of the full win condition (win-by-2/no-cap logic lives in the TS validators only — the RPC just checks `winner >= target_points`).
 
-v0.8.4: Hidden player support. `players.hidden BOOLEAN NOT NULL DEFAULT FALSE` added via `m17.0_hidden_players.sql`. Group-scoped by construction (each `players` row has a `group_id` FK). `get_group_stats` and `get_session_stats` RPCs updated with `WHERE NOT p.hidden` at the final result stage — aggregation subqueries untouched so visible players' stats include all games vs hidden opponents. GOAT candidates derived from already-filtered RPC result — GOAT badges naturally restricted to visible players. Operational flows (PlayerPicker, add-players mid-session) intentionally unfiltered — hidden players remain fully selectable. 8 integration tests added. No admin toggle UI yet — set via direct DB update.
+v0.8.4: Hidden player support. `players.hidden BOOLEAN NOT NULL DEFAULT FALSE` added via `m17.0_hidden_players.sql`. Group-scoped by construction (each `players` row has a `group_id` FK). `get_group_stats` and `get_session_stats` RPCs updated with `WHERE NOT p.hidden` at the final result stage — aggregation subqueries untouched so visible players' stats include all games vs hidden opponents. GOAT candidates derived from already-filtered RPC result — GOAT badges naturally restricted to visible players. Operational flows (PlayerPicker, add-players mid-session) intentionally unfiltered — hidden players remain fully selectable. 8 integration tests added. The hide/unhide toggle UI shipped in v0.9.0 (admin panel).
 
 v0.8.3: Games played count on leaderboard and session standings cards. Displayed to the right of the tier badge, 10px font, null-safe, singular/plural handled.
 
@@ -68,7 +70,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ### Git State
 - **Branch:** `dev` — all active development here; user merges to `main` manually
-- **Version:** `0.9.0` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC) — `dev` only, not yet on `main`/production
+- **Version:** `0.9.0` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC) — live on `main`/production and on `dev`. Data corrections and copy-only changes (slogans, tagline) do not bump the version.
+- **Tests:** 279 passing across 21 files (`npx vitest run`)
 - **Latest migration:** `m18.0_padel_target_points.sql`
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
 - **Vercel prod:** deploys from `main`
@@ -78,15 +81,15 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | v0.8.4 (m16.0 + m17.0 confirmed applied) |
-| Dev/Preview | `dev`         | Dev               | v0.8.4 (hidden players, games played on cards, win-by-1, error display fix) |
+| Production  | `main`        | Production        | v0.9.0 (m16.0, m17.0, m18.0 all applied; admin env vars set) |
+| Dev/Preview | `dev`         | Dev               | v0.9.0 (same schema as production). The free-tier dev Supabase project auto-pauses after inactivity — if its URL stops resolving, resume it from the Supabase dashboard |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.8.4, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
+| `package.json` | v0.9.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
 | `vitest.config.ts` | Vitest config: `@vitejs/plugin-react`, jsdom environment, `@/` alias, setup file `src/test-setup.ts` |
 | `vitest.integration.config.ts` | Separate config for SQL/RPC integration tests (dotenv, no jsdom). Run via `npm run test:integration` |
 | `public/robots.txt` | Blocks all crawling: `User-agent: * / Disallow: /` |
@@ -94,30 +97,40 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `tsconfig.json` | Strict mode, ES2017 target, `@/*` → `./src/*` |
 | `tailwind.config.ts` | Content paths include `src/lib/**` — CRITICAL, do not remove or shared component classes are purged in production |
 | `postcss.config.mjs` | Tailwind + Autoprefixer |
-| `.env.example` | Template: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SITE_URL |
+| `.env.example` | Template: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SITE_URL (absolute OG/canonical URLs; falls back to localhost), SUPABASE_SERVICE_ROLE_KEY (admin panel only), ADMIN_PASSWORD, ADMIN_SESSION_SECRET |
 | `.env.local` | Actual env vars (git-ignored) |
 
 #### Documentation
 | File | Role |
 |------|------|
 | `SPEC.md` | Functional specification v1.3 |
-| `BUILD_PLAN.md` | 7-milestone roadmap (complete) |
+| `BUILD_PLAN.md` | Milestones 0–6 complete; Milestone 7 (post-v0.8.4: admin, padel, UX) in progress — 7a–7f shipped, 7g–7i planned |
 | `README.md` | Project overview, quick links, getting started |
+| `FILEMAP.md` | High-level project layout (see this file's File Map for per-file detail) |
+| `RATING_GUIDE.md` | Plain-language explanation of the RDR rating system |
+| `SETUP_GUIDE.md` | First-time Supabase/Vercel/GitHub setup walkthrough |
 | `CHANGELOG_PUBLIC.md` | User-facing changelog (rendered at /changelog_public) |
 | `MEMORY.md` | This file — session migration document |
-| `docs/decisions.md` | Architecture decisions (D-001 through D-058) |
-| `docs/how-to-run.md` | Local dev setup |
-| `docs/how-to-deploy.md` | Vercel deployment |
-| `docs/how-to-update-schema.md` | Supabase SQL migration guide |
-| `docs/testing.md` | Manual test checklist |
+| `docs/decisions.md` | Architecture decisions (D-001–D-058 cover Milestones 0–6; D-059+ cover Milestone 7. Decisions for v0.4–v0.8 were recorded in this file's version notes and CHANGELOG.md, not as D-numbers) |
+| `docs/how-to-run.md` | Local dev setup + env var reference |
+| `docs/how-to-deploy.md` | Vercel deployment, env vars, dev/prod project mapping |
+| `docs/how-to-update-schema.md` | Supabase SQL migration guide + production data-correction runbook |
+| `docs/testing.md` | Manual test checklist (Milestones 0–6, plus Milestone 7 section) |
 | `docs/assumptions.md` | Recorded ambiguities |
 | `docs/indexes.md` | Database indexes + rationale |
 
 #### `src/app/` — Pages & Layouts
 | File | Type | Role |
 |------|------|------|
-| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<Analytics />` from `@vercel/analytics/next`, `<main className="flex-1">`, global footer. Metadata: title "Red Dog", icons (SVG + ICO + Apple). `siteUrl` from `NEXT_PUBLIC_SITE_URL` env var. OG/Twitter with explicitly absolute image URLs via `new URL()`. `alternates.canonical`. |
-| `page.tsx` | Client | Home: Red Dog logo (623px source at 160px), tagline "A proper record for a plastic ball.", group code entry form |
+| `layout.tsx` | Server | Root layout: `min-h-dvh` body, `<Analytics />` from `@vercel/analytics/next`, `<main className="flex-1">`, global footer. Metadata: title/OpenGraph/Twitter title "Red Dog – Fetch Your Stats. Bury the Excuses.", icons (SVG + ICO + Apple). `siteUrl` from `NEXT_PUBLIC_SITE_URL` env var. OG/Twitter with explicitly absolute image URLs via `new URL()`. `alternates.canonical`. |
+| `page.tsx` | Client | Home: Red Dog logo (623px source at 160px), rotating slogan (35-entry `SLOGANS` array; first entry "Fetch Your Stats. Bury the Excuses." is the SSR default, a random one is picked client-side in `useEffect` to avoid a hydration mismatch), group code entry form |
+| `rd-admin/login/page.tsx`, `rd-admin/login/LoginForm.tsx` | Server / Client | Admin login (shared password) |
+| `rd-admin/page.tsx` | Server | Admin home: group list with player/session counts and last-session date, create-group form, logout. Surfaces Supabase query errors on screen |
+| `rd-admin/CreateGroupForm.tsx`, `rd-admin/LogoutButton.tsx` | Client | Create-group form (sport assignment, auto-slugified join code); logout |
+| `rd-admin/groups/[group_id]/page.tsx` | Server | Group detail: sport badge, join code, player list. Surfaces Supabase query errors |
+| `rd-admin/groups/[group_id]/PlayerHideToggleList.tsx` | Client | Per-player hide/unhide toggle + inline name/code editing |
+| `g/[join_code]/players/[player_id]/page.tsx` | Server | Per-player game history (7e): stat summary via `getStatLabels()`, cross-session game list. Reached by tapping a name in `LeaderboardCard`; `/v/` pages do not link to it |
+| `g/[join_code]/players/[player_id]/PlayerGameHistoryList.tsx` | Client | Game cards with a per-player W/L pill and session date link |
 | `help/page.tsx` | Server | Help page: Red Dog mark, RDR explainer, Manual vs Courts, Voids & Rating Integrity, FAQ |
 | `changelog_public/page.tsx` | Server | Renders CHANGELOG_PUBLIC.md as styled HTML via `marked` |
 | `g/[join_code]/page.tsx` | Server | Group dashboard: horizontal Red Dog logo (125px), subtitle "Statistically unnecessary. Socially unavoidable.", group name + join_code display, active session detection, Start/Continue/Leaderboard/Sessions links. Auto-generates `view_code` via `ensure_view_code` RPC on first load. Falls back to view_code redirect if join_code not found. Includes `<CopyViewLink>` in secondary nav. |
@@ -128,11 +141,11 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `g/[join_code]/players/new/AddPlayerForm.tsx` | Client | Name + code input with auto-suggest code from name |
 | `g/[join_code]/sessions/page.tsx` | Server | Session history list with active/ended badges |
 | `g/[join_code]/leaderboard/page.tsx` | Server | Leaderboard: all-time / 30-day / last-session toggle via URL query params. `from` param for context-aware back nav. `session_id` param for session browsing in Last Session mode with Previous/Next arrows. Computes GOAT designations on All-time view via `getGoatResult()`, renders via `LeaderboardCardList`. |
-| `g/[join_code]/session/[session_id]/page.tsx` | Server | **Quick Game Screen host**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Reads `?added=id1,id2` param → passes as `initialAddedIds` to RecordGameForm. Ended sessions have Games/Standings tab toggle (`tab` query param); Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `LeaderboardCardList`. |
+| `g/[join_code]/session/[session_id]/page.tsx` | Server | **Quick Game Screen host**: LIVE header, ModeToggle(manual), StaleBanner, RecordGameForm, VoidLastGame, last-game ticker, "All games →" / "Standings →" footer nav. Reads `?added=id1,id2` param → passes as `initialAddedIds` to RecordGameForm. Ended sessions have Games/Standings tab toggle (`tab` query param); Standings tab fetches `get_session_stats` RPC + `player_ratings`, renders `LeaderboardCardList`. **Active sessions also support `?tab=standings`** (7a) via shared `getSessionStandings`/`SessionStandingsList`, so the footer "Session standings →" link is session-scoped (it previously pointed at the all-time group leaderboard). Footer links read "Session games →" / "Session standings →". |
 | `g/[join_code]/session/[session_id]/players/page.tsx` | Server | Add-players-mid-session: wraps `SessionPlayerPicker`. Shows group members not yet in session, sorted by most recently played. |
 | `g/[join_code]/session/[session_id]/players/SessionPlayerPicker.tsx` | Client | Wraps `PlayerPicker` in "add-to-session" mode. On submit, enrolls selected players, redirects to session with `?added=id1,id2`. |
 | `g/[join_code]/session/[session_id]/ModeToggle.tsx` | Client | Segmented Manual/Courts toggle. **Stateless** — `mode` prop from route is source of truth, uses `<Link>`. Renders contextual subtitle ("Select teams directly" / "Manage multi-court rotation"). |
-| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Tap-to-select Quick Game Screen**. Tap order auto-assigns teams: 1+2 → Team A, 3+4 → Team B. Uses `teamACount` (actual A-team count, not total selection length) for assignment. Always-visible Team A/B summary cards. Score section progressive disclosure (appears after 4 players assigned). Receives `sportConfig: { targetPresets, playersPerTeam }` + `initialAddedIds?`. Confirmation dialogs: shutout, suspicious score, **win-by-1 (new)**. Undo snackbar (8s). `initialAddedIds` → auto-select + 2.5s green ring highlight. Debounced refresh (1000ms). `pb-24` content padding guards against sticky CTA overlap. |
+| `g/[join_code]/session/[session_id]/RecordGameForm.tsx` | Client | **Tap-to-select Quick Game Screen**. Tap order auto-assigns teams: 1+2 → Team A, 3+4 → Team B. Uses `teamACount` (actual A-team count, not total selection length) for assignment. Always-visible Team A/B summary cards. Score section progressive disclosure (appears after 4 players assigned). Receives `sportConfig: { targetPresets, playersPerTeam }` + `initialAddedIds?`. Validation routes through `getSportConfig()` (pickleball and padel both). Adds a client-side player search box in the "Pick N players" list only when there are more than 18 attendees (7b). Confirmation dialogs: shutout, suspicious score, **win-by-1 (new)**. Undo snackbar (8s). `initialAddedIds` → auto-select + 2.5s green ring highlight. Debounced refresh (1000ms). `pb-24` content padding guards against sticky CTA overlap. |
 | `g/[join_code]/session/[session_id]/EndSessionButton.tsx` | Client | 2-tap confirm (red) for ending session |
 | `g/[join_code]/session/[session_id]/VoidLastGameButton.tsx` | Client | 2-tap confirm (amber) for voiding last game. Accepts `redirectPath` prop |
 | `g/[join_code]/session/[session_id]/StaleBanner.tsx` | Client | Amber banner when session has no games for 24+ hours. Resume / Start New / End options |
@@ -155,7 +168,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 |------|------|
 | `access.ts` | `AccessMode = "full" \| "view"` type + `requireFullAccess(mode)` guard. All write actions take `mode` as first param and call this at the top. Safety net against accidental write component reuse in `/v/`. |
 | `sessions.ts` | `createSessionAction`, `endSessionAction`, `endAndCreateSessionAction`, `setSessionRulesAction` — all take `mode: AccessMode` as first param |
-| `players.ts` | `addPlayerAction` with `safeRedirect()` open-redirect prevention |
+| `players.ts` | `addPlayerAction` with `safeRedirect()` open-redirect prevention. Round-trips `?selected=` so players picked before "+ Add New Player" stay selected (and the new player is auto-selected) when returning to Start Session |
+| `admin.ts` | `adminLoginAction`, `adminLogoutAction`, `createGroupAction`, `togglePlayerHiddenAction`, `updatePlayerAction`. Every mutating action calls `requireAdminSession()` first, then uses the service-role client from `supabase/adminServer.ts` |
 | `games.ts` | `recordGameAction` (fetches `group.sport` via joined query, validates through `sportConfig.validateScores()`, returns success+deltas+undoExpiresAt), `voidLastGameAction` (atomic delta reversal), `undoGameAction` (8s undo window) — all take `mode: AccessMode` as first param. Uses `handleServerError` for structured logging |
 | `courts.ts` | 9 actions: `initCourtsAction`, `suggestCourtsAction`, `startCourtGameAction`, `recordCourtGameAction` (validates through `sportConfig`), `assignCourtSlotAction`, `clearCourtSlotAction`, `markPlayerOutAction`, `makePlayerActiveAction`, `updateCourtCountAction` — all take `mode: AccessMode` as first param. Uses `transformGameRecords` for game data normalization |
 
@@ -175,7 +189,13 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `sports/types.ts` | `SportConfig` interface: sport constants, validation methods, outcome derivation, rating inputs. `ValidationResult` type |
 | `sports/pickleball.ts` | Pickleball `SportConfig` implementation. Delegates validation/outcome to shared `validators.ts`. Constants: targetPresets=[11,15,21], playersPerTeam=2, playersPerCourt=4, maxCourts=8 |
 | `sports/validators.ts` | Shared pure client-safe validators: `validateScores()`, `isSuspiciousScore()`, `isShutout()`, `deriveOutcome()`. Single source of truth for scoring rules — imported by both SportConfig and UI components |
-| `sports/index.ts` | Sport registry: `getSportConfig(sport)` → SportConfig. Padel temporarily maps to pickleball config |
+| `sports/padel.ts` | Padel `SportConfig`: single fixed target preset of 6, win by 2, 2 players per team. Win condition is first to 6 games, win by 2, **no tiebreak and no cap** (9-7, 10-8, … are valid). Court limits are defined but Courts Mode padel support is deferred (untested/unsupported) |
+| `sports/padelValidators.ts` | Pure padel score validation/outcome helpers (tests in `sports/__tests__/padel*.test.ts`) |
+| `sports/index.ts` | Sport registry: `getSportConfig(sport)` → `pickleballConfig` or `padelConfig` |
+| `statLabels.ts` | `getStatLabels(sport)` — sport-aware wording for leaderboard/standings/player-page stats (Sets vs Games, Games For/Against vs Points For/Against). Shared by `LeaderboardCard` and the per-player page |
+| `admin/auth.ts` | Admin session: `verifyAdminPassword`, `createAdminSession`, `clearAdminSession`, `hasValidAdminSession`, `requireAdminSession` (redirects to login). HMAC-signed `rd_admin_session` cookie, 4h, HttpOnly, `secure` in production |
+| `admin/constants.ts` | `ADMIN_BASE_PATH = "/rd-admin"`, `ADMIN_LOGIN_PATH` |
+| `supabase/adminServer.ts` | `getAdminServerClient()` — service-role Supabase client. Import only from admin server actions/pages after `requireAdminSession()` |
 | `results/transformGameRecord.ts` | `transformGameRecords(rawGames)` — centralized transformation from raw Supabase rows to `GameRecord[]`. Filters voided games, normalizes game_players to teamAIds/teamBIds |
 | `supabase/server.ts` | `getServerClient()` — server-side Supabase client (anon key) |
 | `supabase/client.ts` | Browser-side Supabase singleton (anon key) |
@@ -184,8 +204,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 | `rdr.ts` | Tier + confidence utilities: `getTier(rdr)` → Walk-On/Challenger/Contender/All-Star/Elite; `tierColor(tier)` → Tailwind classes; `getConfidence(rd)` → 0–1 score; `getConfidenceLabel(conf)` → Locked In/Active/Rusty/Returning; `confidenceColor(label)` → Tailwind text classes |
 | `goat.ts` | GOAT logic: `GoatCandidate` interface, `isEligibleForReigningGoat()`, `isEligibleForAllTimeGoat()`, `getReigningGoat()`, `getAllTimeGoat()`, `getGoatResult()`. Pure functions with deterministic tiebreaker chains |
 | `components/PlayerStatsRow.tsx` | **LEGACY — do NOT use for new work.** Superseded by `LeaderboardCard`. Still used in session Standings tab. |
-| `components/LeaderboardCard.tsx` | Accordion leaderboard card. Collapsed: rank, avatar initials, name, tier badge, GOAT badge, avg diff, win %. Expanded: 2-col stat grid, status dot, RDR, confidence label. Tier badge colors via inline styles (render reliability). |
-| `components/LeaderboardCardList.tsx` | Client wrapper — manages single-expand accordion state. Used on all leaderboard pages and session Standings tab. |
+| `components/LeaderboardCard.tsx` | Accordion leaderboard card. Collapsed: rank, avatar initials, name, tier badge, GOAT badge, avg diff, win %. Expanded: 2-col stat grid, status dot, RDR, confidence label. Tier badge colors via inline styles (render reliability). Takes an optional `playerBasePath` **string** (not a function — Server Components cannot pass functions to Client Components) to make the name link to the per-player page; stat labels come from `getStatLabels(sport)`. |
+| `components/LeaderboardCardList.tsx` | Client wrapper — manages single-expand accordion state. Used on all leaderboard pages and session Standings tab. Forwards `playerBasePath` and `sport`. |
 | `components/PlayerPicker.tsx` | Shared tap-to-select player list. Two modes: `"start-session"` (min 4, min-player messaging) and `"add-to-session"` (any count, no minimum messaging). Row: white card, `rounded-xl`, selected = `bg-green-600 text-white`. CTA: always-instructive label. `onSubmit(selectedIds)` — throw an Error to surface it inside the component. **IMPORTANT:** `src/lib/` must be in `tailwind.config.ts` content paths or all classes are purged. |
 | `components/RdrHelpLink.tsx` | Small "?" link to /rdr explainer page |
 | `components/ConfidenceLabel.tsx` | Confidence label badge (Locked In / Active / Rusty / Returning) with color coding |
@@ -304,7 +324,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - Visible players' stats include all games vs hidden opponents (hiding a player removes their row, not their opponents' game counts)
 - GOAT candidates derived from already-filtered RPC result array — GOAT badges naturally restricted to visible players with no additional logic
 - Operational flows: `start/page.tsx` and `session/[id]/players/page.tsx` query `players` directly with NO hidden filter — hidden players must remain selectable in all session and game flows
-- No admin toggle UI yet — set `hidden = true` directly in Supabase dashboard until a settings screen is built
+- Hide/unhide is toggled from the admin panel (`/rd-admin/groups/[group_id]`, `togglePlayerHiddenAction`)
 
 ### RDR Tier System (cosmetic, UI-only)
 - <1100: Walk-On (gray)
@@ -385,7 +405,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - Optimistic UI after recording a game (currently relies on `redirect()` and re-render)
 - ~~Explicit A/B team buttons~~ *(replaced by tap-to-select in v0.8.0)*
 - Custom confirmation modals — shutout, suspicious, win-by-1 currently use `window.confirm()`; no custom modal UI
-- **Hidden player toggle UI** — `players.hidden` infrastructure is in place (m17.0); no admin UI to toggle it. Must be set directly in the DB until a settings screen is built.
+- ~~Hidden player toggle UI~~ *(done: admin panel, v0.9.0)*
+- Admin extras (planned, `BUILD_PLAN.md` 7g–7i): "View group" link to the `/v/` dashboard, archive groups, reopen a session + "close at…" time
 
 ### Intelligence Features
 - Elo delta display per game in game history
@@ -400,8 +421,8 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ### Structural Extensions
 - Player join/leave mid-session tracking
 - Player deactivation/archival UI
-- Admin role (currently anyone can do everything)
-- Group creation UI (currently manual via Supabase dashboard)
+- Per-group admin roles (in-app: anyone with the join code can do everything; the `/rd-admin` panel is a single shared password, no accounts)
+- ~~Group creation UI~~ *(done: admin panel)*
 - PWA / install prompt for courtside use
 - Offline score entry with sync
 
@@ -427,6 +448,12 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 - **SessionStandings.tsx and PairingBalance.tsx are orphaned on the live session page**: Still in the codebase but not rendered on the active session view (removed during Live Referee Console refactor). They're only reachable via the Standings → link. Consider cleaning up or explicitly wiring to a /standings route.
 - **CourtsManager.tsx is 1073 lines**: Largest single file. Would benefit from decomposition (court cards, waiting pool, controls as separate components).
 - **Client-side voided game filtering**: GamesList and EndedSessionGames filter voided games client-side from already-fetched data. Server-side optimization (exclude voided rows from query when toggle is OFF) is planned tech debt for large sessions.
+
+### Operations / Admin
+- **No in-app way to reopen a session or restore game numbers/times**: data corrections need the Supabase SQL Editor for those steps (7i would cover reopen + "close at…"; restoring numbering stays manual).
+- **No unvoid, and no bulk void**: correcting an early game in a long session means voiding and re-recording everything after it, one game at a time.
+- **Admin is a single shared password with no audit trail**: no record of who changed a player or when.
+- **Courts Mode padel support is deferred**: padel config defines court limits but the Courts Mode UI has not been adapted/tested for padel.
 
 ### Server Actions
 - **No rate limiting**: Any client can spam recordGameAction (files: `games.ts`, `sessions.ts`, `courts.ts`)
@@ -513,7 +540,20 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 1. **Rewrite `supabase/schema.sql` to be fully self-contained** — Currently stale at ~M6. Should include all tables (including session_courts, session_players with status, games.undo_expires_at, groups.view_code, player_ratings.peak_rating/rating_deviation/last_played_at/reacclimation_games_remaining, players.hidden), all RPC function bodies (M7-M17.0), updated views, indexes.
 
-2. **Build hidden player toggle UI** — `players.hidden` is in the DB (m17.0) but there's no admin UI to toggle it. A settings screen or player management page is needed so group admins can hide/unhide players without direct DB access. **Deliberately deferred** — no admin screen exists yet in the app at all, so this needs an admin surface designed first, not just a toggle bolted onto an existing page.
+2. **Admin follow-ups (7g–7i in `BUILD_PLAN.md`)** — "View group" link, archive groups (migration), and reopen-session-from-admin with a "close at…" time field. 7i would replace the SQL Editor step currently needed to reopen/re-close a session during data corrections.
+
+---
+
+## Production Data Corrections (runbook summary)
+
+Full steps and SQL live in `docs/how-to-update-schema.md` ("Correcting recorded game data"). The essentials, learned from real corrections on production:
+
+- **Never edit a game's teams/scores in place.** Ratings are updated inline at record time and rolled back only by LIFO void/undo (`void_last_game`), so an in-place edit would leave every later rating delta wrong. The correct fix is: void games newest-first back to the bad one, re-record the bad game correctly and every later game in order, then restore numbering/times with SQL.
+- **Voiding is per-game through the live session page** ("Void Last Game" → "Confirm Void?"). There is no bulk void and no "unvoid". `void_last_game` has no ended-session check; `record_game` rejects ended sessions, so an ended session must first be reopened (`UPDATE sessions SET ended_at = NULL …` in the SQL Editor) and re-closed afterwards (`ended_at` set to the wanted time, `closed_reason = 'manual'`).
+- **Re-recorded games get `sequence_num = MAX + 1` including voided rows** and today's `played_at`. Afterwards a SQL step pairs the new live rows (ordered by sequence) with the voided originals to restore the original `sequence_num` and `played_at`. Voided rows keep their old numbers, so "Show voided" can display duplicate G-numbers — that is expected. If more than one voided row shares a number, pick the right one explicitly (e.g. most recently voided).
+- Displayed times are America/Chicago; derive new timestamps from existing rows (offsets) rather than hardcoding timezones in SQL.
+- The auto-mode classifier has sometimes blocked a "Void Last Game" click mid-sequence. If that happens, stop and let the user do that one tap, then continue — do not work around it.
+- Data corrections and copy-only changes do not bump the app version.
 
 ---
 
@@ -557,8 +597,10 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ```
 src/
   app/
-    actions/          # Server actions (access.ts, sessions.ts, players.ts, games.ts, courts.ts)
+    actions/          # Server actions (access.ts, sessions.ts, players.ts, games.ts, courts.ts, admin.ts)
+    rd-admin/         # Admin panel (password-gated): login/, groups/[group_id]/
     g/[join_code]/    # Group routes (dynamic, full access)
+      players/[player_id]/ # Per-player game history (NEW v0.9.0)
       session/[session_id]/
         courts/       # Courts Mode sub-route
         games/        # Session game log
@@ -575,12 +617,14 @@ src/
     help/             # Static help page
     changelog_public/ # Rendered markdown changelog
   lib/
-    supabase/         # Supabase clients + helpers + RPC constants
+    supabase/         # Supabase clients (anon: server.ts/client.ts; service-role: adminServer.ts) + helpers + RPC constants
+    admin/            # Admin session auth + path constants
+    sports/           # SportConfig registry: pickleball, padel, shared validators
     components/       # Shared presentational components (LeaderboardCard, LeaderboardCardList, PlayerPicker, PlayerStatsRow [legacy])
-    *.ts              # Pure utility functions (types, env, formatting, suggestCode, autoSuggest, pairingFeedback)
+    *.ts              # Pure utility functions (types, env, formatting, statLabels, suggestCode, autoSuggest, pairingFeedback)
 supabase/
   schema.sql          # Canonical DB reference (STALE at ~M6)
-  migrations/         # Ordered SQL migrations (m0 → m15.0)
+  migrations/         # Ordered SQL migrations (m0 → m18.0)
 docs/                 # Architecture docs, how-tos, decisions, testing checklist
 ```
 
@@ -653,7 +697,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.8.4`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.9.0`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
@@ -695,9 +739,14 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Undo a game (within 8s): same RD state restoration as void
 - [ ] New player gets RD = 120 on first game (column default)
 - [ ] Player inactive 60+ days with 5+ games: first game back shows dampened delta (reacclimation)
-- [ ] Footer shows `v0.8.2`, "Changes" link shows v0.8.2 entry
 - [ ] Enter 11-10 score (win by 1) → confirmation dialog appears; confirm → game records
 - [ ] Score errors show readable message (not "[object Object]")
+- [ ] Home page: tab title and share preview read "Red Dog – Fetch Your Stats. Bury the Excuses."; the heading slogan changes between page loads
+- [ ] Session page (active): "Session standings →" opens a session-scoped standings view (not the all-time leaderboard)
+- [ ] Start session → "+ Add New Player" → return: prior selections preserved and the new player selected
+- [ ] Tap a name on a leaderboard/standings card → per-player history page (not on `/v/`)
+- [ ] Padel group: 6-2 and 9-7 record; 11-7 and 6-5 are rejected; labels read Sets/Games
+- [ ] `/rd-admin` redirects to login when logged out; wrong password shows "Incorrect password."; correct password lists groups; create group, hide/unhide a player, and edit a player's name/code all persist
 
 ---
 
@@ -747,6 +796,16 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 22. **No `hidden` filter on operational `players` queries**: `start/page.tsx` and `session/[id]/players/page.tsx` query `players` directly without filtering `hidden`. This is intentional — hidden players must remain selectable in all session and game flows. Do not add a hidden filter to these queries.
 
+23. **The service-role client stays admin-only**: `getAdminServerClient()` (`src/lib/supabase/adminServer.ts`) must only be called from admin server actions/pages after `requireAdminSession()`. Never import it from `/g/` or `/v/` code, and never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.
+
+24. **Do not pass functions from Server Components to Client Components**: this caused a real runtime error on the leaderboard (`LeaderboardCardList` received a function prop). Pass plain serializable values (e.g. `playerBasePath` string, sport string).
+
+25. **Do not swallow Next's redirect signal**: any `try/catch` around a server action that can `redirect()` must call `unstable_rethrow(error)` first (see `PlayerPicker.tsx`).
+
+26. **Padel has no tiebreak and no cap**: first to 6, win by 2, so 9-7 and 10-8 are valid. Do not add a tennis-style 6-6 → 7-6 rule. DB-level enforcement is only `winner >= target_points`; the full rule lives in `padelValidators.ts`.
+
+27. **Admin password check is exact**: `verifyAdminPassword` compares bytes with no trimming. A stray space/newline in the Vercel env value makes the password unusable.
+
 ---
 
 ## External Dependencies
@@ -755,6 +814,10 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - `NEXT_PUBLIC_SUPABASE_URL` — Project URL (browser-safe)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Anon/public key (browser-safe, subject to RLS)
 - `NEXT_PUBLIC_APP_VERSION` — Auto-injected from package.json at build time, displayed in global footer
+- `NEXT_PUBLIC_SITE_URL` — Absolute site URL for OG/Twitter image URLs and the canonical link (production: `https://playreddog.com`)
+- `SUPABASE_SERVICE_ROLE_KEY` — Server-only; used only by the admin panel (`adminServer.ts`). Each Supabase project has its own key — dev's key does not work against production
+- `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` — Admin panel login password and cookie-signing secret (server-only)
+- Two Supabase projects exist: dev (Vercel Preview / `dev` branch) and production (Vercel Production / `main`). Env var scopes in Vercel must match.
 
 ### Vercel
 - Hosting via Next.js preset
@@ -822,12 +885,12 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | Table | Key Columns | Notes |
 |-------|-------------|-------|
 | `groups` | id, name, join_code, view_code, view_code_created_at, sport | join_code: lowercase alphanumeric + hyphens, unique. view_code: nullable, unique, format `^[a-z0-9\-]+$`, auto-generated as `{join_code}-view`. sport: TEXT NOT NULL DEFAULT 'pickleball', CHECK IN ('pickleball', 'padel') |
-| `players` | id, group_id, display_name, code, is_active | code: uppercase, unique per group |
-| `sessions` | id, group_id, name, started_at, ended_at, closed_reason | Partial unique: one active per group |
+| `players` | id, group_id, display_name, code, is_active, hidden | code: uppercase, unique per group (`players_group_code_unique`). `hidden` (m17.0) excludes a player from leaderboards only |
+| `sessions` | id, group_id, name, started_at, ended_at, closed_reason, target_points_default, win_by_default | Partial unique: one active per group (`idx_one_active_session_per_group`). `ended_at IS NULL` = open; the app has no reopen path (planned as 7i) — reopening is a SQL `UPDATE` |
 | `session_players` | session_id, player_id, **status**, inactive_effective_after_game | Status: ACTIVE or INACTIVE. Added in m8.0 |
-| `games` | id, session_id, sequence_num, scores, dedupe_key, voided_at, undo_expires_at | Immutable, soft-delete only. `undo_expires_at` for 8s undo window |
+| `games` | id, session_id, sequence_num, scores, dedupe_key, played_at, voided_at, undo_expires_at | Immutable, soft-delete only. `undo_expires_at` for 8s undo window. **`sequence_num` has no unique constraint** and `record_game` assigns `MAX(sequence_num) + 1` over ALL games in the session, voided included — so after voids, new games get numbers above the voided ones, and voided rows keep their numbers |
 | `game_players` | game_id, player_id, team ('A'/'B') | 4 rows per game |
-| `player_ratings` | group_id, player_id, rating, games_rated, provisional, peak_rating, peak_rating_achieved_at | Rating state + peak tracking for GOAT |
+| `player_ratings` | group_id, player_id, rating, games_rated, provisional, peak_rating, peak_rating_achieved_at, rating_deviation, last_played_at, reacclimation_games_remaining | Mutable rating state (RDR v2) + peak tracking for GOAT. Rolled back only by LIFO void/undo, which is why games cannot be edited in place |
 | `rating_events` | game_id, player_id, pre/post_rating, delta, algo_version | Elo audit log, idempotent via UNIQUE |
 | `session_courts` | id, session_id, court_number, status, team_a_ids, team_b_ids | Added in m8.0. Status: OPEN or IN_PROGRESS |
 | `game_rdr_deltas` | game_id, player_id, group_id, delta, rdr_before, rdr_after, games_before, games_after, voided_at | Added in m10.0. Audit trail for rating-correct LIFO void |
@@ -861,6 +924,10 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.8.0 — Quick Game Screen + Player Picker | `570c7f8`→`da59fd3` | Tap-to-select Quick Game Screen replaces Live Referee Console. Auto-team by tap order (1+2→A, 3+4→B). Always-visible team summary cards. Score entry progressive disclosure. Always-instructive CTA. New `/session/[id]/players` add-players-mid-session route. Shared `PlayerPicker` component (start-session + add-to-session modes). `?added=id1,id2` auto-select + 2.5s green ring. Fixed wrong-team-after-deselect bug. Fixed Tailwind purge bug (`src/lib/` added to content paths). |
 | v0.8.1 — Post-Release Bug Fixes | `418ee54`→`513243b` | `pb-24` padding fix for PlayerPicker sticky CTA. `addPlayerAction` auto-select via `?added=` redirect. Enrollment failure fallback redirect. Removed dead `?selected=N` param. Rewrote all 16 RecordGameForm regression tests for tap-to-select UI. 226 tests across 17 files. |
 | v0.8.2 — Win-by-1 + Error Fix | `aafc3ac`→`33127fe` | Win-by-1 scores now allowed (m16.0 sets `v_win_by := 1`; client validator updated). Soft `window.confirm()` dialog for win-by-1. Fixed `handleServerError` extracting `.message` from `PostgrestError` (was `[object Object]`). Version bumped to 0.8.2 in package.json. |
+| v0.8.3 — Games Played on Cards | `182ef7e`→`56c02a6` | Games-played count on leaderboard and session standings cards (10px, null-safe, singular/plural). |
+| v0.8.4 — Hidden Players | `c118daf`→`d07011d` | `players.hidden` (m17.0); `get_group_stats`/`get_session_stats` filter at the final result stage; 8 integration tests. Group home shows the group name instead of the join code. |
+| v0.9.0 — Padel + Admin Tools (Milestone 7a–7f) | `cf4dd23`→`b791851` | 7a session-scoped standings link; 7b player search in the roster; 7c padel manual scoring (`padel.ts`, `padelValidators.ts`, migration m18.0); 7d admin panel (`/rd-admin`, shared password, service-role writes); 7e per-player history page; 7f admin player name/code editing; sport-aware stat labels; `?selected=` round-trip when adding a player mid-start; `unstable_rethrow` fix in `PlayerPicker`; `LeaderboardCardList` takes a `playerBasePath` string. 279 tests / 21 files. Promoted to production after m18.0 and the admin env vars were confirmed there. |
+| Post-0.9.0 — Admin error surfacing, slogans, tagline | `0546eb3`, `0d69763` | Admin pages now show Supabase query errors instead of an empty state. Slogan rotation expanded to 35 entries; site title/OG/Twitter tagline changed to "Fetch Your Stats. Bury the Excuses." No version bump. |
 
 ---
 

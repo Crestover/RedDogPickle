@@ -33,6 +33,7 @@ This file records every significant decision made during the build, along with t
 ### D-005: Session End via Service Role Only
 **Decision:** The only UPDATE operation in the system — setting `sessions.ended_at` — is performed exclusively via a Next.js Server Action using the `SUPABASE_SERVICE_ROLE_KEY`.
 **Why:** Keeps the anon key truly read/insert only. The service role key is never exposed to the browser. This enforces immutability of game records at the database layer without needing DB-level triggers.
+**Update:** Superseded in part — session end moved to the `end_session` SECURITY DEFINER RPC (D-019), and later updates (void/undo, session rules, courts) also go through RPCs. The service-role key is now used only by the admin panel (D-060).
 
 ---
 
@@ -117,6 +118,8 @@ This file records every significant decision made during the build, along with t
 ### D-020: No Service Role Key in Milestone 2
 **Decision:** The `SUPABASE_SERVICE_ROLE_KEY` is not used in Milestone 2. Both RPCs are callable with the anon key. The server actions use `NEXT_PUBLIC_SUPABASE_ANON_KEY` only.
 **Why:** The RPC design (D-018, D-019) eliminates the need for the service role key in this milestone. This keeps the env var surface minimal and reduces risk. The service role key may be added in a future milestone if needed.
+**Update:** It was added in Milestone 7 for the admin panel only (D-060).
+**Update:** It was added in Milestone 7 for the admin panel only (D-060).
 
 ### D-021: End Session UX — Two-Tap Confirmation
 **Decision:** The "End Session" button requires two taps: the first tap changes it to "Confirm End Session" (red); the second tap executes the action. A "Cancel" link appears between taps.
@@ -350,3 +353,49 @@ This file records every significant decision made during the build, along with t
 ### D-058: Elo Idempotency via EXISTS + UNIQUE Constraint
 **Decision:** `apply_ratings_for_game` begins with `IF EXISTS (SELECT 1 FROM rating_events WHERE game_id = p_game_id AND algo_version = 'elo_v1') THEN RETURN; END IF;`. The `rating_events` table also has a `UNIQUE(game_id, player_id, algo_version)` constraint as a belt-and-suspenders backstop.
 **Why:** The fire-and-forget pattern means the RPC could theoretically be called multiple times for the same game (retry logic, duplicate triggers). The EXISTS check makes the function a no-op on re-invocation. The UNIQUE constraint provides database-level enforcement even if the EXISTS check were somehow bypassed.
+
+---
+
+> **Note on numbering:** D-001 to D-058 were recorded during Milestones 0–6. Decisions made during v0.4–v0.8 (RDR, view-only links, GOAT badges, RDR v2, Quick Game Screen, win-by-1, hidden players) were documented in `CHANGELOG.md` and `MEMORY.md` rather than here. Numbering resumes below for Milestone 7 (v0.9.0).
+
+## Milestone 7 — Admin, Padel, UX (v0.9.0)
+
+### D-059: Admin Panel — Non-Obvious Path + Shared Password + Signed Cookie
+**Decision:** The admin panel lives at `/rd-admin` (not linked from the public app) and is gated by a single shared `ADMIN_PASSWORD`. On success it sets an HttpOnly cookie containing `expiresAt.signature`, where `signature` is an HMAC-SHA256 of the expiry keyed by `ADMIN_SESSION_SECRET`. Sessions last 4 hours. There is no session table and no user accounts. `requireAdminSession()` is called at the top of every admin page and server action.
+**Why:** The app is trust-based for players, but creating groups and editing players are operator tasks that should not be open to anyone with a join code. A shared password is enough for a single operator, and a self-verifying cookie avoids new tables. The obscure path is defense-in-depth only — the password check is the real boundary. The path was shortened from an initially random suffix to `/rd-admin` by request. The password is compared exactly (no trimming), so a stray space in the env value makes it unusable.
+
+### D-060: Service-Role Key Reintroduced — Admin Panel Only
+**Decision:** `SUPABASE_SERVICE_ROLE_KEY` is used only by `src/lib/supabase/adminServer.ts`, which is only called from admin server actions/pages after `requireAdminSession()`. Everything else keeps using the anon key plus SECURITY DEFINER RPCs. Supersedes the "no service role key" stance of D-020 and the service-role wording of D-005.
+**Why:** There is no anon UPDATE policy on `players` (and creating a group with a chosen sport is an operator action), so admin writes need to bypass RLS. Scoping the privileged client to admin code keeps the blast radius small. Because each Supabase project has its own key, a dev key saved in production breaks the admin panel — see `how-to-deploy.md`.
+
+### D-061: Admin Pages Surface Query Errors
+**Decision:** The admin group list and group detail pages show the Supabase `error.message` on screen instead of treating an errored query like an empty result.
+**Why:** With a mismatched service-role key the group list rendered "No groups yet." even though groups existed, which cost several rounds of debugging. An internal operator page should fail loudly.
+
+### D-062: Padel — One Set per Recording, First to 6 Win by 2, No Tiebreak, No Cap
+**Decision:** A padel group records one set per submission, rated independently, in the existing `games` table (scores = games won in the set). A set is valid when the winner has at least 6 games and leads by at least 2; there is no tiebreak and no cap, so 9-7 and 10-8 are valid. Validation lives in `src/lib/sports/padelValidators.ts` and is reached through `getSportConfig()`; the DB only enforces `winner >= target_points`. `RecordGameForm` now validates through the sport config for both sports.
+**Why:** This is how the group actually plays. The first implementation assumed a tennis-style 6-6 → 7-6 tiebreak and was corrected after the user pointed out that sets are win-by-2 with no cap. Recording per set (rather than per match) keeps the data model and rating math identical to pickleball. **Deferred:** Courts Mode padel support; DB-level enforcement of the full win condition.
+
+### D-063: Migration m18.0 — Widen `target_points` CHECK Constraints
+**Decision:** `m18.0_padel_target_points.sql` widens the `CHECK` constraints on `sessions.target_points_default` and `games.target_points` to also allow padel's set target (the applied list is 6, 7, 8, 9, 10 alongside 11, 15, 21 — `7` was added when applying to production, and the file was updated to match).
+**Why:** The original plan was client-side-only changes, but these constraints were hard blocks: `record_game` failed outright for a padel target of 6. This was found by end-to-end testing against the dev database rather than from reading the code.
+
+### D-064: Sport-Aware Stat Labels via a Shared Helper
+**Decision:** `getStatLabels(sport)` (`src/lib/statLabels.ts`) supplies the wording for stat grids — Sets/Games and Games For/Against for padel, Games/Points For/Against for pickleball — and is used by `LeaderboardCard` and the per-player page. Raw game-log wording ("games") is intentionally left as is.
+**Why:** The pickleball wording was wrong for padel, and duplicating the logic in two places invited drift. A regression test locks the labels.
+
+### D-065: Per-Player Game History Page
+**Decision:** `/g/[join_code]/players/[player_id]` shows a player's stat summary and a cross-session game list (per-player W/L pill and session date link). It is reached by tapping a name on a leaderboard or standings card, via a `playerBasePath` string prop on `LeaderboardCard`. The `/v/` view-only pages do not get the link.
+**Why:** Players wanted to see their own history. The prop is a plain string because Next.js cannot pass function props from a Server Component to a Client Component (this caused a real runtime error during development). A read-only `/v/` mirror was out of scope.
+
+### D-066: Correct Mistakes by Void + Re-Record, Not In-Place Edits
+**Decision:** A wrong game is corrected by voiding newest-first back to it, re-recording it and everything after it, and then restoring the original `sequence_num`/`played_at` with SQL (runbook in `how-to-update-schema.md`). Games are not edited in place and there is no "unvoid".
+**Why:** Ratings are computed inline at record time and are reversible only LIFO (`void_last_game`). An in-place edit would leave every later rating delta wrong. Voided rows remain as an audit trail. The cost is a long manual process for early-session mistakes; an admin "reopen session" tool is planned (7i) but would not remove the re-record work.
+
+### D-067: Player Search Only Above 18 Attendees
+**Decision:** The tap-to-select list in `RecordGameForm` shows a search box only when a session has more than 18 attendees.
+**Why:** The Quick Game Screen is built for zero typing; small groups should keep that. `PlayerPicker` (start session / add players) already had search.
+
+### D-068: Rotating Home-Page Slogan Picked Client-Side
+**Decision:** The home page holds a list of slogans; the first is the server-rendered default and a random one is chosen in a client `useEffect`. The site title and share-preview text (OpenGraph/Twitter) use a single fixed tagline ("Fetch Your Stats. Bury the Excuses.") rather than a random one.
+**Why:** Picking randomly during render would produce a hydration mismatch between server and client. Link previews need a stable title. The tagline was chosen partly because, unlike pickleball-specific wording, it also fits padel groups.

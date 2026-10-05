@@ -19,6 +19,10 @@ Every new feature must include:
 - Acceptance criteria traced to `SPEC.md`
 - Manual test steps added to `docs/testing.md`
 
+Also update `MEMORY.md` (version, file map, environments, milestone history) whenever a release or schema change ships — see its "Version Bump Checklist".
+
+> **Status (2026-10-04):** All of Milestones 0–6 shipped long ago; their checkboxes below were never ticked and are kept as the original plan. Versions 0.4–0.8 added features beyond this plan (RDR, view-only links, GOAT badges, RDR v2, Quick Game Screen, win-by-1, hidden players) — see `CHANGELOG.md`. Milestone 7 below is the live roadmap: 7a–7f shipped in v0.9.0; 7g–7i are planned.
+
 ---
 
 ## Milestone 0: Project Setup
@@ -107,7 +111,7 @@ Goal: Stats are visible and accurate.
 ---
 
 ## Milestone 7: Post-v0.8.4 Roadmap
-Goal: admin tooling, UX polish, and padel support. Planned 2026-09-19; order reflects lift/dependency, not strict sequencing.
+Goal: admin tooling, UX polish, and padel support. Planned 2026-09-19; order reflects lift/dependency, not strict sequencing. 7a–7f shipped in v0.9.0 (live on production); 7g–7i are planned and not started.
 
 - [x] 7a. **Verify session "Standings" footer link scope** — confirmed a real bug: the active-session link pointed at the all-time group leaderboard. Fixed by adding a `?tab=standings` session-scoped standings sub-screen to the active session page, matching the pattern already used for ended sessions. Shared fetch/render logic factored into `getSessionStandings`/`SessionStandingsList`. Verified manually against dev DB.
 - [x] 7b. **Player search in tap-to-select roster** — `PlayerPicker.tsx` (start-session / add-to-session flows) already had search; the actual gap was `RecordGameForm.tsx`'s "Pick N players" list. Added a client-side search input there, gated behind a >18-attendee threshold. Verified manually.
@@ -117,6 +121,7 @@ Goal: admin tooling, UX polish, and padel support. Planned 2026-09-19; order ref
 - [x] 7f. **Edit player name/code in admin screen** — `PlayerHideToggleList.tsx` now supports inline editing (name + code, auto-uppercased) alongside the hide toggle, via a new `updatePlayerAction`. Validates `code` format and catches the `players_group_code_unique` constraint (23505) with a friendly error — the row stays in edit mode on failure rather than silently reverting. Verified end-to-end: edit persists to DB, duplicate-code rejection shows inline and doesn't corrupt state, cancel reverts cleanly.
 - [ ] 7g. **"View group" link from admin screen** — group detail page (`/rd-admin/groups/[group_id]`) gets a link to that group's `/v/[view_code]` view-only dashboard (leaderboard, session history, game logs) — not the write-access `/g/[join_code]` dashboard, since admin is reviewing, not operating. Generate the view_code on demand (`ensure_view_code` RPC, already used elsewhere) if the group doesn't have one yet.
 - [ ] 7h. **Archive groups** — `groups.archived_at timestamptz NULL` (new migration; mirrors the `sessions.ended_at` nullable-timestamp pattern). Archive/Unarchive toggle on the group detail page (same optimistic pattern as the player hide toggle). Main admin list filters to `archived_at IS NULL` by default, plus a "View archived (N) →" link to a separate `/rd-admin/archived` list. Archived groups can't start new sessions — enforced as a pre-flight check in `createSessionAction`/`endAndCreateSessionAction` (TS layer, not an RPC rewrite, matching the project's existing "RPC is a loose backstop" pattern) — but can still be viewed via the 7g view-only link. **Open question before building:** should archiving lock down *only* session-starting (default plan), or all other writes too (adding players, etc.)?
+- [ ] 7i. **Reopen session from admin screen** — "Sessions" list on `/rd-admin/groups/[group_id]` (date, label, game count, open/ended status) with a confirm-to-reopen button on ended sessions. New `reopenSessionAction` (service-role client, `requireAdminSession()` first) clears `ended_at` and `closed_reason`, after verifying the session belongs to the group in the URL. Admin-only by design — not an anon-callable RPC. **Guard:** block the reopen if the group already has an open session (two live sessions would confuse "Continue Session"), with a message to end the other one first. **Extension:** a "Close at…" time field on open sessions, so a corrected session can be re-closed at its real end time (needed in every data-correction run so far; today it's SQL). No audit trail by default; an optional `reopened_at` column would need a migration. **Out of scope:** a tool to restore original game numbers/times after a void-and-re-record correction (still a manual SQL step).
 - [ ] **Docs:** Update `docs/testing.md`, `docs/decisions.md`, `docs/assumptions.md`, `CHANGELOG.md`, `README.md`, and `MEMORY.md` as each sub-item ships.
 
 ---
@@ -137,8 +142,12 @@ Goal: admin tooling, UX polish, and padel support. Planned 2026-09-19; order ref
 ---
 
 ## Deferred (Post-MVP)
-- Elo rating computation
+Originally deferred and since delivered: ~~Elo rating computation~~ (Elo v1, then RDR v1/v2), ~~voiding games~~ (LIFO void + 8s undo), ~~admin screen~~ (`/rd-admin`, Milestone 7).
+
+Still deferred:
 - Player avatars / profiles
 - Push notifications
-- Editing or voiding games
-- Authentication / admin tiers
+- Editing games in place (by design — correct with void + re-record)
+- Real authentication / per-user admin accounts
+- Courts Mode support for padel
+- DB-level enforcement of padel's win condition

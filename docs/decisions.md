@@ -399,3 +399,7 @@ This file records every significant decision made during the build, along with t
 ### D-068: Rotating Home-Page Slogan Picked Client-Side
 **Decision:** The home page holds a list of slogans; the first is the server-rendered default and a random one is chosen in a client `useEffect`. The site title and share-preview text (OpenGraph/Twitter) use a single fixed tagline ("Fetch Your Stats. Bury the Excuses.") rather than a random one.
 **Why:** Picking randomly during render would produce a hydration mismatch between server and client. Link previews need a stable title. The tagline was chosen partly because, unlike pickleball-specific wording, it also fits padel groups.
+
+### D-069: All Leaderboard Views Rank by Win %
+**Decision:** The All-time and 30-Day leaderboards (`/g/` and `/v/`) rank by win % → point diff → RDR → name, the same order Last Session already used. They pass `p_sort_by: 'win_pct'` to `get_group_stats`; the `'rdr'` sort mode still exists in the RPC but the UI no longer uses it. GOAT badges are still chosen by rating.
+**Why:** The user chose win % as the ranking for every view (2026-11-22), so a player's position reflects results rather than the rating model. RDR stays visible on each card. The RPC already supported this order, so no migration was needed.

@@ -662,3 +662,10 @@ Same as Milestone 2. No new migration to apply.
 ### Test AK — Data Correction Dry Run (procedure in `how-to-update-schema.md`)
 - [ ] On the dev database: record 3 games, void the last 2, re-record them differently, run the renumber SQL → game list shows the corrected games in the original positions with the original times; "Show voided" still lists the voided rows
 - [ ] Ratings after the correction match a session recorded cleanly in the final order
+
+### Test AL — Leaderboard Ranks by Win % (D-069)
+- [ ] All-time tab (`/g/{code}/leaderboard` and `/v/{view_code}/leaderboard`) → players listed in descending win %; a player with a higher RDR but lower win % sits below
+- [ ] 30 Days tab → same win % order for players with games in the window
+- [ ] Two players with equal win % → the better point differential ranks first
+- [ ] GOAT badges still go to the same players as before (rating-based)
+- [ ] Help page → Leaderboards section says players are ranked by win %

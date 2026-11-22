@@ -2,10 +2,11 @@
 
 ---
 
-## Coming Next
+## November 22, 2026 — Leaderboards Ranked by Win %
 
 ### Changed
-- All-Time and 30-Day leaderboards now rank players by win %. Ties go to point differential, then RDR. Your RDR still shows on every card.
+- **The All-Time and 30-Day leaderboards now rank players by win percentage instead of rating.** Whoever wins the biggest share of their games sits at the top. If two players have the same win %, the one with the better point differential goes first, then the higher rating. Last Session already worked this way, so all three views now rank players the same way.
+- Your RDR still shows on every card, and the GOAT badges are still based on rating, so nothing changes there.
 
 ---
 

@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-10-04 — v0.9.0 (live on production)
+> Last updated: 2026-11-22 — v0.9.0 + leaderboards rank by win % (live on production)
 
 ---
 
@@ -764,7 +764,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 
 6. **Elo recompute replays from `t0` across ALL group sessions**: Not just the voided session. This is intentional — later games' deltas depend on prior ratings. Scoping to one session would leave stale deltas.
 
-7. **Leaderboard deterministic ordering**: Last Session: `win_pct DESC, point_diff DESC, rdr DESC NULLS LAST, display_name ASC`. All-Time/30-Day (rdr mode): `rdr DESC NULLS LAST, win_pct DESC, point_diff DESC, display_name ASC`. Server-side only — no client re-sorting.
+7. **Leaderboard deterministic ordering**: All three views (All-Time, 30-Day, Last Session): `win_pct DESC, point_diff DESC, rdr DESC NULLS LAST, display_name ASC`. All-Time/30-Day pass `p_sort_by: 'win_pct'` to `get_group_stats` (switched from `'rdr'` on 2026-11-22, see D-069). Server-side only — no client re-sorting.
 
 8. **Root layout owns `<main>`, pages use `<div>`**: Prevents nested `<main>` elements. Pages that need vertical centering use `flex-1`. Content pages use plain `flex flex-col`.
 

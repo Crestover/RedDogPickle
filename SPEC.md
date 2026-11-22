@@ -282,10 +282,11 @@ Toggle:
 - point_diff
 - avg_point_diff
 
-Sorting:
+Sorting (all three views — All-time, Last 30 Days, Last Session):
 1. win_pct desc
-2. games_won desc
-3. point_diff desc
+2. point_diff desc
+3. rdr desc (nulls last)
+4. display_name asc
 
 Stats computed from raw games only.
 

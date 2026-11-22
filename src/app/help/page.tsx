@@ -164,6 +164,10 @@ export default async function HelpPage({ searchParams }: PageProps) {
             <li><strong>RDR rating</strong></li>
           </ul>
           <p className="text-sm text-gray-600 leading-relaxed mt-2">
+            Players are ranked by win percentage. Ties go to point
+            differential, then RDR.
+          </p>
+          <p className="text-sm text-gray-600 leading-relaxed mt-2">
             Clean. Simple. Always up to date.
           </p>
         </section>

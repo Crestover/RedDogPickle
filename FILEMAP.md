@@ -1,4 +1,4 @@
-# RedDogPickle — Current File Map (v0.9.0)
+# RedDogPickle — Current File Map (v0.9.1)
 
 A high-level map of the project. For per-file detail (responsibilities, props, guardrails) see **MEMORY.md** ("Complete File Map").
 

@@ -6,13 +6,16 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 
 ---
 
-## [Unreleased] — Post-0.9.0 (no version bump)
+## [0.9.1] — Leaderboards Rank by Win % (2026-11-22)
+
+Also rolls up the post-0.9.0 admin fix and tagline change below, which had shipped without a version bump.
 
 ### Fixed
 - Admin panel (`/rd-admin` group list and group detail) now shows the Supabase `error.message` on screen instead of treating a failed query as an empty result. A service-role key from the wrong Supabase project had made the group list read "No groups yet." (commit `0546eb3`).
 
 ### Changed
 - Leaderboard All-time and 30-Day views (group and view-only pages) now rank by win % instead of RDR. Tie-breaks: point differential, then RDR, then name — the same order Last Session already used. Both pages now pass `p_sort_by: 'win_pct'` to `get_group_stats`, which already supported that sort, so no migration is needed. GOAT badges are unaffected; they're computed separately. Shipped to production 2026-11-22 (commit `49edaeb`). The Help page's Leaderboards section now states the ranking order.
+- Version bumped to 0.9.1 (`package.json`, footer).
 - Site title, OpenGraph title/image alt and Twitter card title (`src/app/layout.tsx`) are now "Red Dog – Fetch Your Stats. Bury the Excuses." (previously "A Proper Record for a Plastic Ball."). The share image is unchanged (logo only).
 
 ### Documentation

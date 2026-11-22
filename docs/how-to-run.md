@@ -79,7 +79,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run start` | Run production build locally |
 | `npm run lint` | Run ESLint |
 | `npm run type-check` | Run TypeScript type checker without emitting |
-| `npm test` / `npx vitest run` | Run the unit test suite (279 tests across 21 files as of v0.9.0) |
+| `npm test` / `npx vitest run` | Run the unit test suite (279 tests across 21 files as of v0.9.1) |
 | `npm run test:integration` | SQL/RPC integration tests (needs a real Supabase project in `.env.local`) |
 
 ---

@@ -1,6 +1,6 @@
 # MEMORY.md — Red Dog
 
-> Last updated: 2026-11-22 — v0.9.0 + leaderboards rank by win % (live on production)
+> Last updated: 2026-11-22 — v0.9.1 (live on production)
 
 ---
 
@@ -32,7 +32,7 @@ Red Dog is a **mobile-first pickleball and padel stats tracker** for live courts
 ### Active Sprint Goal
 **Milestone 7 — v0.9.0 is live on `main`/production; day-to-day work continues on `dev`. Post-v0.8.4 roadmap: admin tooling, UX polish, padel.** See `BUILD_PLAN.md` Milestone 7 for the full tracked list — 7a through 7f all landed and shipped in 0.9.0: 7a (session standings link scoping), 7b (player search in RecordGameForm), 7c (padel manual scoring — see below), 7d (admin panel — see below), 7e (per-player game history page, `/g/[join_code]/players/[player_id]`, linked from `LeaderboardCard`), 7f (edit player name/code in admin screen). **Still planned, not built:** 7g (admin "View group" link to the `/v/` view-only dashboard), 7h (archive groups, needs a migration), 7i (reopen a session from admin, plus a "close at…" time field). `main`/production only gets updated on explicit user confirmation (fast-forward `git push origin dev:main`).
 
-Post-0.9.0 (no version bump): the home-page slogan rotation was expanded to 35 entries (`src/app/page.tsx`, client-only random pick; first entry is the SSR default) and the site tagline/share-preview title in `layout.tsx` (`<title>`, OpenGraph title + image alt, Twitter title) changed to "Red Dog – Fetch Your Stats. Bury the Excuses." (chosen partly because it works for padel too). The share image `PlayRedDog_ProperRecord_1200x630px.png` is just the logo — no slogan text is baked in.
+Post-0.9.0 (rolled into v0.9.1): the home-page slogan rotation was expanded to 35 entries (`src/app/page.tsx`, client-only random pick; first entry is the SSR default) and the site tagline/share-preview title in `layout.tsx` (`<title>`, OpenGraph title + image alt, Twitter title) changed to "Red Dog – Fetch Your Stats. Bury the Excuses." (chosen partly because it works for padel too). The share image `PlayRedDog_ProperRecord_1200x630px.png` is just the logo — no slogan text is baked in.
 
 Admin panel (7d, 7f): `/rd-admin` (non-obvious path, not linked anywhere in the public app; login at `/rd-admin/login`), password-gated via `ADMIN_PASSWORD` + a signed HttpOnly cookie (`src/lib/admin/auth.ts` — HMAC-SHA256 over an expiry timestamp keyed by `ADMIN_SESSION_SECRET`, 4h session, no DB-backed session table; the password check is an exact byte comparison — no trimming). Server actions in `src/app/actions/admin.ts`: `adminLoginAction`, `adminLogoutAction`, `createGroupAction`, `togglePlayerHiddenAction`, `updatePlayerAction` (name + code, handles the `players_group_code_unique` 23505 violation). Writes go through a service-role Supabase client (`src/lib/supabase/adminServer.ts`), the only use of `SUPABASE_SERVICE_ROLE_KEY` in application code — every other part of the app deliberately uses only the anon key. The service-role client is only ever constructed inside admin server actions, after `requireAdminSession()` has verified the cookie. The group list and group detail pages surface Supabase query errors on screen instead of showing an empty state (a mismatched service-role key once made them look like "No groups yet."). All three env vars (`ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`) are set in Vercel Production with values distinct from dev; `.env.local` has dev-test placeholders, which is correct for local dev. **Env var gotcha:** Vercel binds env vars at deployment-creation time — editing a variable and clicking Redeploy has not reliably picked up changes here; a fresh commit-triggered build did. Also confirm you are editing the `red-dog-pickle` Vercel project, not another project in the same account.
 
@@ -70,7 +70,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ### Git State
 - **Branch:** `dev` — all active development here; user merges to `main` manually
-- **Version:** `0.9.0` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC) — live on `main`/production and on `dev`. Data corrections and copy-only changes (slogans, tagline) do not bump the version.
+- **Version:** `0.9.1` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC) — live on `main`/production and on `dev`. Data corrections and copy-only changes (slogans, tagline) do not bump the version.
 - **Tests:** 279 passing across 21 files (`npx vitest run`)
 - **Latest migration:** `m18.0_padel_target_points.sql`
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`
@@ -81,15 +81,15 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 ### Environments
 | Environment | Vercel Branch | Supabase Instance | Status |
 |-------------|---------------|-------------------|--------|
-| Production  | `main`        | Production        | v0.9.0 (m16.0, m17.0, m18.0 all applied; admin env vars set) |
-| Dev/Preview | `dev`         | Dev               | v0.9.0 (same schema as production). The free-tier dev Supabase project auto-pauses after inactivity — if its URL stops resolving, resume it from the Supabase dashboard |
+| Production  | `main`        | Production        | v0.9.1 (m16.0, m17.0, m18.0 all applied; admin env vars set) |
+| Dev/Preview | `dev`         | Dev               | v0.9.1 (same schema as production). The free-tier dev Supabase project auto-pauses after inactivity — if its URL stops resolving, resume it from the Supabase dashboard |
 
 ### Complete File Map
 
 #### Root Config
 | File | Role |
 |------|------|
-| `package.json` | v0.9.0, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
+| `package.json` | v0.9.1, deps: next 15.1.11, react 19, @supabase/supabase-js 2.49.1, marked 17.0.3, @vercel/analytics. devDeps: vitest, @vitejs/plugin-react, @testing-library/react, @testing-library/jest-dom, jsdom. Scripts: dev/build/start/lint/type-check/test/test:watch/test:integration |
 | `vitest.config.ts` | Vitest config: `@vitejs/plugin-react`, jsdom environment, `@/` alias, setup file `src/test-setup.ts` |
 | `vitest.integration.config.ts` | Separate config for SQL/RPC integration tests (dotenv, no jsdom). Run via `npm run test:integration` |
 | `public/robots.txt` | Blocks all crawling: `User-agent: * / Disallow: /` |
@@ -697,7 +697,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 - [ ] Courts Mode → record from court → score validation works
 - [ ] End session → session shows "Ended" badge, form disappears, game list shown
 - [ ] Leaderboard → all-time / 30-day / last-session tabs work
-- [ ] Footer shows `v0.9.0`, "Changes" link goes to /changelog_public
+- [ ] Footer shows `v0.9.1`, "Changes" link goes to /changelog_public
 - [ ] Stale banner appears for sessions with no games in 24+ hours
 - [ ] Record game → undo snackbar appears with 8s countdown, undo works
 - [ ] Pre-submit preview shows winner chip (green) + loser chip (amber)
@@ -854,7 +854,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `end_session` | DEFINER | `(p_session_id uuid)` | `void` | Sets ended_at + closed_reason='manual' |
 | `record_game` | DEFINER | `(p_session_id, p_team_a_ids[], p_team_b_ids[], p_team_a_score, p_team_b_score, p_force)` | `jsonb` | Atomic game recording with dedup. FOR UPDATE lock |
 | `get_session_stats` | INVOKER | `(p_session_id uuid)` | `TABLE(11 cols incl rdr)` | Session leaderboard. Sorted: win_pct → point_diff → rdr → name |
-| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?, p_sort_by text?)` | `TABLE(13 cols incl rdr, peak_rating, peak_rating_achieved_at)` | Group leaderboard. Default / 'win_pct': win_pct → point_diff → rdr → name (used by All-time + 30-Day since post-0.9.0). p_sort_by='rdr': rdr → win_pct → point_diff → name (no longer used by the UI) |
+| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?, p_sort_by text?)` | `TABLE(13 cols incl rdr, peak_rating, peak_rating_achieved_at)` | Group leaderboard. Default / 'win_pct': win_pct → point_diff → rdr → name (used by All-time + 30-Day since v0.9.1). p_sort_by='rdr': rdr → win_pct → point_diff → name (no longer used by the UI) |
 | `get_last_session_id` | INVOKER | `(p_join_code text)` | `uuid` | Most recently ended session |
 | `get_session_pair_counts` | INVOKER | `(p_session_id uuid)` | `TABLE(5 cols)` | All attendee pairs + partner count |
 | `apply_ratings_for_game` | DEFINER | `(p_game_id uuid)` | `void` | Idempotent Elo update for one game |
@@ -927,7 +927,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | v0.8.3 — Games Played on Cards | `182ef7e`→`56c02a6` | Games-played count on leaderboard and session standings cards (10px, null-safe, singular/plural). |
 | v0.8.4 — Hidden Players | `c118daf`→`d07011d` | `players.hidden` (m17.0); `get_group_stats`/`get_session_stats` filter at the final result stage; 8 integration tests. Group home shows the group name instead of the join code. |
 | v0.9.0 — Padel + Admin Tools (Milestone 7a–7f) | `cf4dd23`→`b791851` | 7a session-scoped standings link; 7b player search in the roster; 7c padel manual scoring (`padel.ts`, `padelValidators.ts`, migration m18.0); 7d admin panel (`/rd-admin`, shared password, service-role writes); 7e per-player history page; 7f admin player name/code editing; sport-aware stat labels; `?selected=` round-trip when adding a player mid-start; `unstable_rethrow` fix in `PlayerPicker`; `LeaderboardCardList` takes a `playerBasePath` string. 279 tests / 21 files. Promoted to production after m18.0 and the admin env vars were confirmed there. |
-| Post-0.9.0 — Admin error surfacing, slogans, tagline | `0546eb3`, `0d69763` | Admin pages now show Supabase query errors instead of an empty state. Slogan rotation expanded to 35 entries; site title/OG/Twitter tagline changed to "Fetch Your Stats. Bury the Excuses." No version bump. |
+| v0.9.1 — Win % Leaderboards (+ post-0.9.0 fixes) | `0546eb3`→`5c103bd` + version bump | Admin pages now show Supabase query errors instead of an empty state. Slogan rotation expanded to 35 entries; site title/OG/Twitter tagline changed to "Fetch Your Stats. Bury the Excuses." All-time and 30-Day leaderboards rank by win % → point diff → RDR → name (`p_sort_by: 'win_pct'`, no migration; D-069). Help page states the ranking. |
 
 ---
 

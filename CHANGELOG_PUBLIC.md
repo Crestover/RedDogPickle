@@ -2,7 +2,7 @@
 
 ---
 
-## November 22, 2026 — Leaderboards Ranked by Win %
+## v0.9.1 — Leaderboards Ranked by Win %
 
 ### Changed
 - **The All-Time and 30-Day leaderboards now rank players by win percentage instead of rating.** Whoever wins the biggest share of their games sits at the top. If two players have the same win %, the one with the better point differential goes first, then the higher rating. Last Session already worked this way, so all three views now rank players the same way.

@@ -854,7 +854,7 @@ SELECT COUNT(*) FROM public.vw_games_missing_ratings;
 | `end_session` | DEFINER | `(p_session_id uuid)` | `void` | Sets ended_at + closed_reason='manual' |
 | `record_game` | DEFINER | `(p_session_id, p_team_a_ids[], p_team_b_ids[], p_team_a_score, p_team_b_score, p_force)` | `jsonb` | Atomic game recording with dedup. FOR UPDATE lock |
 | `get_session_stats` | INVOKER | `(p_session_id uuid)` | `TABLE(11 cols incl rdr)` | Session leaderboard. Sorted: win_pct → point_diff → rdr → name |
-| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?, p_sort_by text?)` | `TABLE(13 cols incl rdr, peak_rating, peak_rating_achieved_at)` | Group leaderboard. p_sort_by='rdr': rdr → win_pct → point_diff → name |
+| `get_group_stats` | INVOKER | `(p_join_code text, p_days int?, p_sort_by text?)` | `TABLE(13 cols incl rdr, peak_rating, peak_rating_achieved_at)` | Group leaderboard. Default / 'win_pct': win_pct → point_diff → rdr → name (used by All-time + 30-Day since post-0.9.0). p_sort_by='rdr': rdr → win_pct → point_diff → name (no longer used by the UI) |
 | `get_last_session_id` | INVOKER | `(p_join_code text)` | `uuid` | Most recently ended session |
 | `get_session_pair_counts` | INVOKER | `(p_session_id uuid)` | `TABLE(5 cols)` | All attendee pairs + partner count |
 | `apply_ratings_for_game` | DEFINER | `(p_game_id uuid)` | `void` | Idempotent Elo update for one game |

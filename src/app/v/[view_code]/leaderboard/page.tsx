@@ -33,7 +33,7 @@ async function getGroupByViewCode(viewCode: string) {
 }
 
 // join_code used server-side only for RPC params; must never be rendered in /v
-async function getGroupStats(joinCode: string, days: number | null, sortBy: string = "rdr") {
+async function getGroupStats(joinCode: string, days: number | null, sortBy: string = "win_pct") {
   const supabase = getServerClient();
   const { data: stats, error } = await supabase.rpc(RPC.GET_GROUP_STATS, {
     p_join_code: joinCode,
@@ -137,7 +137,7 @@ export default async function ViewLeaderboardPage({ params, searchParams }: Page
     }
   } else {
     const days = mode === "30d" ? 30 : null;
-    stats = await getGroupStats(group.join_code, days, "rdr");
+    stats = await getGroupStats(group.join_code, days, "win_pct");
   }
 
   const ratingsMap = await getGroupRatings(group.id);

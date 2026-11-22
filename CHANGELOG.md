@@ -12,6 +12,7 @@ Format: `## [Milestone N] — Title (YYYY-MM-DD)`
 - Admin panel (`/rd-admin` group list and group detail) now shows the Supabase `error.message` on screen instead of treating a failed query as an empty result. A service-role key from the wrong Supabase project had made the group list read "No groups yet." (commit `0546eb3`).
 
 ### Changed
+- Leaderboard All-time and 30-Day views (group and view-only pages) now rank by win % instead of RDR. Tie-breaks: point differential, then RDR, then name — the same order Last Session already used. Both pages now pass `p_sort_by: 'win_pct'` to `get_group_stats`, which already supported that sort, so no migration is needed. GOAT badges are unaffected; they're computed separately.
 - Site title, OpenGraph title/image alt and Twitter card title (`src/app/layout.tsx`) are now "Red Dog – Fetch Your Stats. Bury the Excuses." (previously "A Proper Record for a Plastic Ball."). The share image is unchanged (logo only).
 
 ### Documentation

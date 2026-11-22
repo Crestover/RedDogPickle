@@ -2,6 +2,13 @@
 
 ---
 
+## Coming Next
+
+### Changed
+- All-Time and 30-Day leaderboards now rank players by win %. Ties go to point differential, then RDR. Your RDR still shows on every card.
+
+---
+
 ## v0.9.0 — Padel Support + Admin Tools
 
 ### Added

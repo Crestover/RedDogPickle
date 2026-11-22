@@ -15,8 +15,8 @@ import { notFound } from "next/navigation";
  * Stats computed from raw games via get_group_stats / get_session_stats RPCs.
  * Toggle via ?range=30d | ?range=last query param (no Client Component needed).
  *
- * All-time and 30-day modes sort by RDR (server-side via p_sort_by: 'rdr').
- * Last Session mode uses existing win% sorting.
+ * All modes sort by win% server-side (win% → point diff → RDR → name).
+ * All-time and 30-day pass p_sort_by: 'win_pct' to get_group_stats.
  */
 
 interface PageProps {
@@ -36,7 +36,7 @@ async function getGroup(joinCode: string) {
   return group;
 }
 
-async function getGroupStats(joinCode: string, days: number | null, sortBy: string = "rdr") {
+async function getGroupStats(joinCode: string, days: number | null, sortBy: string = "win_pct") {
   const supabase = getServerClient();
   const { data: stats, error } = await supabase.rpc(RPC.GET_GROUP_STATS, {
     p_join_code: joinCode,
@@ -199,9 +199,9 @@ export default async function LeaderboardPage({ params, searchParams }: PageProp
       stats = [];
     }
   } else {
-    // All-time and 30-day: sort by RDR server-side
+    // All-time and 30-day: sort by win% server-side
     const days = mode === "30d" ? 30 : null;
-    stats = await getGroupStats(joinCode, days, "rdr");
+    stats = await getGroupStats(joinCode, days, "win_pct");
   }
 
   // Fetch player ratings for display (needed for last-session mode which

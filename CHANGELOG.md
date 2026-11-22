@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-Format: `## [Milestone N] — Title (YYYY-MM-DD)`
+Format: `## [X.Y.Z] — Title (YYYY-MM-DD)`, always led by the version number, which must match `package.json`. The public counterpart, `CHANGELOG_PUBLIC.md`, uses `## vX.Y.Z — Title`. Full rules: [docs/how-to-deploy.md → Changelog entry format](docs/how-to-deploy.md#changelog-entry-format). Older entries below predate this format.
 
 ---
 

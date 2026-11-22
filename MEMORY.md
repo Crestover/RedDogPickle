@@ -70,7 +70,7 @@ v0.4.0 base: Red Dog Rating (RDR) replaces Elo. Session-level game rules (11/15/
 
 ### Git State
 - **Branch:** `dev` — all active development here; user merges to `main` manually
-- **Version:** `0.9.1` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC) — live on `main`/production and on `dev`. Data corrections and copy-only changes (slogans, tagline) do not bump the version.
+- **Version:** `0.9.1` (package.json → footer via next.config.ts, CHANGELOG, CHANGELOG_PUBLIC) — live on `main`/production and on `dev`. Data corrections and copy-only changes (slogans, tagline) do not bump the version. Any user-visible behaviour change does, before it goes to `main`. Changelog headings always lead with the version: public `## vX.Y.Z — Title`, internal `## [X.Y.Z] — Title (YYYY-MM-DD)`. Never use a date-led heading or "Coming Next" (see `docs/how-to-deploy.md` → Changelog entry format).
 - **Tests:** 279 passing across 21 files (`npx vitest run`)
 - **Latest migration:** `m18.0_padel_target_points.sql`
 - **Remote:** `origin` → `https://github.com/Crestover/RedDogPickle.git`

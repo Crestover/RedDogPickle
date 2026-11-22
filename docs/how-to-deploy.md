@@ -73,6 +73,21 @@ Every push to any other branch creates a **Preview deployment** with a unique UR
 2. Promote to production only on explicit go-ahead, as a fast-forward: `git push origin dev:main`.
 3. Apply any new SQL migration to the **production** Supabase project **before** promoting code that depends on it (migrations are applied by hand in the SQL Editor; see [how-to-update-schema.md](./how-to-update-schema.md)).
 4. Version bump checklist (only for releases, not for data corrections or copy tweaks): `package.json` → `CHANGELOG.md` → `CHANGELOG_PUBLIC.md` → `MEMORY.md`.
+5. Any change that alters what users see or how the app behaves is a release and gets a version bump before it is promoted: patch (`0.9.0` → `0.9.1`) for small changes and fixes, minor (`0.9.x` → `0.10.0`) for a new feature set. Don't ship user-visible changes unversioned.
+
+### Changelog entry format
+
+Both changelogs lead every entry heading with the version number. Never lead with a date, and don't use placeholders like "Coming Next" or "Unreleased" for anything already on production.
+
+| File | Heading format | Example |
+|------|----------------|---------|
+| `CHANGELOG_PUBLIC.md` (shown on the site at `/changelog_public`) | `## vX.Y.Z — Title` | `## v0.9.1 — Leaderboards Ranked by Win %` |
+| `CHANGELOG.md` (internal) | `## [X.Y.Z] — Title (YYYY-MM-DD)` | `## [0.9.1] — Leaderboards Rank by Win % (2026-11-22)` |
+
+- The heading version must match `package.json`, which is also what the site footer shows.
+- Newest entry goes at the top, under the `# What's New` / `# Changelog` header, with a `---` rule between entries.
+- Public entries are grouped under `### Added`, `### Improved`, `### Changed` or `### Fixed`, written in plain language for players. No file names, RPC names or internal jargon.
+- Don't put notes or HTML comments in `CHANGELOG_PUBLIC.md`. The page escapes HTML, so they would show up as visible text on the site.
 
 ---
 
